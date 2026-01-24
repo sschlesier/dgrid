@@ -161,11 +161,11 @@ export interface FileWriteResponse {
 }
 
 export async function readFile(path: string): Promise<FileReadResponse> {
-  return request<FileReadResponse>(`/files?path=${encodeURIComponent(path)}`);
+  return request<FileReadResponse>(`/files/read?path=${encodeURIComponent(path)}`);
 }
 
 export async function writeFile(data: FileWriteRequest): Promise<FileWriteResponse> {
-  return request<FileWriteResponse>('/files', {
+  return request<FileWriteResponse>('/files/write', {
     method: 'POST',
     body: JSON.stringify(data),
   });

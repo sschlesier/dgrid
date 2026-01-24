@@ -286,7 +286,7 @@ describe('API client', () => {
 
       const result = await readFile('/test.js');
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/files?path=%2Ftest.js', expect.any(Object));
+      expect(mockFetch).toHaveBeenCalledWith('/api/files/read?path=%2Ftest.js', expect.any(Object));
       expect(result).toEqual(fileData);
     });
 
@@ -298,7 +298,7 @@ describe('API client', () => {
       const result = await writeFile(writeData);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/files',
+        '/api/files/write',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify(writeData),

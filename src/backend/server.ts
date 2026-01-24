@@ -2,9 +2,11 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import websocket from '@fastify/websocket';
 import { join } from 'path';
 import { homedir } from 'os';
 import { apiRoutes } from './routes/index.js';
+import { websocketRoutes } from './routes/websocket.js';
 import { createConnectionStorage } from './storage/connections.js';
 import { createPasswordStorage } from './storage/keyring.js';
 import { createConnectionPool } from './db/mongodb.js';
@@ -38,6 +40,10 @@ async function main(): Promise<void> {
     max: 100,
     timeWindow: '1 minute',
   });
+
+  // WebSocket support for file watching
+  await app.register(websocket);
+  await app.register(websocketRoutes);
 
   // Initialize storage and connection pool
   const storage = createConnectionStorage(DATA_DIR);

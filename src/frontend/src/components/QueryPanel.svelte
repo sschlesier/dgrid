@@ -2,6 +2,12 @@
   import type { Tab } from '../types';
   import { appStore } from '../stores/app.svelte';
   import { queryStore } from '../stores/query.svelte';
+  import { editorStore } from '../stores/editor.svelte';
+  import { watchFile } from '../api/websocket';
+  import * as api from '../api/client';
+  import Editor from './Editor.svelte';
+  import QueryHistory from './QueryHistory.svelte';
+  import FileDialog from './FileDialog.svelte';
 
   interface Props {
     tab: Tab;
@@ -15,11 +21,17 @@
   let isExecuting = $derived(queryStore.getIsExecuting(tab.id));
   let error = $derived(queryStore.getError(tab.id));
 
-  function handleQueryChange(event: Event) {
-    const textarea = event.target as HTMLTextAreaElement;
-    queryStore.setQueryText(tab.id, textarea.value);
-    // Also update tab title based on query
-    const firstLine = textarea.value.split('\n')[0].slice(0, 30);
+  // UI state
+  let showHistory = $state(false);
+  let fileDialogMode = $state<'save' | 'load' | null>(null);
+  let currentFilePath = $state<string | null>(null);
+  let fileError = $state<string | null>(null);
+  let unwatchFile = $state<(() => void) | null>(null);
+
+  function handleQueryChange(value: string) {
+    queryStore.setQueryText(tab.id, value);
+    // Update tab title based on query
+    const firstLine = value.split('\n')[0].slice(0, 30);
     if (firstLine) {
       appStore.updateTab(tab.id, { title: firstLine || 'New Query' });
     }
@@ -37,17 +49,101 @@
     await queryStore.loadPage(tab.id, tab.connectionId, tab.database, query, newPage);
   }
 
-  function handleKeyDown(event: KeyboardEvent) {
-    // Cmd/Ctrl + Enter to execute
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault();
-      handleExecute();
-    }
-  }
-
   function formatDocument(doc: Record<string, unknown>): string {
     return JSON.stringify(doc, null, 2);
   }
+
+  // History handlers
+  function openHistory() {
+    showHistory = true;
+  }
+
+  function closeHistory() {
+    showHistory = false;
+  }
+
+  function selectHistoryItem(item: { query: string }) {
+    queryStore.setQueryText(tab.id, item.query);
+    showHistory = false;
+  }
+
+  function clearHistory() {
+    queryStore.clearHistory();
+  }
+
+  // File dialog handlers
+  function openLoadDialog() {
+    fileDialogMode = 'load';
+    fileError = null;
+  }
+
+  function openSaveDialog() {
+    fileDialogMode = 'save';
+    fileError = null;
+  }
+
+  function closeFileDialog() {
+    fileDialogMode = null;
+    fileError = null;
+  }
+
+  async function handleFileLoad(path: string) {
+    try {
+      const result = await api.readFile(path);
+      queryStore.setQueryText(tab.id, result.content);
+      editorStore.addRecentPath(path);
+      currentFilePath = path;
+      fileDialogMode = null;
+      fileError = null;
+
+      // Start watching the file
+      startWatching(path);
+    } catch (e) {
+      fileError = (e as Error).message;
+    }
+  }
+
+  async function handleFileSave(path: string) {
+    try {
+      const content = queryStore.getQueryText(tab.id);
+      await api.writeFile({ path, content });
+      editorStore.addRecentPath(path);
+      currentFilePath = path;
+      fileDialogMode = null;
+      fileError = null;
+
+      // Start watching the file
+      startWatching(path);
+    } catch (e) {
+      fileError = (e as Error).message;
+    }
+  }
+
+  function startWatching(path: string) {
+    // Stop watching previous file
+    if (unwatchFile) {
+      unwatchFile();
+      unwatchFile = null;
+    }
+
+    // Watch new file
+    unwatchFile = watchFile(path, (content) => {
+      // Update editor content when file changes externally
+      const currentContent = queryStore.getQueryText(tab.id);
+      if (content !== currentContent) {
+        queryStore.setQueryText(tab.id, content);
+      }
+    });
+  }
+
+  // Cleanup on component destroy
+  $effect(() => {
+    return () => {
+      if (unwatchFile) {
+        unwatchFile();
+      }
+    };
+  });
 </script>
 
 <div class="query-panel">
@@ -64,17 +160,79 @@
           Execute (⌘↵)
         {/if}
       </button>
+
+      <div class="toolbar-divider"></div>
+
+      <button class="toolbar-btn" onclick={openHistory} title="Query History">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path
+            d="M8 3.5a4.5 4.5 0 1 0 4.5 4.5.75.75 0 0 1 1.5 0 6 6 0 1 1-6-6 .75.75 0 0 1 0 1.5Z"
+          />
+          <path
+            d="M8 6.75a.75.75 0 0 1 .75.75v2.69l1.72 1.72a.75.75 0 1 1-1.06 1.06l-2-2A.75.75 0 0 1 7.25 10V7.5A.75.75 0 0 1 8 6.75Z"
+          />
+          <path
+            d="M10.97 1.22a.75.75 0 0 1 1.06 0l2.75 2.75a.75.75 0 0 1-1.06 1.06L11 2.28 8.28 5.03a.75.75 0 0 1-1.06-1.06l2.75-2.75Z"
+          />
+        </svg>
+        <span>History</span>
+      </button>
+
+      <button class="toolbar-btn" onclick={openLoadDialog} title="Load from File">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path
+            d="M3.5 3.75a.25.25 0 0 1 .25-.25h5a.75.75 0 0 0 0-1.5h-5A1.75 1.75 0 0 0 2 3.75v8.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 12.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25h-8.5a.25.25 0 0 1-.25-.25v-8.5Z"
+          />
+          <path
+            d="M13.78 1.22a.75.75 0 0 1 0 1.06L8.06 8l1.72 1.72a.75.75 0 1 1-1.06 1.06l-2.25-2.25a.75.75 0 0 1 0-1.06l5.25-5.25a.75.75 0 0 1 1.06 0Z"
+          />
+        </svg>
+        <span>Load</span>
+      </button>
+
+      <button class="toolbar-btn" onclick={openSaveDialog} title="Save to File">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path
+            d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z"
+          />
+        </svg>
+        <span>Save</span>
+      </button>
+
+      <div class="toolbar-divider"></div>
+
+      <button
+        class="toolbar-btn"
+        class:active={editorStore.vimMode}
+        onclick={() => editorStore.toggleVimMode()}
+        title="Toggle Vim Mode"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path
+            d="M4.708 5.578L2.061 8.224l2.647 2.646.708-.708-1.939-1.938 1.939-1.938-.708-.708zm6.584 0l-.708.708 1.939 1.938-1.939 1.938.708.708 2.647-2.646-2.647-2.646zM7.042 11.678l1.683-7.356h1.233l-1.683 7.356H7.042z"
+          />
+        </svg>
+        <span>Vim</span>
+      </button>
+
+      <div class="toolbar-spacer"></div>
+
+      {#if currentFilePath}
+        <span class="toolbar-file" title={currentFilePath}>
+          {currentFilePath.split('/').pop()}
+        </span>
+      {/if}
+
       <span class="toolbar-info">Database: {tab.database}</span>
     </div>
 
-    <textarea
-      class="query-editor"
+    <Editor
       value={queryText}
-      oninput={handleQueryChange}
-      onkeydown={handleKeyDown}
+      onchange={handleQueryChange}
+      onexecute={handleExecute}
+      vimMode={editorStore.vimMode}
       placeholder="Enter your MongoDB query here... (e.g., db.collection.find())"
-      spellcheck="false"
-    ></textarea>
+    />
   </div>
 
   <div class="results-section">
@@ -135,6 +293,25 @@
   </div>
 </div>
 
+{#if showHistory}
+  <QueryHistory
+    history={queryStore.history}
+    onselect={selectHistoryItem}
+    onclear={clearHistory}
+    onclose={closeHistory}
+  />
+{/if}
+
+{#if fileDialogMode}
+  <FileDialog
+    mode={fileDialogMode}
+    initialPath={currentFilePath ?? ''}
+    apiError={fileError}
+    onconfirm={fileDialogMode === 'load' ? handleFileLoad : handleFileSave}
+    oncancel={closeFileDialog}
+  />
+{/if}
+
 <style>
   .query-panel {
     display: flex;
@@ -154,7 +331,7 @@
   .toolbar {
     display: flex;
     align-items: center;
-    gap: var(--space-md);
+    gap: var(--space-sm);
     padding: var(--space-sm) var(--space-md);
     background-color: var(--color-bg-secondary);
     border-bottom: 1px solid var(--color-border-light);
@@ -179,28 +356,55 @@
     cursor: not-allowed;
   }
 
+  .toolbar-divider {
+    width: 1px;
+    height: 20px;
+    background-color: var(--color-border-light);
+  }
+
+  .toolbar-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  .toolbar-btn:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  .toolbar-btn.active {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+  }
+
+  .toolbar-spacer {
+    flex: 1;
+  }
+
+  .toolbar-file {
+    padding: var(--space-xs) var(--space-sm);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    background-color: var(--color-bg-tertiary);
+    border-radius: var(--radius-sm);
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .toolbar-info {
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
-  }
-
-  .query-editor {
-    flex: 1;
-    padding: var(--space-md);
-    font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
-    line-height: var(--line-height-relaxed);
-    background-color: var(--color-bg-primary);
-    border: none;
-    resize: none;
-  }
-
-  .query-editor:focus {
-    outline: none;
-  }
-
-  .query-editor::placeholder {
-    color: var(--color-text-muted);
   }
 
   .results-section {
