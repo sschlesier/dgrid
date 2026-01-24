@@ -28,6 +28,12 @@ export const treeIcons = {
 
   // Loading spinner
   loading: `<path d="M8 1.5v2M8 12.5v2M3.17 3.17l1.42 1.42M11.41 11.41l1.42 1.42M1.5 8h2M12.5 8h2M3.17 12.83l1.42-1.42M11.41 4.59l1.42-1.42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>`,
+
+  // Disconnect/power icon
+  disconnect: `<path d="M8 1v4M4.93 3.93L3.5 2.5M11.07 3.93l1.43-1.43M3 8a5 5 0 1 0 10 0 5 5 0 0 0-10 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>`,
+
+  // Refresh/reload icon
+  refresh: `<path d="M13.5 8a5.5 5.5 0 1 1-1.1-3.3M13.5 2v3h-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
 } as const;
 
 export type TreeIconName = keyof typeof treeIcons;
