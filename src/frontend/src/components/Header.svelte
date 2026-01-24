@@ -6,28 +6,6 @@
   }
 
   let { onNewConnection }: Props = $props();
-
-  let selectedDatabase = $state('');
-
-  function handleConnectionChange(event: Event) {
-    const select = event.target as HTMLSelectElement;
-    const connectionId = select.value;
-    if (connectionId) {
-      appStore.setActiveConnection(connectionId);
-      selectedDatabase = '';
-    }
-  }
-
-  function handleDatabaseChange(event: Event) {
-    const select = event.target as HTMLSelectElement;
-    selectedDatabase = select.value;
-  }
-
-  function handleNewTab() {
-    if (appStore.activeConnectionId && selectedDatabase) {
-      appStore.createTab(appStore.activeConnectionId, selectedDatabase);
-    }
-  }
 </script>
 
 <header class="header">
@@ -46,45 +24,7 @@
     <h1 class="app-title">DGrid</h1>
   </div>
 
-  <div class="header-center">
-    <select
-      class="connection-select"
-      value={appStore.activeConnectionId ?? ''}
-      onchange={handleConnectionChange}
-    >
-      <option value="">Select connection...</option>
-      {#each appStore.connections as connection (connection.id)}
-        <option value={connection.id}>
-          {connection.name}
-          {#if connection.isConnected}(connected){/if}
-        </option>
-      {/each}
-    </select>
-
-    {#if appStore.activeConnection?.isConnected}
-      <select
-        class="database-select"
-        value={selectedDatabase}
-        onchange={handleDatabaseChange}
-        disabled={appStore.isLoadingDatabases}
-      >
-        <option value="">Select database...</option>
-        {#each appStore.databases as database (database.name)}
-          <option value={database.name}>{database.name}</option>
-        {/each}
-      </select>
-    {/if}
-  </div>
-
   <div class="header-right">
-    <button
-      class="header-btn"
-      onclick={handleNewTab}
-      disabled={!appStore.activeConnectionId || !selectedDatabase}
-      title="New query tab"
-    >
-      New Tab
-    </button>
     <button class="header-btn primary" onclick={onNewConnection} title="Add new connection">
       New Connection
     </button>
@@ -131,30 +71,6 @@
     color: var(--color-text-primary);
   }
 
-  .header-center {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    flex: 1;
-    justify-content: center;
-  }
-
-  .connection-select,
-  .database-select {
-    padding: var(--space-xs) var(--space-sm);
-    background-color: var(--color-bg-primary);
-    border: 1px solid var(--color-border-medium);
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    min-width: 180px;
-  }
-
-  .connection-select:focus,
-  .database-select:focus {
-    outline: none;
-    border-color: var(--color-primary);
-  }
-
   .header-right {
     display: flex;
     align-items: center;
@@ -173,11 +89,6 @@
 
   .header-btn:hover:not(:disabled) {
     background-color: var(--color-bg-hover);
-  }
-
-  .header-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 
   .header-btn.primary {
