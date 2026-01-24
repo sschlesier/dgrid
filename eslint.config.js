@@ -106,12 +106,24 @@ export default [
       parserOptions: {
         parser: tsParser,
       },
+      globals: {
+        ...globals.browser,
+        // Svelte 5 runes
+        $state: 'readonly',
+        $derived: 'readonly',
+        $effect: 'readonly',
+        $props: 'readonly',
+        $bindable: 'readonly',
+        $inspect: 'readonly',
+        $host: 'readonly',
+      },
     },
     plugins: {
       svelte,
     },
     rules: {
       ...svelte.configs.recommended.rules,
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
   prettier,

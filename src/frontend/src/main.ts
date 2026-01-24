@@ -1,2 +1,8 @@
-console.log('Frontend placeholder');
-// Will be implemented in Phase 3
+import { mount } from 'svelte';
+import App from './App.svelte';
+
+const app = mount(App, {
+  target: document.getElementById('app')!,
+});
+
+export default app;

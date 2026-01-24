@@ -2,7 +2,6 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "../../dist/frontend",
-    "rootDir": "./src",
     "types": ["vite/client", "svelte", "vitest"],
     "target": "ES2020",
     "module": "ESNext",
@@ -11,6 +10,6 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../shared/**/*"],
   "exclude": ["node_modules"]
 }

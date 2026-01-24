@@ -16,7 +16,7 @@ vi.mock('../api/client', () => ({
 import * as api from '../api/client';
 import { appStore } from '../stores/app.svelte';
 
-const mockedApi = api as {
+const mockedApi = api as unknown as {
   getConnections: ReturnType<typeof vi.fn>;
   createConnection: ReturnType<typeof vi.fn>;
   updateConnection: ReturnType<typeof vi.fn>;

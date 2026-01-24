@@ -9,7 +9,7 @@ vi.mock('../api/client', () => ({
 import * as api from '../api/client';
 import { queryStore } from '../stores/query.svelte';
 
-const mockedApi = api as {
+const mockedApi = api as unknown as {
   executeQuery: ReturnType<typeof vi.fn>;
 };
 
