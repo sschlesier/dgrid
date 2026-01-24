@@ -23,7 +23,7 @@ This plan captures the essential architecture and requirements from the existing
 - **Grid display** of MongoDB documents with pagination (50/100/250/500 per page)
 - **BSON type support**: String, Number, Date, ObjectId, Boolean, Array, Object
 - **Visual indicators** for data types (icons, colors, formatting)
-- **Drill-down navigation**: Double-click Arrays/Objects to view in new tab
+- **Drill-down navigation**: Click Arrays/Objects to drill into nested data in-place with breadcrumb path (e.g., `data > position > coordinates > 0`)
 - **Tab-based interface** for multiple views
 - **Column operations**: Resizable, sortable columns
 - **Data operations**: Copy cell/row data, search/filter
@@ -307,10 +307,12 @@ dgrid-v2/
    - BSON type rendering (ObjectId, Date, etc.)
    - Column resize and sort
 
-2. **Drill-down navigation**
-   - Array/Object cell click handling
-   - New tab creation with breadcrumb
-   - Navigation state management
+2. **Drill-down navigation** (in-place, not new tab)
+   - Click Array/Object cell to drill into nested data
+   - Grid re-renders showing nested content with document ID column preserved
+   - Breadcrumb path display (e.g., `data > position > type`)
+   - Back/forward navigation arrows
+   - Objects display as `{ N fields }`, Arrays as `[ N elements ]`
 
 3. **Grid features**
    - Pagination controls
@@ -438,7 +440,7 @@ No data migration needed:
 
 - [ ] Connect to MongoDB with saved connections
 - [ ] Execute queries and display results in grid
-- [ ] Drill down into Arrays and Objects
+- [ ] Drill down into Arrays and Objects (in-place with breadcrumb navigation)
 - [ ] Save and load query files
 - [ ] Watch external query files for changes
 - [ ] Store passwords securely in OS keyring

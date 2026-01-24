@@ -3,11 +3,13 @@
   import { appStore } from '../stores/app.svelte';
   import { queryStore } from '../stores/query.svelte';
   import { editorStore } from '../stores/editor.svelte';
+  import { gridStore } from '../stores/grid.svelte';
   import { watchFile } from '../api/websocket';
   import * as api from '../api/client';
   import Editor from './Editor.svelte';
   import QueryHistory from './QueryHistory.svelte';
   import FileDialog from './FileDialog.svelte';
+  import { ResultsGrid } from './grid';
 
   interface Props {
     tab: Tab;
@@ -41,16 +43,23 @@
     const query = queryStore.getQueryText(tab.id);
     if (!query.trim()) return;
 
-    await queryStore.executeQuery(tab.id, tab.connectionId, tab.database, query);
+    // Reset grid state for new query
+    gridStore.resetState(tab.id);
+
+    const pageSize = gridStore.getPageSize(tab.id);
+    await queryStore.executeQuery(tab.id, tab.connectionId, tab.database, query, 1, pageSize);
   }
 
   async function handlePageChange(newPage: number) {
     const query = queryStore.getQueryText(tab.id);
-    await queryStore.loadPage(tab.id, tab.connectionId, tab.database, query, newPage);
+    const pageSize = gridStore.getPageSize(tab.id);
+    await queryStore.loadPage(tab.id, tab.connectionId, tab.database, query, newPage, pageSize);
   }
 
-  function formatDocument(doc: Record<string, unknown>): string {
-    return JSON.stringify(doc, null, 2);
+  async function handlePageSizeChange(newSize: 50 | 100 | 250 | 500) {
+    const query = queryStore.getQueryText(tab.id);
+    // Re-execute query from page 1 with new page size
+    await queryStore.executeQuery(tab.id, tab.connectionId, tab.database, query, 1, newSize);
   }
 
   // History handlers
@@ -246,45 +255,12 @@
         <span>Executing query...</span>
       </div>
     {:else if results}
-      <div class="results-header">
-        <span class="results-count">
-          {results.totalCount} document{results.totalCount !== 1 ? 's' : ''}
-        </span>
-        {#if results.totalCount > results.pageSize}
-          <div class="pagination">
-            <button
-              onclick={() => results && handlePageChange(results.page - 1)}
-              disabled={results.page === 1}
-            >
-              Previous
-            </button>
-            <span>
-              Page {results.page} of {Math.ceil(results.totalCount / results.pageSize)}
-            </span>
-            <button
-              onclick={() => results && handlePageChange(results.page + 1)}
-              disabled={!results.hasMore}
-            >
-              Next
-            </button>
-          </div>
-        {/if}
-      </div>
-
-      <div class="results-content">
-        {#each results.documents as doc, index (index)}
-          <div class="document">
-            <div class="document-header">
-              Document {(results.page - 1) * results.pageSize + index + 1}
-            </div>
-            <pre class="document-content">{formatDocument(doc)}</pre>
-          </div>
-        {/each}
-
-        {#if results.documents.length === 0}
-          <div class="no-results">No documents found</div>
-        {/if}
-      </div>
+      <ResultsGrid
+        tabId={tab.id}
+        {results}
+        onpagechange={handlePageChange}
+        onpagesizechange={handlePageSizeChange}
+      />
     {:else}
       <div class="empty-results">
         <p>Execute a query to see results</p>
@@ -414,76 +390,6 @@
     overflow: hidden;
   }
 
-  .results-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-sm) var(--space-md);
-    background-color: var(--color-bg-secondary);
-    border-bottom: 1px solid var(--color-border-light);
-  }
-
-  .results-count {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
-  }
-
-  .pagination {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    font-size: var(--font-size-sm);
-  }
-
-  .pagination button {
-    padding: var(--space-xs) var(--space-sm);
-    background-color: var(--color-bg-primary);
-    border: 1px solid var(--color-border-medium);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-  }
-
-  .pagination button:hover:not(:disabled) {
-    background-color: var(--color-bg-hover);
-  }
-
-  .pagination button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .results-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--space-md);
-  }
-
-  .document {
-    margin-bottom: var(--space-md);
-    border: 1px solid var(--color-border-light);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-  }
-
-  .document-header {
-    padding: var(--space-xs) var(--space-sm);
-    background-color: var(--color-bg-secondary);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-secondary);
-    border-bottom: 1px solid var(--color-border-light);
-  }
-
-  .document-content {
-    padding: var(--space-sm);
-    font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
-    line-height: var(--line-height-normal);
-    background-color: var(--color-bg-primary);
-    overflow-x: auto;
-    margin: 0;
-  }
-
   .error-display {
     padding: var(--space-md);
     background-color: var(--color-error-light);
@@ -515,12 +421,6 @@
     align-items: center;
     justify-content: center;
     flex: 1;
-    color: var(--color-text-muted);
-  }
-
-  .no-results {
-    text-align: center;
-    padding: var(--space-xl);
     color: var(--color-text-muted);
   }
 </style>
