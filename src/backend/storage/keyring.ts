@@ -14,7 +14,7 @@ export function createPasswordStorage(serviceName: string = DEFAULT_SERVICE_NAME
       try {
         const entry = new Entry(serviceName, connectionId);
         const password = entry.getPassword();
-        return password;
+        return password ?? undefined;
       } catch {
         // Keyring unavailable or entry not found
         return undefined;

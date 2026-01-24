@@ -2,9 +2,9 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "../../dist/backend",
-    "rootDir": ".",
+    "rootDir": "..",
     "types": ["node", "vitest"]
   },
-  "include": ["./**/*"],
+  "include": ["./**/*", "../shared/**/*"],
   "exclude": ["node_modules", "__tests__"]
 }

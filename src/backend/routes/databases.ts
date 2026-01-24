@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { Db } from 'mongodb';
 import { ConnectionPool } from '../db/mongodb.js';
 import { DatabaseInfo, CollectionInfo } from '../../shared/contracts.js';
 
@@ -15,7 +16,7 @@ interface CollStats {
 }
 
 async function getCollectionStats(
-  db: ReturnType<ReturnType<(typeof import('mongodb').MongoClient)['prototype']['db']>>,
+  db: Db,
   collectionName: string
 ): Promise<{ count: number; avgObjSize: number; size: number }> {
   try {
