@@ -80,10 +80,21 @@ pnpm build            # Build both backend and frontend
 - **code-reviewer**: Review changes after implementation
 - **type-checker**: Fix TypeScript errors
 
-## Commit messages
+## Commit Guidelines
 
 - Use git conventional commits
-- NEVER attribute anything yourself or anyone else
+- Keep commits small and focused (one logical change per commit)
+- Commit regularly as you progress through tasks
+- Each commit should leave the codebase in a working state
+
+**IMPORTANT: No Attribution**
+
+Do NOT add any attribution to commits. This means:
+
+- No `Co-Authored-By` lines
+- No `Signed-off-by` lines
+- No mentions of AI, Claude, or any contributor in commit messages
+- Just the commit message itself, nothing else
 
 ## Common Patterns
 
