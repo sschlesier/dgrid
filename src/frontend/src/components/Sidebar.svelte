@@ -47,6 +47,11 @@
     event.stopPropagation();
     onEditConnection(connectionId);
   }
+
+  function handleDisconnect(event: MouseEvent, connectionId: string) {
+    event.stopPropagation();
+    appStore.disconnect(connectionId);
+  }
 </script>
 
 <aside class="sidebar">
@@ -69,17 +74,36 @@
       {#each appStore.treeData as node (node.id)}
         <div class="connection-tree-item">
           <TreeNode {node} onNodeClick={handleNodeClick} onNodeExpand={handleNodeExpand} />
-          <!-- Edit button overlay for connections -->
+          <!-- Action buttons overlay for connections -->
           {#if node.type === 'connection'}
-            <button
-              class="edit-btn"
-              onclick={(e) => handleEditConnection(e, node.connectionId!)}
-              title="Edit connection"
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M11.5 2.5l2 2-7 7H4.5v-2l7-7z" />
-              </svg>
-            </button>
+            <div class="action-buttons">
+              {#if appStore.connections.find((c) => c.id === node.connectionId)?.isConnected}
+                <button
+                  class="action-btn"
+                  onclick={(e) => handleDisconnect(e, node.connectionId!)}
+                  title="Disconnect"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16">
+                    <path
+                      d="M8 1v4M4.93 3.93L3.5 2.5M11.07 3.93l1.43-1.43M3 8a5 5 0 1 0 10 0 5 5 0 0 0-10 0"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      fill="none"
+                    />
+                  </svg>
+                </button>
+              {/if}
+              <button
+                class="action-btn"
+                onclick={(e) => handleEditConnection(e, node.connectionId!)}
+                title="Edit connection"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M11.5 2.5l2 2-7 7H4.5v-2l7-7z" />
+                </svg>
+              </button>
+            </div>
           {/if}
         </div>
       {/each}
@@ -144,10 +168,22 @@
     position: relative;
   }
 
-  .edit-btn {
+  .action-buttons {
     position: absolute;
     top: 6px;
     right: var(--space-sm);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+  }
+
+  .connection-tree-item:hover .action-buttons {
+    opacity: 1;
+  }
+
+  .action-btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -155,15 +191,10 @@
     height: 20px;
     color: var(--color-text-secondary);
     border-radius: var(--radius-sm);
-    opacity: 0;
     transition: all var(--transition-fast);
   }
 
-  .connection-tree-item:hover .edit-btn {
-    opacity: 1;
-  }
-
-  .edit-btn:hover {
+  .action-btn:hover {
     background-color: var(--color-bg-tertiary);
     color: var(--color-text-primary);
   }
