@@ -7,6 +7,7 @@ import {
   CreateConnectionRequest,
   UpdateConnectionRequest,
   ConnectionResponse,
+  TestConnectionRequest,
   TestConnectionResponse,
 } from '../../shared/contracts.js';
 
@@ -16,13 +17,22 @@ export interface ConnectionRoutesOptions {
   pool: ConnectionPool;
 }
 
-function buildMongoUri(conn: StoredConnection, password?: string): string {
+interface MongoConnectionParams {
+  host: string;
+  port: number;
+  database?: string;
+  username?: string;
+  password?: string;
+  authSource?: string;
+}
+
+function buildMongoUri(conn: MongoConnectionParams): string {
   let uri = 'mongodb://';
 
   if (conn.username) {
     uri += encodeURIComponent(conn.username);
-    if (password) {
-      uri += ':' + encodeURIComponent(password);
+    if (conn.password) {
+      uri += ':' + encodeURIComponent(conn.password);
     }
     uri += '@';
   }
@@ -159,7 +169,41 @@ export async function connectionRoutes(
     }
   });
 
-  // Test connection
+  // Test unsaved connection (must be before /:id/test to match correctly)
+  fastify.post<{ Body: TestConnectionRequest }>('/test', async (request, reply) => {
+    const { host, port, database, username, password, authSource } = request.body;
+    const uri = buildMongoUri({ host, port, database, username, password, authSource });
+
+    const startTime = Date.now();
+    const client = new MongoClient(uri, {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 5000,
+    });
+
+    try {
+      await client.connect();
+      await client.db('admin').command({ ping: 1 });
+      const latencyMs = Date.now() - startTime;
+
+      const response: TestConnectionResponse = {
+        success: true,
+        message: 'Connection successful',
+        latencyMs,
+      };
+      return reply.send(response);
+    } catch (e) {
+      const error = e as Error;
+      const response: TestConnectionResponse = {
+        success: false,
+        message: error.message,
+      };
+      return reply.send(response);
+    } finally {
+      await client.close();
+    }
+  });
+
+  // Test saved connection by ID
   fastify.post<{ Params: { id: string } }>('/:id/test', async (request, reply) => {
     const conn = await storage.get(request.params.id);
     if (!conn) {
@@ -171,7 +215,7 @@ export async function connectionRoutes(
     }
 
     const password = await passwords.get(conn.id);
-    const uri = buildMongoUri(conn, password);
+    const uri = buildMongoUri({ ...conn, password });
 
     const startTime = Date.now();
     const client = new MongoClient(uri, {
@@ -224,7 +268,7 @@ export async function connectionRoutes(
     }
 
     const password = await passwords.get(conn.id);
-    const uri = buildMongoUri(conn, password);
+    const uri = buildMongoUri({ ...conn, password });
 
     try {
       await pool.connect(id, { uri, database: conn.database });

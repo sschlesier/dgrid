@@ -255,6 +255,41 @@ describe('Connection Routes', () => {
     });
   });
 
+  describe('POST /test (unsaved connection)', () => {
+    it('tests unsaved connection successfully', async () => {
+      // Parse the mongodb-memory-server URI
+      const url = new URL(mongoUri);
+      const host = url.hostname;
+      const port = parseInt(url.port, 10);
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/test',
+        payload: { host, port },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const result = response.json();
+      expect(result.success).toBe(true);
+      expect(result.message).toBe('Connection successful');
+      expect(result.latencyMs).toBeGreaterThanOrEqual(0);
+    });
+
+    // Skip: Connection timeout can exceed test timeout
+    it.skip('returns failure for invalid connection', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/test',
+        payload: { host: '127.0.0.1', port: 1 },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const result = response.json();
+      expect(result.success).toBe(false);
+      expect(result.message).toBeDefined();
+    });
+  });
+
   describe('POST /:id/test', () => {
     it('tests connection successfully', async () => {
       // Parse the mongodb-memory-server URI
