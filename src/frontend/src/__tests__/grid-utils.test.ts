@@ -7,6 +7,8 @@ import {
   detectColumns,
   getNestedValue,
   flattenArrayData,
+  expandArrayAsColumns,
+  isArrayOfObjects,
   sortDocuments,
   getCellTypeClass,
 } from '../components/grid/utils';
@@ -215,8 +217,41 @@ describe('Grid Utils', () => {
     });
   });
 
+  describe('isArrayOfObjects', () => {
+    it('returns true for array of objects', () => {
+      expect(isArrayOfObjects([{ name: 'A' }, { name: 'B' }])).toBe(true);
+    });
+
+    it('returns false for array of primitives', () => {
+      expect(isArrayOfObjects([1, 2, 3])).toBe(false);
+      expect(isArrayOfObjects(['a', 'b', 'c'])).toBe(false);
+    });
+
+    it('returns false for empty array', () => {
+      expect(isArrayOfObjects([])).toBe(false);
+    });
+
+    it('returns false for array of BSON types', () => {
+      expect(
+        isArrayOfObjects([
+          { _type: 'ObjectId', _value: '507f' },
+          { _type: 'ObjectId', _value: '508f' },
+        ])
+      ).toBe(false);
+    });
+
+    it('returns false for array of arrays', () => {
+      expect(
+        isArrayOfObjects([
+          [1, 2],
+          [3, 4],
+        ])
+      ).toBe(false);
+    });
+  });
+
   describe('flattenArrayData', () => {
-    it('flattens array fields', () => {
+    it('flattens array of objects into rows', () => {
       const docs = [
         {
           _id: '1',
@@ -234,6 +269,48 @@ describe('Grid Utils', () => {
       expect(result[0]).toMatchObject({ _docId: '1', _arrayIndex: 0, name: 'A' });
       expect(result[1]).toMatchObject({ _docId: '1', _arrayIndex: 1, name: 'B' });
       expect(result[2]).toMatchObject({ _docId: '2', _arrayIndex: 0, name: 'C' });
+    });
+  });
+
+  describe('expandArrayAsColumns', () => {
+    it('expands array of primitives into columns', () => {
+      const docs = [
+        { _id: '1', coordinates: [-66.5, 45.2] },
+        { _id: '2', coordinates: [-55.9, 49.7] },
+        { _id: '3', coordinates: [-25.2, 66.3] },
+      ];
+
+      const result = expandArrayAsColumns(docs, ['coordinates']);
+
+      expect(result).toHaveLength(3);
+      expect(result[0]).toMatchObject({ _docId: '1', '0': -66.5, '1': 45.2 });
+      expect(result[1]).toMatchObject({ _docId: '2', '0': -55.9, '1': 49.7 });
+      expect(result[2]).toMatchObject({ _docId: '3', '0': -25.2, '1': 66.3 });
+    });
+
+    it('handles arrays of different lengths', () => {
+      const docs = [
+        { _id: '1', values: [1, 2, 3] },
+        { _id: '2', values: [4, 5] },
+        { _id: '3', values: [6] },
+      ];
+
+      const result = expandArrayAsColumns(docs, ['values']);
+
+      expect(result[0]).toMatchObject({ '0': 1, '1': 2, '2': 3 });
+      expect(result[1]).toMatchObject({ '0': 4, '1': 5 });
+      expect(result[1]['2']).toBeUndefined();
+      expect(result[2]).toMatchObject({ '0': 6 });
+    });
+  });
+
+  describe('detectColumns with numeric keys', () => {
+    it('sorts numeric column keys in order', () => {
+      const docs = [{ '0': -66.5, '1': 45.2, '10': 100, '2': 30.1 }];
+
+      const columns = detectColumns(docs);
+
+      expect(columns.map((c) => c.key)).toEqual(['0', '1', '2', '10']);
     });
   });
 

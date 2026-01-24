@@ -5,6 +5,8 @@
   import {
     detectColumns,
     flattenArrayData,
+    expandArrayAsColumns,
+    isArrayOfObjects,
     sortDocuments,
     getNestedValue,
     isSerializedBson,
@@ -52,7 +54,13 @@
     if (firstDoc) {
       const nestedValue = getNestedValue(firstDoc, drilldownPath);
       if (Array.isArray(nestedValue)) {
-        return flattenArrayData(docs, drilldownPath);
+        // For arrays of objects, flatten into rows (one row per array element)
+        // For arrays of primitives, expand into columns (one column per array index)
+        if (isArrayOfObjects(nestedValue)) {
+          return flattenArrayData(docs, drilldownPath);
+        } else {
+          return expandArrayAsColumns(docs, drilldownPath);
+        }
       }
     }
 

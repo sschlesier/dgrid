@@ -177,7 +177,36 @@ export function detectColumns(docs: Record<string, unknown>[]): GridColumn[] {
     keys.unshift('_id');
   }
 
-  return keys.map((key) => ({
+  // Check if we have numeric keys (array index columns)
+  const idKey = keys[0] === '_id' ? ['_id'] : [];
+  const restKeys = keys[0] === '_id' ? keys.slice(1) : keys;
+
+  const hasNumericKeys = restKeys.some((k) => {
+    const num = parseInt(k, 10);
+    return !isNaN(num) && String(num) === k;
+  });
+
+  // Only sort if we have numeric keys (array-as-columns mode)
+  if (hasNumericKeys) {
+    restKeys.sort((a, b) => {
+      const aNum = parseInt(a, 10);
+      const bNum = parseInt(b, 10);
+      const aIsNum = !isNaN(aNum) && String(aNum) === a;
+      const bIsNum = !isNaN(bNum) && String(bNum) === b;
+
+      // Both numeric: sort numerically
+      if (aIsNum && bIsNum) return aNum - bNum;
+      // Numeric comes before non-numeric
+      if (aIsNum) return -1;
+      if (bIsNum) return 1;
+      // Both non-numeric: preserve original order
+      return 0;
+    });
+  }
+
+  const sortedKeys = [...idKey, ...restKeys];
+
+  return sortedKeys.map((key) => ({
     key,
     label: key,
     width: key === '_id' ? 220 : DEFAULT_COLUMN_WIDTH,
@@ -227,7 +256,46 @@ export function computeDrilldownData(
   });
 }
 
-// Flatten array data for display (when drilling into an array)
+// Check if an array contains objects (that should be flattened into rows)
+// vs primitives/BSON types (that should be displayed as columns)
+export function isArrayOfObjects(arr: unknown[]): boolean {
+  if (arr.length === 0) return false;
+  // Check first non-null element
+  for (const item of arr) {
+    if (item !== null && item !== undefined) {
+      return typeof item === 'object' && !Array.isArray(item) && !isSerializedBson(item);
+    }
+  }
+  return false;
+}
+
+// Expand array data as columns (when drilling into an array of primitives)
+// Each document stays as one row, array indices become columns (0, 1, 2, ...)
+export function expandArrayAsColumns(
+  docs: Record<string, unknown>[],
+  path: string[]
+): DrilldownDocument[] {
+  return docs.map((doc, docIndex) => {
+    const nested = getNestedValue(doc, path);
+    const docId = doc._id;
+    const row: DrilldownDocument = {
+      _docId: docId,
+      _docIndex: docIndex,
+    };
+
+    if (Array.isArray(nested)) {
+      // Each array index becomes a column
+      for (let i = 0; i < nested.length; i++) {
+        row[String(i)] = nested[i];
+      }
+    }
+
+    return row;
+  });
+}
+
+// Flatten array data for display (when drilling into an array of objects)
+// Each array element becomes a separate row with object fields as columns
 export function flattenArrayData(
   docs: Record<string, unknown>[],
   path: string[]
