@@ -50,12 +50,16 @@ async function handleResponse<T>(response: Response): Promise<T> {
  * Make a typed fetch request
  */
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers: Record<string, string> = { ...options.headers } as Record<string, string>;
+
+  // Only set Content-Type for requests with a body
+  if (options.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   });
   return handleResponse<T>(response);
 }

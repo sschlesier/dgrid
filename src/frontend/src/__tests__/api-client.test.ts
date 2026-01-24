@@ -194,6 +194,29 @@ describe('API client', () => {
       );
       expect(result).toEqual(disconnected);
     });
+
+    it('does not set Content-Type header for requests without body', async () => {
+      // Regression test: Fastify rejects empty body with Content-Type: application/json
+      const disconnected = { id: '1', name: 'Test', isConnected: false };
+      mockResponse(disconnected);
+
+      await disconnectFromConnection('1');
+
+      const fetchCall = mockFetch.mock.calls[0];
+      const headers = fetchCall[1].headers;
+      expect(headers['Content-Type']).toBeUndefined();
+    });
+
+    it('sets Content-Type header for requests with body', async () => {
+      const newConnection = { name: 'New', host: 'localhost', port: 27017 };
+      mockResponse({ id: '1', ...newConnection });
+
+      await createConnection(newConnection);
+
+      const fetchCall = mockFetch.mock.calls[0];
+      const headers = fetchCall[1].headers;
+      expect(headers['Content-Type']).toBe('application/json');
+    });
   });
 
   describe('databases', () => {
