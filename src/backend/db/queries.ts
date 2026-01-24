@@ -1,4 +1,4 @@
-import { Document } from 'mongodb';
+import { Document, Db } from 'mongodb';
 
 export interface ParsedQuery {
   collection: string;
@@ -284,4 +284,183 @@ function splitArgs(argsStr: string): string[] {
   }
 
   return parts;
+}
+
+// Query Executor
+
+export interface QueryResult {
+  documents: Document[];
+  totalCount: number;
+  executionTimeMs: number;
+  hasMore: boolean;
+}
+
+export interface QueryError {
+  message: string;
+  code?: string;
+}
+
+export interface QueryOptions {
+  page?: number;
+  pageSize?: 50 | 100 | 250 | 500;
+  timeoutMs?: number;
+}
+
+const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_TIMEOUT_MS = 30000;
+
+export async function executeQuery(
+  db: Db,
+  query: ParsedQuery,
+  options: QueryOptions = {}
+): Promise<Result<QueryResult, QueryError>> {
+  const { page = 1, pageSize = DEFAULT_PAGE_SIZE, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+  const skip = (page - 1) * pageSize;
+
+  const startTime = Date.now();
+
+  try {
+    const collection = db.collection(query.collection);
+
+    switch (query.operation) {
+      case 'find': {
+        const filter = query.filter ?? {};
+        const findOptions = {
+          projection: query.projection,
+          sort: query.sort,
+          maxTimeMS: timeoutMs,
+        };
+
+        // Get total count for pagination
+        const totalCount = await collection.countDocuments(filter, { maxTimeMS: timeoutMs });
+
+        // Build cursor with pagination
+        let cursor = collection.find(filter, findOptions);
+
+        // Apply query-level skip first, then pagination skip
+        const querySkip = query.skip ?? 0;
+        cursor = cursor.skip(querySkip + skip);
+
+        // Use query limit if smaller than pageSize, otherwise use pageSize
+        const effectiveLimit = query.limit ? Math.min(query.limit, pageSize) : pageSize;
+        cursor = cursor.limit(effectiveLimit);
+
+        const documents = await cursor.toArray();
+        const executionTimeMs = Date.now() - startTime;
+
+        // Calculate hasMore based on total count and current position
+        const hasMore = querySkip + skip + documents.length < totalCount;
+
+        return {
+          ok: true,
+          value: {
+            documents,
+            totalCount,
+            executionTimeMs,
+            hasMore,
+          },
+        };
+      }
+
+      case 'aggregate': {
+        const pipeline = query.pipeline ?? [];
+
+        // Add $skip and $limit for pagination if not already in pipeline
+        const paginatedPipeline = [...pipeline, { $skip: skip }, { $limit: pageSize }];
+
+        const documents = await collection
+          .aggregate(paginatedPipeline, { maxTimeMS: timeoutMs })
+          .toArray();
+
+        // For aggregates, getting total count requires running a separate count pipeline
+        const countPipeline = [...pipeline, { $count: 'total' }];
+        const countResult = await collection
+          .aggregate(countPipeline, { maxTimeMS: timeoutMs })
+          .toArray();
+        const totalCount = countResult[0]?.total ?? documents.length;
+
+        const executionTimeMs = Date.now() - startTime;
+
+        return {
+          ok: true,
+          value: {
+            documents,
+            totalCount,
+            executionTimeMs,
+            hasMore: skip + documents.length < totalCount,
+          },
+        };
+      }
+
+      case 'count': {
+        const filter = query.filter ?? {};
+        const count = await collection.countDocuments(filter, { maxTimeMS: timeoutMs });
+        const executionTimeMs = Date.now() - startTime;
+
+        return {
+          ok: true,
+          value: {
+            documents: [{ count }],
+            totalCount: 1,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'distinct': {
+        if (!query.field) {
+          return {
+            ok: false,
+            error: { message: 'distinct requires a field name' },
+          };
+        }
+
+        const values = await collection.distinct(query.field, query.filter ?? {}, {
+          maxTimeMS: timeoutMs,
+        });
+        const executionTimeMs = Date.now() - startTime;
+
+        // Return distinct values as documents with value field
+        const documents = values.map((value) => ({ value }));
+
+        return {
+          ok: true,
+          value: {
+            documents,
+            totalCount: values.length,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      default:
+        return {
+          ok: false,
+          error: { message: `Unsupported operation: ${query.operation}` },
+        };
+    }
+  } catch (e) {
+    const error = e as Error & { code?: number; codeName?: string };
+
+    // Handle timeout
+    if (error.code === 50 || error.codeName === 'MaxTimeMSExpired') {
+      return {
+        ok: false,
+        error: {
+          message: 'Query execution timed out',
+          code: 'TIMEOUT',
+        },
+      };
+    }
+
+    return {
+      ok: false,
+      error: {
+        message: error.message ?? 'Query execution failed',
+        code: error.codeName,
+      },
+    };
+  }
 }
