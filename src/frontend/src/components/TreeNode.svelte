@@ -89,52 +89,55 @@
 </script>
 
 <div class="tree-node" class:selected={isSelected}>
-  <button
-    class="tree-node-content"
-    style={indentStyle}
-    onclick={handleClick}
-    onkeydown={handleKeyDown}
-    role="treeitem"
-    aria-expanded={hasChildren ? isExpanded : undefined}
-    aria-selected={isSelected}
-  >
-    <!-- Expand/collapse chevron -->
-    <span
-      class="chevron"
-      class:invisible={!hasChildren}
-      class:loading={node.isLoading}
-      onclick={handleExpandClick}
-      onkeydown={handleChevronKeyDown}
-      role="button"
-      tabindex="-1"
+  <div class="tree-node-row">
+    <div
+      class="tree-node-content"
+      style={indentStyle}
+      onclick={handleClick}
+      onkeydown={handleKeyDown}
+      role="treeitem"
+      tabindex="0"
+      aria-expanded={hasChildren ? isExpanded : undefined}
+      aria-selected={isSelected}
     >
-      {#if node.isLoading}
-        <svg width="16" height="16" viewBox="0 0 16 16" class="spin">
-          {@html treeIcons.loading}
-        </svg>
-      {:else}
+      <!-- Expand/collapse chevron -->
+      <span
+        class="chevron"
+        class:invisible={!hasChildren}
+        class:loading={node.isLoading}
+        onclick={handleExpandClick}
+        onkeydown={handleChevronKeyDown}
+        role="button"
+        tabindex="-1"
+      >
+        {#if node.isLoading}
+          <svg width="16" height="16" viewBox="0 0 16 16" class="spin">
+            {@html treeIcons.loading}
+          </svg>
+        {:else}
+          <svg width="16" height="16" viewBox="0 0 16 16">
+            {@html chevronIcon}
+          </svg>
+        {/if}
+      </span>
+
+      <!-- Type icon -->
+      <span class="node-icon" class:connected={node.type === 'connection' && isExpanded}>
         <svg width="16" height="16" viewBox="0 0 16 16">
-          {@html chevronIcon}
+          {@html nodeIcon}
         </svg>
+      </span>
+
+      <!-- Label -->
+      <span class="node-label">{node.label}</span>
+
+      <!-- Count badge -->
+      {#if node.count !== undefined}
+        <span class="node-count">({node.count})</span>
       {/if}
-    </span>
+    </div>
 
-    <!-- Type icon -->
-    <span class="node-icon" class:connected={node.type === 'connection' && isExpanded}>
-      <svg width="16" height="16" viewBox="0 0 16 16">
-        {@html nodeIcon}
-      </svg>
-    </span>
-
-    <!-- Label -->
-    <span class="node-label">{node.label}</span>
-
-    <!-- Count badge -->
-    {#if node.count !== undefined}
-      <span class="node-count">({node.count})</span>
-    {/if}
-
-    <!-- Refresh button for supported node types -->
+    <!-- Refresh button for supported node types (outside the main clickable area) -->
     {#if supportsRefresh && onRefresh}
       <button class="refresh-btn" onclick={handleRefresh} title="Refresh">
         <svg width="14" height="14" viewBox="0 0 16 16">
@@ -142,7 +145,7 @@
         </svg>
       </button>
     {/if}
-  </button>
+  </div>
 
   <!-- Children (recursive) -->
   {#if hasChildren && isExpanded}
@@ -159,11 +162,18 @@
     user-select: none;
   }
 
+  .tree-node-row {
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+
   .tree-node-content {
     display: flex;
     align-items: center;
     gap: var(--space-xs);
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     height: var(--tree-node-height);
     padding-right: var(--space-sm);
     border-radius: var(--radius-sm);
@@ -176,7 +186,7 @@
     background-color: var(--color-bg-hover);
   }
 
-  .tree-node.selected > .tree-node-content {
+  .tree-node.selected > .tree-node-row > .tree-node-content {
     background-color: var(--color-bg-active);
   }
 
@@ -249,6 +259,8 @@
   }
 
   .refresh-btn {
+    position: absolute;
+    right: var(--space-xs);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -261,7 +273,7 @@
     transition: all var(--transition-fast);
   }
 
-  .tree-node-content:hover .refresh-btn {
+  .tree-node-row:hover .refresh-btn {
     opacity: 1;
   }
 
