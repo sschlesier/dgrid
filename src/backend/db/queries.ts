@@ -1,6 +1,8 @@
 import { Document, Db } from 'mongodb';
 
-export interface ParsedQuery {
+// Collection-level query (db.collection.method())
+export interface ParsedCollectionQuery {
+  type: 'collection';
   collection: string;
   operation: 'find' | 'aggregate' | 'count' | 'distinct';
   filter?: Document;
@@ -12,12 +14,72 @@ export interface ParsedQuery {
   field?: string; // For distinct
 }
 
+// Database-level command (db.method())
+export interface ParsedDbCommand {
+  type: 'db-command';
+  command: string;
+  args: unknown[];
+}
+
+export type ParsedQuery = ParsedCollectionQuery | ParsedDbCommand;
+
+// Supported database commands with their argument signatures
+export type DbCommandSignature = {
+  argTypes: ('none' | 'string' | 'object' | 'any')[];
+  minArgs: number;
+  maxArgs: number;
+};
+
+export const DB_COMMAND_SIGNATURES: Record<string, DbCommandSignature> = {
+  // Database info commands
+  getCollectionNames: { argTypes: [], minArgs: 0, maxArgs: 0 },
+  listCollections: { argTypes: ['object'], minArgs: 0, maxArgs: 1 },
+  stats: { argTypes: ['object'], minArgs: 0, maxArgs: 1 },
+  serverStatus: { argTypes: [], minArgs: 0, maxArgs: 0 },
+  hostInfo: { argTypes: [], minArgs: 0, maxArgs: 0 },
+  version: { argTypes: [], minArgs: 0, maxArgs: 0 },
+
+  // Collection management
+  createCollection: { argTypes: ['string', 'object'], minArgs: 1, maxArgs: 2 },
+  dropCollection: { argTypes: ['string'], minArgs: 1, maxArgs: 1 },
+  renameCollection: { argTypes: ['string', 'string'], minArgs: 2, maxArgs: 2 },
+
+  // Index commands
+  getCollectionInfos: { argTypes: ['object'], minArgs: 0, maxArgs: 1 },
+
+  // Admin commands
+  currentOp: { argTypes: ['object'], minArgs: 0, maxArgs: 1 },
+  killOp: { argTypes: ['any'], minArgs: 1, maxArgs: 1 },
+
+  // Generic command runner
+  runCommand: { argTypes: ['object'], minArgs: 1, maxArgs: 1 },
+  adminCommand: { argTypes: ['object'], minArgs: 1, maxArgs: 1 },
+};
+
 export interface ParseError {
   message: string;
   position?: number;
 }
 
 export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
+
+// Detect if query is a db command or collection query
+export function detectQueryType(query: string): 'db-command' | 'collection' {
+  const trimmed = query.trim();
+
+  // Match db.methodName( pattern
+  const dbMethodMatch = trimmed.match(/^db\.([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
+  if (dbMethodMatch) {
+    const methodName = dbMethodMatch[1];
+    // If it's a known db command, treat it as db-command
+    if (methodName in DB_COMMAND_SIGNATURES) {
+      return 'db-command';
+    }
+  }
+
+  // Default to collection query (db.collection.method pattern)
+  return 'collection';
+}
 
 function parseJavaScriptObject(str: string): Document {
   // Handle MongoDB shell syntax like { field: 1 } -> { "field": 1 }
@@ -77,8 +139,10 @@ function findMatchingBracket(str: string, start: number): number {
   return -1;
 }
 
-function parseChainedMethods(chain: string): Pick<ParsedQuery, 'sort' | 'limit' | 'skip'> {
-  const result: Pick<ParsedQuery, 'sort' | 'limit' | 'skip'> = {};
+function parseChainedMethods(
+  chain: string
+): Pick<ParsedCollectionQuery, 'sort' | 'limit' | 'skip'> {
+  const result: Pick<ParsedCollectionQuery, 'sort' | 'limit' | 'skip'> = {};
 
   // Match .method(args) patterns
   const methodPattern = /\.(\w+)\(([^)]*)\)/g;
@@ -103,7 +167,115 @@ function parseChainedMethods(chain: string): Pick<ParsedQuery, 'sort' | 'limit' 
   return result;
 }
 
-export function parseQuery(queryText: string): Result<ParsedQuery, ParseError> {
+// Parse a database-level command (db.method())
+export function parseDbCommand(queryText: string): Result<ParsedDbCommand, ParseError> {
+  const text = queryText.trim();
+
+  // Match db.method(...)
+  const dbMethodPattern = /^db\.([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/;
+  const match = text.match(dbMethodPattern);
+
+  if (!match) {
+    return {
+      ok: false,
+      error: {
+        message: 'Database command must start with db.<method>(',
+        position: 0,
+      },
+    };
+  }
+
+  const command = match[1];
+  const signature = DB_COMMAND_SIGNATURES[command];
+
+  if (!signature) {
+    const supported = Object.keys(DB_COMMAND_SIGNATURES).join(', ');
+    return {
+      ok: false,
+      error: {
+        message: `Unsupported database command: ${command}. Supported: ${supported}`,
+      },
+    };
+  }
+
+  // Find matching paren for arguments
+  const openParenIndex = match[0].length - 1;
+  const closeParenIndex = findMatchingBracket(text, openParenIndex);
+
+  if (closeParenIndex === -1) {
+    return {
+      ok: false,
+      error: {
+        message: 'Unmatched parenthesis',
+        position: openParenIndex,
+      },
+    };
+  }
+
+  const argsStr = text.slice(openParenIndex + 1, closeParenIndex).trim();
+
+  // Parse arguments
+  let args: unknown[] = [];
+  if (argsStr) {
+    const argParts = splitArgs(argsStr);
+    args = argParts.map((arg) => {
+      const trimmed = arg.trim();
+      // String argument
+      if (
+        (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+        (trimmed.startsWith("'") && trimmed.endsWith("'"))
+      ) {
+        return trimmed.slice(1, -1);
+      }
+      // Object/array argument
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        return parseJavaScriptObject(trimmed);
+      }
+      // Number
+      if (!isNaN(Number(trimmed))) {
+        return Number(trimmed);
+      }
+      // Boolean
+      if (trimmed === 'true') return true;
+      if (trimmed === 'false') return false;
+      // Null
+      if (trimmed === 'null') return null;
+      // Return as string
+      return trimmed;
+    });
+  }
+
+  // Validate argument count
+  if (args.length < signature.minArgs) {
+    return {
+      ok: false,
+      error: {
+        message: `${command} requires at least ${signature.minArgs} argument(s), got ${args.length}`,
+      },
+    };
+  }
+
+  if (args.length > signature.maxArgs) {
+    return {
+      ok: false,
+      error: {
+        message: `${command} accepts at most ${signature.maxArgs} argument(s), got ${args.length}`,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      type: 'db-command',
+      command,
+      args,
+    },
+  };
+}
+
+// Parse a collection-level query (db.collection.method())
+export function parseCollectionQuery(queryText: string): Result<ParsedCollectionQuery, ParseError> {
   const text = queryText.trim();
 
   // Match db.collection.operation(...)
@@ -148,6 +320,7 @@ export function parseQuery(queryText: string): Result<ParsedQuery, ParseError> {
         return {
           ok: true,
           value: {
+            type: 'collection',
             collection,
             operation: 'find',
             ...parsed,
@@ -165,6 +338,7 @@ export function parseQuery(queryText: string): Result<ParsedQuery, ParseError> {
         return {
           ok: true,
           value: {
+            type: 'collection',
             collection,
             operation: 'aggregate',
             pipeline: normalizedPipeline as Document[],
@@ -178,6 +352,7 @@ export function parseQuery(queryText: string): Result<ParsedQuery, ParseError> {
         return {
           ok: true,
           value: {
+            type: 'collection',
             collection,
             operation: 'count',
             filter,
@@ -201,6 +376,7 @@ export function parseQuery(queryText: string): Result<ParsedQuery, ParseError> {
         return {
           ok: true,
           value: {
+            type: 'collection',
             collection,
             operation: 'distinct',
             field,
@@ -227,7 +403,7 @@ export function parseQuery(queryText: string): Result<ParsedQuery, ParseError> {
   }
 }
 
-function parseFindArgs(argsStr: string): Pick<ParsedQuery, 'filter' | 'projection'> {
+function parseFindArgs(argsStr: string): Pick<ParsedCollectionQuery, 'filter' | 'projection'> {
   if (!argsStr) {
     return { filter: {} };
   }
@@ -238,6 +414,17 @@ function parseFindArgs(argsStr: string): Pick<ParsedQuery, 'filter' | 'projectio
   const projection = parts[1] ? parseJavaScriptObject(parts[1]) : undefined;
 
   return { filter, projection };
+}
+
+// Unified parser that handles both db commands and collection queries
+export function parseQuery(queryText: string): Result<ParsedQuery, ParseError> {
+  const queryType = detectQueryType(queryText);
+
+  if (queryType === 'db-command') {
+    return parseDbCommand(queryText);
+  }
+
+  return parseCollectionQuery(queryText);
 }
 
 function splitArgs(argsStr: string): string[] {
@@ -309,9 +496,156 @@ export interface QueryOptions {
 const DEFAULT_PAGE_SIZE = 50;
 const DEFAULT_TIMEOUT_MS = 30000;
 
-export async function executeQuery(
+// Execute a database-level command
+export async function executeDbCommand(
   db: Db,
-  query: ParsedQuery,
+  command: ParsedDbCommand,
+  options: QueryOptions = {}
+): Promise<Result<QueryResult, QueryError>> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+  const startTime = Date.now();
+
+  try {
+    let result: Document | Document[];
+
+    switch (command.command) {
+      case 'getCollectionNames': {
+        const collections = await db.listCollections({}, { maxTimeMS: timeoutMs }).toArray();
+        result = collections.map((c) => c.name).sort();
+        break;
+      }
+
+      case 'listCollections': {
+        const filter = (command.args[0] as Document) ?? {};
+        result = await db.listCollections(filter, { maxTimeMS: timeoutMs }).toArray();
+        break;
+      }
+
+      case 'stats': {
+        const scale = (command.args[0] as Document)?.scale ?? 1;
+        result = await db.stats({ scale });
+        break;
+      }
+
+      case 'serverStatus': {
+        result = await db.admin().serverStatus();
+        break;
+      }
+
+      case 'hostInfo': {
+        result = await db.admin().command({ hostInfo: 1 });
+        break;
+      }
+
+      case 'version': {
+        const buildInfo = await db.admin().command({ buildInfo: 1 });
+        result = { version: buildInfo.version };
+        break;
+      }
+
+      case 'createCollection': {
+        const name = command.args[0] as string;
+        const opts = (command.args[1] as Document) ?? {};
+        await db.createCollection(name, opts);
+        result = { ok: 1, message: `Collection '${name}' created` };
+        break;
+      }
+
+      case 'dropCollection': {
+        const name = command.args[0] as string;
+        const dropped = await db.dropCollection(name);
+        result = { ok: dropped ? 1 : 0, dropped };
+        break;
+      }
+
+      case 'renameCollection': {
+        const fromName = command.args[0] as string;
+        const toName = command.args[1] as string;
+        await db.renameCollection(fromName, toName);
+        result = { ok: 1, message: `Collection renamed from '${fromName}' to '${toName}'` };
+        break;
+      }
+
+      case 'getCollectionInfos': {
+        const filter = (command.args[0] as Document) ?? {};
+        result = await db.listCollections(filter, { maxTimeMS: timeoutMs }).toArray();
+        break;
+      }
+
+      case 'currentOp': {
+        const opts = (command.args[0] as Document) ?? {};
+        result = await db.admin().command({ currentOp: 1, ...opts });
+        break;
+      }
+
+      case 'killOp': {
+        const opId = command.args[0];
+        result = await db.admin().command({ killOp: 1, op: opId });
+        break;
+      }
+
+      case 'runCommand': {
+        const cmd = command.args[0] as Document;
+        result = await db.command(cmd);
+        break;
+      }
+
+      case 'adminCommand': {
+        const cmd = command.args[0] as Document;
+        result = await db.admin().command(cmd);
+        break;
+      }
+
+      default:
+        return {
+          ok: false,
+          error: { message: `Unsupported database command: ${command.command}` },
+        };
+    }
+
+    const executionTimeMs = Date.now() - startTime;
+
+    // Normalize result to array of documents
+    const documents: Document[] = Array.isArray(result)
+      ? result.map((item) => (typeof item === 'object' ? item : { value: item }))
+      : [result];
+
+    return {
+      ok: true,
+      value: {
+        documents,
+        totalCount: documents.length,
+        executionTimeMs,
+        hasMore: false,
+      },
+    };
+  } catch (e) {
+    const error = e as Error & { code?: number; codeName?: string };
+
+    if (error.code === 50 || error.codeName === 'MaxTimeMSExpired') {
+      return {
+        ok: false,
+        error: {
+          message: 'Command execution timed out',
+          code: 'TIMEOUT',
+        },
+      };
+    }
+
+    return {
+      ok: false,
+      error: {
+        message: error.message ?? 'Command execution failed',
+        code: error.codeName,
+      },
+    };
+  }
+}
+
+// Execute a collection-level query
+export async function executeCollectionQuery(
+  db: Db,
+  query: ParsedCollectionQuery,
   options: QueryOptions = {}
 ): Promise<Result<QueryResult, QueryError>> {
   const { page = 1, pageSize = DEFAULT_PAGE_SIZE, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
@@ -463,4 +797,17 @@ export async function executeQuery(
       },
     };
   }
+}
+
+// Unified query executor that handles both db commands and collection queries
+export async function executeQuery(
+  db: Db,
+  query: ParsedQuery,
+  options: QueryOptions = {}
+): Promise<Result<QueryResult, QueryError>> {
+  if (query.type === 'db-command') {
+    return executeDbCommand(db, query, options);
+  }
+
+  return executeCollectionQuery(db, query, options);
 }

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parseQuery } from '../db/queries.js';
+import {
+  parseQuery,
+  parseDbCommand,
+  detectQueryType,
+  DB_COMMAND_SIGNATURES,
+} from '../db/queries.js';
 
 describe('Query Parser', () => {
   describe('find queries', () => {
@@ -260,6 +265,189 @@ describe('Query Parser', () => {
       if (result.ok) {
         expect(result.value.filter).toEqual({});
       }
+    });
+  });
+
+  describe('database commands', () => {
+    describe('detectQueryType', () => {
+      it('detects db commands', () => {
+        expect(detectQueryType('db.getCollectionNames()')).toBe('db-command');
+        expect(detectQueryType('db.stats()')).toBe('db-command');
+        expect(detectQueryType('db.serverStatus()')).toBe('db-command');
+        expect(detectQueryType('db.createCollection("test")')).toBe('db-command');
+      });
+
+      it('detects collection queries', () => {
+        expect(detectQueryType('db.users.find({})')).toBe('collection');
+        expect(detectQueryType('db.orders.aggregate([])')).toBe('collection');
+        expect(detectQueryType('db.logs.count({})')).toBe('collection');
+      });
+
+      it('treats unknown db methods as collection names', () => {
+        // unknownMethod is not in DB_COMMAND_SIGNATURES, so treated as collection
+        expect(detectQueryType('db.unknownMethod.find({})')).toBe('collection');
+      });
+    });
+
+    describe('parseDbCommand', () => {
+      it('parses getCollectionNames', () => {
+        const result = parseDbCommand('db.getCollectionNames()');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.type).toBe('db-command');
+          expect(result.value.command).toBe('getCollectionNames');
+          expect(result.value.args).toEqual([]);
+        }
+      });
+
+      it('parses stats with no args', () => {
+        const result = parseDbCommand('db.stats()');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.command).toBe('stats');
+          expect(result.value.args).toEqual([]);
+        }
+      });
+
+      it('parses stats with scale option', () => {
+        const result = parseDbCommand('db.stats({ scale: 1024 })');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.command).toBe('stats');
+          expect(result.value.args).toEqual([{ scale: 1024 }]);
+        }
+      });
+
+      it('parses createCollection with name', () => {
+        const result = parseDbCommand('db.createCollection("newCollection")');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.command).toBe('createCollection');
+          expect(result.value.args).toEqual(['newCollection']);
+        }
+      });
+
+      it('parses createCollection with name and options', () => {
+        const result = parseDbCommand(
+          'db.createCollection("capped", { capped: true, size: 1000000 })'
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.command).toBe('createCollection');
+          expect(result.value.args).toEqual(['capped', { capped: true, size: 1000000 }]);
+        }
+      });
+
+      it('parses dropCollection', () => {
+        const result = parseDbCommand('db.dropCollection("oldCollection")');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.command).toBe('dropCollection');
+          expect(result.value.args).toEqual(['oldCollection']);
+        }
+      });
+
+      it('parses renameCollection', () => {
+        const result = parseDbCommand('db.renameCollection("old", "new")');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.command).toBe('renameCollection');
+          expect(result.value.args).toEqual(['old', 'new']);
+        }
+      });
+
+      it('parses runCommand', () => {
+        const result = parseDbCommand('db.runCommand({ ping: 1 })');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.command).toBe('runCommand');
+          expect(result.value.args).toEqual([{ ping: 1 }]);
+        }
+      });
+
+      it('parses listCollections with filter', () => {
+        const result = parseDbCommand('db.listCollections({ name: "users" })');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.command).toBe('listCollections');
+          expect(result.value.args).toEqual([{ name: 'users' }]);
+        }
+      });
+
+      it('returns error for unsupported command', () => {
+        const result = parseDbCommand('db.unsupportedCommand()');
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.message).toContain('Unsupported database command');
+        }
+      });
+
+      it('returns error for too few arguments', () => {
+        const result = parseDbCommand('db.createCollection()');
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.message).toContain('requires at least 1 argument');
+        }
+      });
+
+      it('returns error for too many arguments', () => {
+        const result = parseDbCommand('db.dropCollection("a", "b")');
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.message).toContain('accepts at most 1 argument');
+        }
+      });
+
+      it('returns error for unmatched parenthesis', () => {
+        const result = parseDbCommand('db.stats(');
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.message).toContain('Unmatched parenthesis');
+        }
+      });
+    });
+
+    describe('parseQuery unified parser', () => {
+      it('routes db commands to parseDbCommand', () => {
+        const result = parseQuery('db.getCollectionNames()');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.type).toBe('db-command');
+        }
+      });
+
+      it('routes collection queries to parseCollectionQuery', () => {
+        const result = parseQuery('db.users.find({})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.type).toBe('collection');
+        }
+      });
+    });
+
+    describe('DB_COMMAND_SIGNATURES', () => {
+      it('defines expected commands', () => {
+        expect(DB_COMMAND_SIGNATURES).toHaveProperty('getCollectionNames');
+        expect(DB_COMMAND_SIGNATURES).toHaveProperty('stats');
+        expect(DB_COMMAND_SIGNATURES).toHaveProperty('createCollection');
+        expect(DB_COMMAND_SIGNATURES).toHaveProperty('dropCollection');
+        expect(DB_COMMAND_SIGNATURES).toHaveProperty('runCommand');
+      });
     });
   });
 });
