@@ -1,0 +1,162 @@
+// Keyboard shortcut utilities
+
+export interface KeyboardShortcut {
+  key: string;
+  ctrl?: boolean;
+  meta?: boolean;
+  shift?: boolean;
+  alt?: boolean;
+  handler: (event: KeyboardEvent) => void;
+}
+
+type ShortcutId = string;
+
+const shortcuts = new Map<ShortcutId, KeyboardShortcut>();
+let isListenerRegistered = false;
+
+/**
+ * Detect if running on macOS
+ */
+export function isMac(): boolean {
+  return typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+}
+
+/**
+ * Check if the modifier key matches the event
+ * On Mac: uses Meta (Cmd), on Windows/Linux: uses Ctrl
+ */
+export function matchesModifier(event: KeyboardEvent, shortcut: KeyboardShortcut): boolean {
+  const mac = isMac();
+
+  // Check primary modifier (Cmd on Mac, Ctrl on Windows/Linux)
+  const wantsPrimaryMod = shortcut.meta || shortcut.ctrl;
+  const hasPrimaryMod = mac ? event.metaKey : event.ctrlKey;
+
+  if (wantsPrimaryMod && !hasPrimaryMod) return false;
+  if (!wantsPrimaryMod && hasPrimaryMod) return false;
+
+  // Check shift modifier
+  if (shortcut.shift && !event.shiftKey) return false;
+  if (!shortcut.shift && event.shiftKey) return false;
+
+  // Check alt modifier
+  if (shortcut.alt && !event.altKey) return false;
+  if (!shortcut.alt && event.altKey) return false;
+
+  return true;
+}
+
+/**
+ * Check if an event matches a shortcut
+ */
+export function matchesShortcut(event: KeyboardEvent, shortcut: KeyboardShortcut): boolean {
+  if (event.key.toLowerCase() !== shortcut.key.toLowerCase()) {
+    return false;
+  }
+  return matchesModifier(event, shortcut);
+}
+
+/**
+ * Handle keyboard events and dispatch to registered shortcuts
+ */
+function handleKeyDown(event: KeyboardEvent): void {
+  // Skip if focus is on an input element (unless it's a global shortcut)
+  const target = event.target as HTMLElement;
+  const isInput =
+    target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+  for (const shortcut of shortcuts.values()) {
+    if (matchesShortcut(event, shortcut)) {
+      // For Cmd+T and Cmd+W, always handle even in inputs to prevent browser default
+      const isGlobalShortcut =
+        shortcut.key.toLowerCase() === 't' || shortcut.key.toLowerCase() === 'w';
+
+      if (!isInput || isGlobalShortcut) {
+        event.preventDefault();
+        shortcut.handler(event);
+        return;
+      }
+    }
+  }
+}
+
+/**
+ * Ensure the global keyboard listener is registered
+ */
+function ensureListener(): void {
+  if (!isListenerRegistered && typeof window !== 'undefined') {
+    window.addEventListener('keydown', handleKeyDown);
+    isListenerRegistered = true;
+  }
+}
+
+/**
+ * Register a keyboard shortcut
+ */
+export function registerShortcut(id: ShortcutId, shortcut: KeyboardShortcut): void {
+  ensureListener();
+  shortcuts.set(id, shortcut);
+}
+
+/**
+ * Unregister a keyboard shortcut
+ */
+export function unregisterShortcut(id: ShortcutId): void {
+  shortcuts.delete(id);
+}
+
+/**
+ * Unregister all keyboard shortcuts
+ */
+export function unregisterAllShortcuts(): void {
+  shortcuts.clear();
+}
+
+/**
+ * Format a shortcut for display
+ */
+export function formatShortcut(
+  shortcut: Pick<KeyboardShortcut, 'key' | 'ctrl' | 'meta' | 'shift' | 'alt'>
+): string {
+  const mac = isMac();
+  const parts: string[] = [];
+
+  if (shortcut.ctrl || shortcut.meta) {
+    parts.push(mac ? '⌘' : 'Ctrl');
+  }
+  if (shortcut.shift) {
+    parts.push(mac ? '⇧' : 'Shift');
+  }
+  if (shortcut.alt) {
+    parts.push(mac ? '⌥' : 'Alt');
+  }
+
+  // Format the key
+  const keyMap: Record<string, string> = {
+    arrowup: '↑',
+    arrowdown: '↓',
+    arrowleft: '←',
+    arrowright: '→',
+    enter: '↵',
+    escape: 'Esc',
+    backspace: '⌫',
+    delete: 'Del',
+    tab: 'Tab',
+  };
+
+  const displayKey = keyMap[shortcut.key.toLowerCase()] || shortcut.key.toUpperCase();
+  parts.push(displayKey);
+
+  return mac ? parts.join('') : parts.join('+');
+}
+
+/**
+ * Cleanup function - remove global listener
+ */
+export function cleanup(): void {
+  if (isListenerRegistered && typeof window !== 'undefined') {
+    window.removeEventListener('keydown', handleKeyDown);
+    isListenerRegistered = false;
+  }
+  shortcuts.clear();
+}

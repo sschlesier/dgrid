@@ -34,6 +34,7 @@ export default [
       parser: tsParser,
       globals: {
         ...globals.node,
+        ...globals.browser,
       },
     },
     plugins: {
