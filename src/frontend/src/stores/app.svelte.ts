@@ -1,7 +1,7 @@
 // App Store - Svelte 5 runes-based state management
 
 import type { ConnectionResponse, DatabaseInfo, CollectionInfo } from '../../../shared/contracts';
-import type { Tab, Notification, UIState, Theme } from '../types';
+import type { Tab, Notification, UIState, Theme, TreeNodeData } from '../types';
 import * as api from '../api/client';
 
 // Generate unique IDs
@@ -17,12 +17,18 @@ function loadUIState(): UIState {
   try {
     const stored = localStorage.getItem(UI_STATE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      return {
+        sidebarOpen: parsed.sidebarOpen ?? true,
+        theme: parsed.theme ?? 'system',
+        treeExpanded: parsed.treeExpanded ?? {},
+        selectedTreeNode: parsed.selectedTreeNode ?? null,
+      };
     }
   } catch {
     // Ignore parse errors
   }
-  return { sidebarOpen: true, theme: 'system' };
+  return { sidebarOpen: true, theme: 'system', treeExpanded: {}, selectedTreeNode: null };
 }
 
 // Save UI state to localStorage
@@ -195,14 +201,16 @@ class AppStore {
   }
 
   // Tab actions
-  createTab(connectionId: string, database: string): Tab {
+  createTab(connectionId: string, database: string, collection?: string): Tab {
+    const queryText = collection ? `db.${collection}.find({})` : '';
+    const title = collection ? collection : 'New Query';
     const tab: Tab = {
       id: generateId(),
-      title: 'New Query',
+      title,
       type: 'query',
       connectionId,
       database,
-      queryText: '',
+      queryText,
     };
     this.tabs = [...this.tabs, tab];
     this.activeTabId = tab.id;
@@ -257,6 +265,108 @@ class AppStore {
     } else {
       root.setAttribute('data-theme', theme);
     }
+  }
+
+  // Tree view state
+  toggleTreeNode(nodeId: string): void {
+    const newExpanded = { ...this.ui.treeExpanded };
+    newExpanded[nodeId] = !newExpanded[nodeId];
+    this.ui = { ...this.ui, treeExpanded: newExpanded };
+    saveUIState(this.ui);
+  }
+
+  selectTreeNode(nodeId: string | null): void {
+    this.ui = { ...this.ui, selectedTreeNode: nodeId };
+    saveUIState(this.ui);
+  }
+
+  isTreeNodeExpanded(nodeId: string): boolean {
+    return this.ui.treeExpanded[nodeId] ?? false;
+  }
+
+  get treeData(): TreeNodeData[] {
+    return this.connections.map((connection): TreeNodeData => {
+      const connectionNodeId = `conn:${connection.id}`;
+      const databases = connection.isConnected ? this.databases : [];
+
+      return {
+        id: connectionNodeId,
+        type: 'connection',
+        label: connection.name,
+        connectionId: connection.id,
+        isLoading: this.isConnecting && this.activeConnectionId === connection.id,
+        children: connection.isConnected
+          ? databases.map((db): TreeNodeData => {
+              const dbNodeId = `db:${connection.id}:${db.name}`;
+              const dbCollections = this.collections.get(db.name) ?? [];
+              const regularCollections = dbCollections.filter((c) => c.type === 'collection');
+              const views = dbCollections.filter((c) => c.type === 'view');
+
+              return {
+                id: dbNodeId,
+                type: 'database',
+                label: db.name,
+                connectionId: connection.id,
+                databaseName: db.name,
+                isLoading: false,
+                children: [
+                  {
+                    id: `coll-group:${connection.id}:${db.name}`,
+                    type: 'collection-group',
+                    label: 'Collections',
+                    count: regularCollections.length,
+                    connectionId: connection.id,
+                    databaseName: db.name,
+                    children: regularCollections.map((coll): TreeNodeData => {
+                      const collNodeId = `coll:${connection.id}:${db.name}:${coll.name}`;
+                      return {
+                        id: collNodeId,
+                        type: 'collection',
+                        label: coll.name,
+                        connectionId: connection.id,
+                        databaseName: db.name,
+                        collectionName: coll.name,
+                        children:
+                          coll.indexes > 0
+                            ? [
+                                {
+                                  id: `idx-group:${connection.id}:${db.name}:${coll.name}`,
+                                  type: 'index-group',
+                                  label: 'Indexes',
+                                  count: coll.indexes,
+                                  connectionId: connection.id,
+                                  databaseName: db.name,
+                                  collectionName: coll.name,
+                                },
+                              ]
+                            : undefined,
+                      };
+                    }),
+                  },
+                  {
+                    id: `view-group:${connection.id}:${db.name}`,
+                    type: 'view-group',
+                    label: 'Views',
+                    count: views.length,
+                    connectionId: connection.id,
+                    databaseName: db.name,
+                    children: views.map(
+                      (view): TreeNodeData => ({
+                        id: `view:${connection.id}:${db.name}:${view.name}`,
+                        type: 'view',
+                        label: view.name,
+                        connectionId: connection.id,
+                        databaseName: db.name,
+                        collectionName: view.name,
+                      })
+                    ),
+                  },
+                ],
+              };
+            })
+          : undefined,
+      };
+    });
   }
 
   // Notification actions

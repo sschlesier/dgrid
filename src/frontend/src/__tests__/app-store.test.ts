@@ -329,7 +329,7 @@ describe('appStore', () => {
 
   describe('UI', () => {
     it('toggleSidebar toggles sidebarOpen', () => {
-      appStore.ui = { sidebarOpen: true, theme: 'light' };
+      appStore.ui = { sidebarOpen: true, theme: 'light', treeExpanded: {}, selectedTreeNode: null };
 
       appStore.toggleSidebar();
 

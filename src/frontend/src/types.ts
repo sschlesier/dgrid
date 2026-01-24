@@ -21,6 +21,30 @@ export type Theme = 'light' | 'dark' | 'system';
 export interface UIState {
   sidebarOpen: boolean;
   theme: Theme;
+  treeExpanded: Record<string, boolean>;
+  selectedTreeNode: string | null;
+}
+
+export type TreeNodeType =
+  | 'connection'
+  | 'database'
+  | 'collection-group'
+  | 'view-group'
+  | 'collection'
+  | 'view'
+  | 'index-group'
+  | 'index';
+
+export interface TreeNodeData {
+  id: string;
+  type: TreeNodeType;
+  label: string;
+  count?: number;
+  isLoading?: boolean;
+  children?: TreeNodeData[];
+  connectionId?: string;
+  databaseName?: string;
+  collectionName?: string;
 }
 
 export interface QueryHistoryItem {
