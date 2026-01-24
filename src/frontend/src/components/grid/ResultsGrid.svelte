@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { ExecuteQueryResponse } from '../../../../shared/contracts';
   import { gridStore } from '../../stores/grid.svelte';
   import {
@@ -92,7 +93,19 @@
       const visibleColumns = detectedColumns.filter(
         (col) => !col.key.startsWith('_doc') && col.key !== '_arrayIndex'
       );
-      gridStore.setColumns(tabId, visibleColumns);
+
+      // Use untrack to prevent infinite loop - writing to store shouldn't trigger re-run
+      untrack(() => {
+        // Only update if columns changed (compare keys)
+        const currentColumns = gridStore.getColumns(tabId);
+        const columnsChanged =
+          visibleColumns.length !== currentColumns.length ||
+          visibleColumns.some((col, i) => col.key !== currentColumns[i]?.key);
+
+        if (columnsChanged) {
+          gridStore.setColumns(tabId, visibleColumns);
+        }
+      });
     }
   });
 
