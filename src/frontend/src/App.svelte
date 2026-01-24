@@ -60,19 +60,24 @@
     {/if}
 
     <div class="content">
-      {#if appStore.tabs.length > 0}
+      {#if appStore.activeConnection?.isConnected}
         <TabBar />
         {#if appStore.activeTab}
           <QueryPanel tab={appStore.activeTab} />
+        {:else}
+          <div class="empty-state">
+            <div class="empty-state-content">
+              <h2>No Query Tabs Open</h2>
+              <p>Click the + button above or press Cmd+T to start querying</p>
+            </div>
+          </div>
         {/if}
       {:else}
         <div class="empty-state">
           <div class="empty-state-content">
             <h2>No Query Tabs Open</h2>
             <p>
-              {#if appStore.activeConnection?.isConnected}
-                Click "New Tab" to start querying
-              {:else if appStore.connections.length > 0}
+              {#if appStore.connections.length > 0}
                 Connect to a database to start querying
               {:else}
                 Create a connection to get started

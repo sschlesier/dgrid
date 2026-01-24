@@ -146,6 +146,51 @@ describe('appStore', () => {
       expect(appStore.databases).toHaveLength(1);
     });
 
+    it('allows creating tabs immediately after connecting', async () => {
+      // Regression test: TabBar should be shown and enabled after connecting
+      // This test verifies the state that the UI depends on
+      appStore.connections = [
+        {
+          id: '1',
+          name: 'Test',
+          host: 'localhost',
+          port: 27017,
+          isConnected: false,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ];
+      const connected = {
+        id: '1',
+        name: 'Test',
+        host: 'localhost',
+        port: 27017,
+        isConnected: true,
+        createdAt: '',
+        updatedAt: '',
+      };
+      mockedApi.connectToConnection.mockResolvedValue(connected);
+      mockedApi.getDatabases.mockResolvedValue([
+        { name: 'admin', sizeOnDisk: 1024, empty: false },
+        { name: 'mydb', sizeOnDisk: 2048, empty: false },
+      ]);
+
+      await appStore.connect('1');
+
+      // Verify all conditions needed for TabBar to be visible and enabled
+      expect(appStore.activeConnection).toBeDefined();
+      expect(appStore.activeConnection?.isConnected).toBe(true);
+      expect(appStore.databases.length).toBeGreaterThan(0);
+
+      // Verify we can create a tab using the first database
+      const tab = appStore.createTab('1', appStore.databases[0].name);
+      expect(tab).toBeDefined();
+      expect(tab.connectionId).toBe('1');
+      expect(tab.database).toBe('admin');
+      expect(appStore.tabs).toHaveLength(1);
+      expect(appStore.activeTab).toEqual(tab);
+    });
+
     it('disconnect updates connection state', async () => {
       appStore.connections = [
         {
