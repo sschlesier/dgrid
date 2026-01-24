@@ -2,7 +2,6 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import { pino } from 'pino';
 import { join } from 'path';
 import { homedir } from 'os';
 import { apiRoutes } from './routes/index.js';
@@ -15,15 +14,15 @@ const PORT = 3001;
 const DATA_DIR = join(homedir(), '.dgrid');
 
 async function main(): Promise<void> {
-  const logger = pino({
-    level: process.env.LOG_LEVEL ?? 'info',
-    transport:
-      process.env.NODE_ENV !== 'production'
-        ? { target: 'pino-pretty', options: { colorize: true } }
-        : undefined,
+  const app = Fastify({
+    logger: {
+      level: process.env.LOG_LEVEL ?? 'info',
+      transport:
+        process.env.NODE_ENV !== 'production'
+          ? { target: 'pino-pretty', options: { colorize: true } }
+          : undefined,
+    },
   });
-
-  const app = Fastify({ logger });
 
   // Security middleware
   await app.register(helmet, {
