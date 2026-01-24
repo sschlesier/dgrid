@@ -228,6 +228,34 @@ class AppStore {
     }
   }
 
+  // Refresh methods for tree controls
+  async refreshConnections(): Promise<void> {
+    try {
+      await this.loadConnections();
+      this.notify('success', 'Connections refreshed');
+    } catch {
+      // Error already notified in loadConnections
+    }
+  }
+
+  async refreshDatabases(connectionId: string): Promise<void> {
+    try {
+      await this.loadDatabases(connectionId);
+      this.notify('success', 'Databases refreshed');
+    } catch {
+      // Error already notified in loadDatabases
+    }
+  }
+
+  async refreshCollections(connectionId: string, database: string): Promise<void> {
+    try {
+      await this.loadCollections(connectionId, database);
+      this.notify('success', 'Collections refreshed');
+    } catch {
+      // Error already notified in loadCollections
+    }
+  }
+
   // Tab actions
   createTab(connectionId: string, database: string, collection?: string): Tab {
     const queryText = collection ? `db.${collection}.find({})` : '';
