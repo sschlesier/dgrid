@@ -57,7 +57,13 @@
   <div class="sidebar-content" role="tree">
     {#if appStore.connections.length === 0}
       <div class="empty-state">
-        <p>No connections yet</p>
+        <svg width="40" height="40" viewBox="0 0 16 16" fill="currentColor" class="empty-icon">
+          <path
+            d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm7.25-3.25v2.992l2.028.812a.75.75 0 0 1-.557 1.392l-2.5-1A.751.751 0 0 1 7.25 8.25v-3.5a.75.75 0 0 1 1.5 0Z"
+          />
+        </svg>
+        <p class="empty-title">No connections yet</p>
+        <p class="empty-hint">Create a new connection to get started</p>
       </div>
     {:else}
       {#each appStore.treeData as node (node.id)}
@@ -109,10 +115,29 @@
   }
 
   .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     padding: var(--space-xl);
     text-align: center;
     color: var(--color-text-muted);
+  }
+
+  .empty-icon {
+    margin-bottom: var(--space-md);
+    opacity: 0.4;
+  }
+
+  .empty-title {
     font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-xs);
+  }
+
+  .empty-hint {
+    font-size: var(--font-size-xs);
+    opacity: 0.7;
   }
 
   .connection-tree-item {

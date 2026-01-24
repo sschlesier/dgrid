@@ -9,6 +9,7 @@
   import Editor from './Editor.svelte';
   import QueryHistory from './QueryHistory.svelte';
   import FileDialog from './FileDialog.svelte';
+  import Spinner from './Spinner.svelte';
   import { ResultsGrid } from './grid';
 
   interface Props {
@@ -48,6 +49,88 @@
 
     const pageSize = gridStore.getPageSize(tab.id);
     await queryStore.executeQuery(tab.id, tab.connectionId, tab.database, query, 1, pageSize);
+  }
+
+  function handleCancel() {
+    queryStore.cancelQuery(tab.id);
+  }
+
+  // Error categorization
+  interface ErrorInfo {
+    type: string;
+    suggestion: string | null;
+  }
+
+  function categorizeError(errorMessage: string): ErrorInfo {
+    const lowerError = errorMessage.toLowerCase();
+
+    // Syntax errors
+    if (
+      lowerError.includes('syntax') ||
+      lowerError.includes('parse') ||
+      lowerError.includes('unexpected token')
+    ) {
+      return {
+        type: 'Syntax Error',
+        suggestion: 'Check your query syntax. Make sure brackets and quotes are properly matched.',
+      };
+    }
+
+    // Connection errors
+    if (
+      lowerError.includes('connect') ||
+      lowerError.includes('econnrefused') ||
+      lowerError.includes('network')
+    ) {
+      return {
+        type: 'Connection Error',
+        suggestion: 'Check if MongoDB is running and the connection settings are correct.',
+      };
+    }
+
+    // Authentication errors
+    if (
+      lowerError.includes('auth') ||
+      lowerError.includes('unauthorized') ||
+      lowerError.includes('permission')
+    ) {
+      return {
+        type: 'Authentication Error',
+        suggestion: 'Verify your username, password, and authentication database.',
+      };
+    }
+
+    // Timeout errors
+    if (lowerError.includes('timeout') || lowerError.includes('timed out')) {
+      return {
+        type: 'Timeout Error',
+        suggestion: 'The query took too long. Try adding limits or more specific filters.',
+      };
+    }
+
+    // Collection/Database not found
+    if (lowerError.includes('not found') || lowerError.includes('does not exist')) {
+      return {
+        type: 'Not Found Error',
+        suggestion: 'Verify the database and collection names are correct.',
+      };
+    }
+
+    // Default
+    return {
+      type: 'Query Error',
+      suggestion: null,
+    };
+  }
+
+  async function copyError(errorMessage: string) {
+    try {
+      await navigator.clipboard.writeText(errorMessage);
+      // Could add a notification here
+    } catch {
+      // Fallback for older browsers
+      console.error('Failed to copy error to clipboard');
+    }
   }
 
   async function handlePageChange(newPage: number) {
@@ -158,17 +241,13 @@
 <div class="query-panel">
   <div class="editor-section">
     <div class="toolbar">
-      <button
-        class="execute-btn"
-        onclick={handleExecute}
-        disabled={isExecuting || !queryText.trim()}
-      >
-        {#if isExecuting}
-          Executing...
-        {:else}
+      {#if isExecuting}
+        <button class="cancel-btn" onclick={handleCancel}> Cancel </button>
+      {:else}
+        <button class="execute-btn" onclick={handleExecute} disabled={!queryText.trim()}>
           Execute (⌘↵)
-        {/if}
-      </button>
+        </button>
+      {/if}
 
       <div class="toolbar-divider"></div>
 
@@ -246,12 +325,36 @@
 
   <div class="results-section">
     {#if error}
+      {@const errorInfo = categorizeError(error)}
       <div class="error-display">
-        <h3>Error</h3>
-        <pre>{error}</pre>
+        <div class="error-header">
+          <span class="error-type">{errorInfo.type}</span>
+          <button
+            class="copy-error-btn"
+            onclick={() => copyError(error)}
+            title="Copy error to clipboard"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path
+                d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"
+              />
+              <path
+                d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"
+              />
+            </svg>
+          </button>
+        </div>
+        <pre class="error-message">{error}</pre>
+        {#if errorInfo.suggestion}
+          <div class="error-suggestion">
+            <strong>Suggestion:</strong>
+            {errorInfo.suggestion}
+          </div>
+        {/if}
       </div>
     {:else if isExecuting}
       <div class="loading-display">
+        <Spinner size="lg" />
         <span>Executing query...</span>
       </div>
     {:else if results}
@@ -263,7 +366,13 @@
       />
     {:else}
       <div class="empty-results">
-        <p>Execute a query to see results</p>
+        <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor" class="empty-icon">
+          <path
+            d="M11.28 3.22a.75.75 0 0 1 0 1.06L6.56 9l4.72 4.72a.75.75 0 1 1-1.06 1.06l-5.25-5.25a.75.75 0 0 1 0-1.06l5.25-5.25a.75.75 0 0 1 1.06 0Z"
+          />
+        </svg>
+        <p class="empty-title">Execute a query to see results</p>
+        <p class="empty-hint">Press <kbd>Cmd</kbd>+<kbd>Enter</kbd> to run your query</p>
       </div>
     {/if}
   </div>
@@ -332,6 +441,20 @@
     cursor: not-allowed;
   }
 
+  .cancel-btn {
+    padding: var(--space-xs) var(--space-md);
+    background-color: var(--color-error);
+    color: var(--color-error-text, white);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-fast);
+  }
+
+  .cancel-btn:hover {
+    background-color: var(--color-error-hover, #c0392b);
+  }
+
   .toolbar-divider {
     width: 1px;
     height: 20px;
@@ -394,33 +517,110 @@
     padding: var(--space-md);
     background-color: var(--color-error-light);
     color: var(--color-error-text);
+    border-left: 4px solid var(--color-error);
   }
 
-  .error-display h3 {
+  .error-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: var(--space-sm);
-    font-size: var(--font-size-md);
   }
 
-  .error-display pre {
+  .error-type {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .copy-error-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    color: var(--color-error-text);
+    opacity: 0.7;
+    transition: all var(--transition-fast);
+  }
+
+  .copy-error-btn:hover {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.1);
+  }
+
+  .error-message {
     font-family: var(--font-mono);
     font-size: var(--font-size-sm);
     white-space: pre-wrap;
     margin: 0;
+    padding: var(--space-sm);
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: var(--radius-sm);
+  }
+
+  .error-suggestion {
+    margin-top: var(--space-sm);
+    padding: var(--space-sm);
+    font-size: var(--font-size-sm);
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: var(--radius-sm);
+  }
+
+  .error-suggestion strong {
+    font-weight: var(--font-weight-semibold);
   }
 
   .loading-display {
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: var(--space-sm);
     flex: 1;
     color: var(--color-text-secondary);
   }
 
   .empty-results {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: var(--space-sm);
     flex: 1;
     color: var(--color-text-muted);
+  }
+
+  .empty-results .empty-icon {
+    opacity: 0.3;
+    margin-bottom: var(--space-xs);
+  }
+
+  .empty-results .empty-title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .empty-results .empty-hint {
+    font-size: var(--font-size-sm);
+    opacity: 0.7;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .empty-results kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    padding: 2px 5px;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-medium);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 0 var(--color-border-medium);
   }
 </style>

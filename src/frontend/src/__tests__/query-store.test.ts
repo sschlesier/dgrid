@@ -3,6 +3,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // Mock the API module before importing the store
 vi.mock('../api/client', () => ({
   executeQuery: vi.fn(),
+  QueryCancelledError: class extends Error {
+    constructor() {
+      super('Query was cancelled');
+      this.name = 'QueryCancelledError';
+    }
+  },
 }));
 
 // Import after mocking

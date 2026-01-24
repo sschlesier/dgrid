@@ -3,6 +3,7 @@
 import type { ExecuteQueryResponse } from '../../../shared/contracts';
 import type { QueryHistoryItem } from '../types';
 import * as api from '../api/client';
+import { QueryCancelledError } from '../api/client';
 
 // localStorage keys
 const HISTORY_KEY = 'dgrid-query-history';
@@ -42,6 +43,9 @@ class QueryStore {
   isExecuting = $state<Map<string, boolean>>(new Map());
   errors = $state<Map<string, string | null>>(new Map());
 
+  // Abort controllers for cancellable queries (not reactive, internal only)
+  private abortControllers: Map<string, AbortController> = new Map();
+
   // Global history (last 20 queries)
   history = $state<QueryHistoryItem[]>(loadHistory());
 
@@ -78,6 +82,13 @@ class QueryStore {
     page = 1,
     pageSize: 50 | 100 | 250 | 500 = 50
   ): Promise<ExecuteQueryResponse | null> {
+    // Cancel any existing query for this tab
+    this.cancelQuery(tabId);
+
+    // Create new abort controller
+    const abortController = new AbortController();
+    this.abortControllers.set(tabId, abortController);
+
     // Set executing state
     const newExecuting = new Map(this.isExecuting);
     newExecuting.set(tabId, true);
@@ -89,12 +100,16 @@ class QueryStore {
     this.errors = newErrors;
 
     try {
-      const result = await api.executeQuery(connectionId, {
-        query,
-        database,
-        page,
-        pageSize,
-      });
+      const result = await api.executeQuery(
+        connectionId,
+        {
+          query,
+          database,
+          page,
+          pageSize,
+        },
+        { signal: abortController.signal }
+      );
 
       // Store results
       const newResults = new Map(this.results);
@@ -115,6 +130,11 @@ class QueryStore {
 
       return result;
     } catch (error) {
+      // Don't store error for cancelled queries
+      if (error instanceof QueryCancelledError) {
+        return null;
+      }
+
       // Store error
       const newErrors = new Map(this.errors);
       newErrors.set(tabId, (error as Error).message);
@@ -127,10 +147,22 @@ class QueryStore {
 
       return null;
     } finally {
+      // Clean up abort controller
+      this.abortControllers.delete(tabId);
+
       // Clear executing state
       const newExecuting = new Map(this.isExecuting);
       newExecuting.set(tabId, false);
       this.isExecuting = newExecuting;
+    }
+  }
+
+  // Cancel a running query
+  cancelQuery(tabId: string): void {
+    const controller = this.abortControllers.get(tabId);
+    if (controller) {
+      controller.abort();
+      this.abortControllers.delete(tabId);
     }
   }
 
@@ -159,6 +191,9 @@ class QueryStore {
 
   // Clean up tab state when tab is closed
   cleanupTab(tabId: string): void {
+    // Cancel any running query
+    this.cancelQuery(tabId);
+
     const newQueryTexts = new Map(this.queryTexts);
     newQueryTexts.delete(tabId);
     this.queryTexts = newQueryTexts;

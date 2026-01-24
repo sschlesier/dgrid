@@ -142,11 +142,39 @@ class AppStore {
       // Load databases after connecting
       await this.loadDatabases(id);
     } catch (error) {
-      this.notify('error', `Failed to connect: ${(error as Error).message}`);
+      const errorMessage = this.getConnectionErrorMessage((error as Error).message);
+      this.notify('error', errorMessage);
       throw error;
     } finally {
       this.isConnecting = false;
     }
+  }
+
+  // Provide actionable error messages for connection failures
+  private getConnectionErrorMessage(errorMessage: string): string {
+    const lowerError = errorMessage.toLowerCase();
+
+    if (lowerError.includes('auth') || lowerError.includes('authentication failed')) {
+      return 'Authentication failed - check your username and password';
+    }
+
+    if (lowerError.includes('econnrefused') || lowerError.includes('connection refused')) {
+      return 'Connection refused - is MongoDB running on the specified host and port?';
+    }
+
+    if (lowerError.includes('timeout') || lowerError.includes('timed out')) {
+      return 'Connection timed out - check if the host is reachable';
+    }
+
+    if (lowerError.includes('enotfound') || lowerError.includes('getaddrinfo')) {
+      return 'Host not found - check the hostname or IP address';
+    }
+
+    if (lowerError.includes('ssl') || lowerError.includes('tls')) {
+      return 'SSL/TLS error - check your SSL configuration';
+    }
+
+    return `Failed to connect: ${errorMessage}`;
   }
 
   async disconnect(id: string): Promise<void> {

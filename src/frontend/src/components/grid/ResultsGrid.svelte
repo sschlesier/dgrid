@@ -209,7 +209,15 @@
   />
 
   {#if sortedData.length === 0}
-    <div class="empty-state">No documents found</div>
+    <div class="empty-state">
+      <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor" class="empty-icon">
+        <path
+          d="M2.5 1.75a.25.25 0 0 1 .25-.25h8.5a.25.25 0 0 1 .25.25v7.5a.25.25 0 0 1-.25.25h-8.5a.25.25 0 0 1-.25-.25Zm.25-1.75A1.75 1.75 0 0 0 1 1.75v7.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 13 9.25v-7.5A1.75 1.75 0 0 0 11.25 0ZM0 12.75A1.75 1.75 0 0 0 1.75 14.5h8.5A1.75 1.75 0 0 0 12 12.75v-.5a.75.75 0 0 0-1.5 0v.5a.25.25 0 0 1-.25.25h-8.5a.25.25 0 0 1-.25-.25v-.5a.75.75 0 0 0-1.5 0Z"
+        />
+      </svg>
+      <p class="empty-title">No documents found</p>
+      <p class="empty-hint">Your query returned no results</p>
+    </div>
   {:else}
     <div class="grid-viewport" bind:this={scrollContainer} onscroll={handleScroll}>
       <div class="grid-content" style="width: {Math.max(totalWidth, 100)}px;">
@@ -272,10 +280,26 @@
 
   .empty-state {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: var(--space-sm);
     flex: 1;
     color: var(--color-text-muted);
+  }
+
+  .empty-icon {
+    opacity: 0.3;
+    margin-bottom: var(--space-xs);
+  }
+
+  .empty-title {
     font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .empty-hint {
+    font-size: var(--font-size-sm);
+    opacity: 0.7;
   }
 </style>

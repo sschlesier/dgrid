@@ -64,6 +64,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return handleResponse<T>(response);
 }
 
+/**
+ * Cancellable query error
+ */
+export class QueryCancelledError extends Error {
+  constructor() {
+    super('Query was cancelled');
+    this.name = 'QueryCancelledError';
+  }
+}
+
 // Connection endpoints
 
 export async function getConnections(): Promise<ConnectionResponse[]> {
@@ -133,14 +143,33 @@ export async function getCollections(
 
 // Query endpoints
 
+export interface ExecuteQueryOptions {
+  signal?: AbortSignal;
+}
+
 export async function executeQuery(
   connectionId: string,
-  data: ExecuteQueryRequest
+  data: ExecuteQueryRequest,
+  options?: ExecuteQueryOptions
 ): Promise<ExecuteQueryResponse> {
-  return request<ExecuteQueryResponse>(`/connections/${connectionId}/query`, {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  try {
+    const response = await fetch(`${API_BASE}/connections/${connectionId}/query`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+      signal: options?.signal,
+    });
+    return handleResponse<ExecuteQueryResponse>(response);
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new QueryCancelledError();
+    }
+    throw error;
+  }
 }
 
 // File endpoints

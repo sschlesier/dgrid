@@ -1,6 +1,7 @@
 <script lang="ts">
   import { appStore } from '../stores/app.svelte';
   import * as api from '../api/client';
+  import Spinner from './Spinner.svelte';
 
   interface Props {
     connectionId: string | null;
@@ -235,7 +236,12 @@
           onclick={handleTest}
           disabled={!isValid() || isTesting || isLoading}
         >
-          {isTesting ? 'Testing...' : 'Test Connection'}
+          {#if isTesting}
+            <Spinner size="sm" />
+            Testing...
+          {:else}
+            Test Connection
+          {/if}
         </button>
         <button type="button" class="cancel-btn" onclick={onClose} disabled={isLoading}>
           Cancel
@@ -246,7 +252,12 @@
           onclick={handleSave}
           disabled={!isValid() || isLoading}
         >
-          {isLoading ? 'Saving...' : 'Save'}
+          {#if isLoading}
+            <Spinner size="sm" color="white" />
+            Saving...
+          {:else}
+            Save
+          {/if}
         </button>
       </div>
     </div>
@@ -422,6 +433,10 @@
   }
 
   .dialog-footer button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xs);
     padding: var(--space-sm) var(--space-lg);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-medium);
