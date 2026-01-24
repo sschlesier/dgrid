@@ -80,6 +80,11 @@ pnpm build            # Build both backend and frontend
 - **code-reviewer**: Review changes after implementation
 - **type-checker**: Fix TypeScript errors
 
+## Commit messages
+
+- Use git conventional commits
+- NEVER attribute anything yourself or anyone else
+
 ## Common Patterns
 
 See `.claude/rules/` for detailed guidelines on:
