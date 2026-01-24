@@ -27,9 +27,9 @@ export default [
       ...ts.configs.recommended.rules,
     },
   },
-  // Test setup files (no project checking)
+  // Test files (no project checking)
   {
-    files: ['tests/**/*.ts'],
+    files: ['tests/**/*.ts', 'src/**/__tests__/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       globals: {
@@ -46,6 +46,7 @@ export default [
   // Source TypeScript files (with project checking)
   {
     files: ['src/**/*.ts'],
+    ignores: ['src/**/__tests__/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
