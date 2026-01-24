@@ -9,9 +9,13 @@
     depth?: number;
     onNodeClick?: (_node: TreeNodeData) => void;
     onNodeExpand?: (_node: TreeNodeData) => void;
+    onRefresh?: (_node: TreeNodeData) => void;
   }
 
-  let { node, depth = 0, onNodeClick, onNodeExpand }: Props = $props();
+  let { node, depth = 0, onNodeClick, onNodeExpand, onRefresh }: Props = $props();
+
+  // Node types that support refresh action
+  const supportsRefresh = $derived(node.type === 'database' || node.type === 'collection-group');
 
   const hasChildren = $derived(node.children && node.children.length > 0);
   const isExpanded = $derived(appStore.isTreeNodeExpanded(node.id));
@@ -74,6 +78,11 @@
     }
   }
 
+  function handleRefresh(event: MouseEvent) {
+    event.stopPropagation();
+    onRefresh?.(node);
+  }
+
   const nodeIcon = $derived(getIconForType(node.type));
   const chevronIcon = $derived(isExpanded ? treeIcons.chevronDown : treeIcons.chevronRight);
   const indentStyle = $derived(`padding-left: ${depth * 16 + 4}px`);
@@ -124,13 +133,22 @@
     {#if node.count !== undefined}
       <span class="node-count">({node.count})</span>
     {/if}
+
+    <!-- Refresh button for supported node types -->
+    {#if supportsRefresh && onRefresh}
+      <button class="refresh-btn" onclick={handleRefresh} title="Refresh">
+        <svg width="14" height="14" viewBox="0 0 16 16">
+          {@html treeIcons.refresh}
+        </svg>
+      </button>
+    {/if}
   </button>
 
   <!-- Children (recursive) -->
   {#if hasChildren && isExpanded}
     <div class="tree-children" role="group">
       {#each node.children as child (child.id)}
-        <TreeNode node={child} depth={depth + 1} {onNodeClick} {onNodeExpand} />
+        <TreeNode node={child} depth={depth + 1} {onNodeClick} {onNodeExpand} {onRefresh} />
       {/each}
     </div>
   {/if}
@@ -228,5 +246,27 @@
 
   .tree-children {
     /* Children are indented via padding-left in the node content */
+  }
+
+  .refresh-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    border-radius: var(--radius-sm);
+    opacity: 0;
+    transition: all var(--transition-fast);
+  }
+
+  .tree-node-content:hover .refresh-btn {
+    opacity: 1;
+  }
+
+  .refresh-btn:hover {
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
   }
 </style>

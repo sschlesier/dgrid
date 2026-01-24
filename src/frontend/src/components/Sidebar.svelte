@@ -52,6 +52,26 @@
     event.stopPropagation();
     appStore.disconnect(connectionId);
   }
+
+  function handleRefreshConnection(event: MouseEvent, connectionId: string) {
+    event.stopPropagation();
+    appStore.refreshDatabases(connectionId);
+  }
+
+  function handleNodeRefresh(node: TreeNodeData) {
+    switch (node.type) {
+      case 'database':
+        if (node.connectionId && node.databaseName) {
+          appStore.refreshCollections(node.connectionId, node.databaseName);
+        }
+        break;
+      case 'collection-group':
+        if (node.connectionId && node.databaseName) {
+          appStore.refreshCollections(node.connectionId, node.databaseName);
+        }
+        break;
+    }
+  }
 </script>
 
 <aside class="sidebar">
@@ -73,11 +93,32 @@
     {:else}
       {#each appStore.treeData as node (node.id)}
         <div class="connection-tree-item">
-          <TreeNode {node} onNodeClick={handleNodeClick} onNodeExpand={handleNodeExpand} />
+          <TreeNode
+            {node}
+            onNodeClick={handleNodeClick}
+            onNodeExpand={handleNodeExpand}
+            onRefresh={handleNodeRefresh}
+          />
           <!-- Action buttons overlay for connections -->
           {#if node.type === 'connection'}
             <div class="action-buttons">
               {#if appStore.connections.find((c) => c.id === node.connectionId)?.isConnected}
+                <button
+                  class="action-btn"
+                  onclick={(e) => handleRefreshConnection(e, node.connectionId!)}
+                  title="Refresh databases"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16">
+                    <path
+                      d="M13.5 8a5.5 5.5 0 1 1-1.1-3.3M13.5 2v3h-3"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      fill="none"
+                    />
+                  </svg>
+                </button>
                 <button
                   class="action-btn"
                   onclick={(e) => handleDisconnect(e, node.connectionId!)}
