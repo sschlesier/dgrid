@@ -14,7 +14,7 @@
 | Task | Description            | Status | Notes                 |
 | ---- | ---------------------- | ------ | --------------------- |
 | 3.1  | Types & Utilities      | ✅     | Complete              |
-| 3.2  | API Client             | ⬜     | Independent           |
+| 3.2  | API Client             | ✅     | Complete              |
 | 3.3  | WebSocket Client       | ⬜     | Independent           |
 | 3.4  | App Store              | ⬜     | Depends on 3.1, 3.2   |
 | 3.5  | Query Store            | ⬜     | Depends on 3.2        |

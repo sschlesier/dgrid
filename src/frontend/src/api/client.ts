@@ -1,0 +1,168 @@
+// Typed API client wrapper
+
+import type {
+  ConnectionResponse,
+  CreateConnectionRequest,
+  UpdateConnectionRequest,
+  TestConnectionRequest,
+  TestConnectionResponse,
+  DatabaseInfo,
+  CollectionInfo,
+  ExecuteQueryRequest,
+  ExecuteQueryResponse,
+  ErrorResponse,
+} from '../../../shared/contracts';
+
+const API_BASE = '/api';
+
+/**
+ * Custom API error with typed properties
+ */
+export class ApiError extends Error {
+  constructor(
+    public statusCode: number,
+    public errorType: string,
+    message: string,
+    public details?: Record<string, unknown>
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+/**
+ * Transform a fetch response error into an ApiError
+ */
+async function handleResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    let errorData: ErrorResponse;
+    try {
+      errorData = await response.json();
+    } catch {
+      throw new ApiError(response.status, 'UnknownError', response.statusText);
+    }
+    throw new ApiError(errorData.statusCode, errorData.error, errorData.message, errorData.details);
+  }
+  return response.json();
+}
+
+/**
+ * Make a typed fetch request
+ */
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+  return handleResponse<T>(response);
+}
+
+// Connection endpoints
+
+export async function getConnections(): Promise<ConnectionResponse[]> {
+  return request<ConnectionResponse[]>('/connections');
+}
+
+export async function getConnection(id: string): Promise<ConnectionResponse> {
+  return request<ConnectionResponse>(`/connections/${id}`);
+}
+
+export async function createConnection(data: CreateConnectionRequest): Promise<ConnectionResponse> {
+  return request<ConnectionResponse>('/connections', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateConnection(
+  id: string,
+  data: UpdateConnectionRequest
+): Promise<ConnectionResponse> {
+  return request<ConnectionResponse>(`/connections/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteConnection(id: string): Promise<void> {
+  await request<void>(`/connections/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function testConnection(data: TestConnectionRequest): Promise<TestConnectionResponse> {
+  return request<TestConnectionResponse>('/connections/test', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function connectToConnection(id: string): Promise<ConnectionResponse> {
+  return request<ConnectionResponse>(`/connections/${id}/connect`, {
+    method: 'POST',
+  });
+}
+
+export async function disconnectFromConnection(id: string): Promise<ConnectionResponse> {
+  return request<ConnectionResponse>(`/connections/${id}/disconnect`, {
+    method: 'POST',
+  });
+}
+
+// Database endpoints
+
+export async function getDatabases(connectionId: string): Promise<DatabaseInfo[]> {
+  return request<DatabaseInfo[]>(`/connections/${connectionId}/databases`);
+}
+
+export async function getCollections(
+  connectionId: string,
+  database: string
+): Promise<CollectionInfo[]> {
+  return request<CollectionInfo[]>(
+    `/connections/${connectionId}/databases/${database}/collections`
+  );
+}
+
+// Query endpoints
+
+export async function executeQuery(
+  connectionId: string,
+  data: ExecuteQueryRequest
+): Promise<ExecuteQueryResponse> {
+  return request<ExecuteQueryResponse>(`/connections/${connectionId}/query`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// File endpoints
+
+export interface FileReadResponse {
+  content: string;
+  path: string;
+}
+
+export interface FileWriteRequest {
+  path: string;
+  content: string;
+}
+
+export interface FileWriteResponse {
+  success: boolean;
+  path: string;
+}
+
+export async function readFile(path: string): Promise<FileReadResponse> {
+  return request<FileReadResponse>(`/files?path=${encodeURIComponent(path)}`);
+}
+
+export async function writeFile(data: FileWriteRequest): Promise<FileWriteResponse> {
+  return request<FileWriteResponse>('/files', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
