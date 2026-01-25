@@ -81,13 +81,98 @@ export function detectQueryType(query: string): 'db-command' | 'collection' {
   return 'collection';
 }
 
+// Convert JavaScript regex literals to MongoDB $regex format
+// e.g., /^B/ -> {"$regex": "^B"} or /^B/i -> {"$regex": "^B", "$options": "i"}
+function convertRegexLiterals(str: string): string {
+  let result = '';
+  let i = 0;
+
+  while (i < str.length) {
+    const char = str[i];
+
+    // Skip strings
+    if (char === '"' || char === "'") {
+      const quote = char;
+      result += char;
+      i++;
+      while (i < str.length && str[i] !== quote) {
+        if (str[i] === '\\' && i + 1 < str.length) {
+          result += str[i] + str[i + 1];
+          i += 2;
+        } else {
+          result += str[i];
+          i++;
+        }
+      }
+      if (i < str.length) {
+        result += str[i]; // closing quote
+        i++;
+      }
+      continue;
+    }
+
+    // Check for regex literal (must be preceded by : or , or [ or whitespace after these)
+    if (char === '/') {
+      // Look back to see if this could be a regex (after : , [ or start)
+      const before = result.trimEnd();
+      const lastChar = before[before.length - 1];
+      if (lastChar === ':' || lastChar === ',' || lastChar === '[' || before.length === 0) {
+        // Parse the regex literal
+        let pattern = '';
+        let flags = '';
+        i++; // skip opening /
+
+        // Read pattern (handle escaped slashes)
+        while (i < str.length && str[i] !== '/') {
+          if (str[i] === '\\' && i + 1 < str.length) {
+            pattern += str[i] + str[i + 1];
+            i += 2;
+          } else {
+            pattern += str[i];
+            i++;
+          }
+        }
+
+        if (i < str.length) {
+          i++; // skip closing /
+
+          // Read optional flags (i, m, s, x, g, u)
+          while (i < str.length && /[imsgxu]/.test(str[i])) {
+            flags += str[i];
+            i++;
+          }
+        }
+
+        // Escape the pattern for JSON string
+        const escapedPattern = pattern.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
+        // Convert to MongoDB $regex format
+        if (flags) {
+          result += `{"$regex": "${escapedPattern}", "$options": "${flags}"}`;
+        } else {
+          result += `{"$regex": "${escapedPattern}"}`;
+        }
+        continue;
+      }
+    }
+
+    result += char;
+    i++;
+  }
+
+  return result;
+}
+
 function parseJavaScriptObject(str: string): Document {
   // Handle MongoDB shell syntax like { field: 1 } -> { "field": 1 }
   // This is a simplified parser - handles common cases
 
+  // First, convert regex literals to $regex format (before other transformations)
+  let normalized = convertRegexLiterals(str);
+
   // Replace unquoted keys with quoted keys
   // Matches: key: or 'key': at start, after { or after ,
-  let normalized = str.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
+  normalized = normalized.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
 
   // Handle $operators - they should also be quoted
   normalized = normalized.replace(/([{,]\s*)\$([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$$2":');

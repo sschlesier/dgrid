@@ -228,6 +228,85 @@ describe('Query Parser', () => {
     });
   });
 
+  describe('regex literals', () => {
+    it('parses simple regex literal', () => {
+      const result = parseQuery('db.data.find({callLetters: /^B/})');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.filter).toEqual({ callLetters: { $regex: '^B' } });
+      }
+    });
+
+    it('parses regex literal with flags', () => {
+      const result = parseQuery('db.users.find({name: /john/i})');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.filter).toEqual({ name: { $regex: 'john', $options: 'i' } });
+      }
+    });
+
+    it('parses regex with multiple flags', () => {
+      const result = parseQuery('db.logs.find({message: /error/im})');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.filter).toEqual({ message: { $regex: 'error', $options: 'im' } });
+      }
+    });
+
+    it('parses regex with escaped slash', () => {
+      const result = parseQuery('db.paths.find({path: /\\/usr\\/bin/})');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.filter).toEqual({ path: { $regex: '\\/usr\\/bin' } });
+      }
+    });
+
+    it('parses regex with special characters', () => {
+      const result = parseQuery('db.emails.find({email: /.*@example\\.com$/})');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.filter).toEqual({ email: { $regex: '.*@example\\.com$' } });
+      }
+    });
+
+    it('parses multiple regex literals in one query', () => {
+      const result = parseQuery('db.users.find({name: /^A/, email: /@test\\.com$/i})');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.filter).toEqual({
+          name: { $regex: '^A' },
+          email: { $regex: '@test\\.com$', $options: 'i' },
+        });
+      }
+    });
+
+    it('parses regex in array context', () => {
+      const result = parseQuery('db.users.find({$or: [{name: /^A/}, {name: /^B/}]})');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.filter).toEqual({
+          $or: [{ name: { $regex: '^A' } }, { name: { $regex: '^B' } }],
+        });
+      }
+    });
+
+    it('does not convert regex-like strings inside quotes', () => {
+      const result = parseQuery('db.users.find({pattern: "/not-a-regex/"})');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.filter).toEqual({ pattern: '/not-a-regex/' });
+      }
+    });
+  });
+
   describe('edge cases', () => {
     it('handles collection names with underscores', () => {
       const result = parseQuery('db.user_profiles.find({})');
