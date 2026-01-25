@@ -266,9 +266,25 @@ describe('Grid Utils', () => {
       const result = flattenArrayData(docs, ['items']);
 
       expect(result).toHaveLength(3);
-      expect(result[0]).toMatchObject({ _docId: '1', _arrayIndex: 0, name: 'A' });
-      expect(result[1]).toMatchObject({ _docId: '1', _arrayIndex: 1, name: 'B' });
-      expect(result[2]).toMatchObject({ _docId: '2', _arrayIndex: 0, name: 'C' });
+      expect(result[0]).toMatchObject({ _docId: '1', _id: '1', _arrayIndex: 0, name: 'A' });
+      expect(result[1]).toMatchObject({ _docId: '1', _id: '1', _arrayIndex: 1, name: 'B' });
+      expect(result[2]).toMatchObject({ _docId: '2', _id: '2', _arrayIndex: 0, name: 'C' });
+    });
+
+    it('includes parent document _id even when nested object has its own _id', () => {
+      const docs = [
+        {
+          _id: 'parent-1',
+          items: [{ _id: 'nested-1', name: 'Item A' }],
+        },
+      ];
+
+      const result = flattenArrayData(docs, ['items']);
+
+      expect(result).toHaveLength(1);
+      // Parent _id should override nested _id
+      expect(result[0]._id).toBe('parent-1');
+      expect(result[0]._docId).toBe('parent-1');
     });
   });
 
@@ -283,9 +299,9 @@ describe('Grid Utils', () => {
       const result = expandArrayAsColumns(docs, ['coordinates']);
 
       expect(result).toHaveLength(3);
-      expect(result[0]).toMatchObject({ _docId: '1', '0': -66.5, '1': 45.2 });
-      expect(result[1]).toMatchObject({ _docId: '2', '0': -55.9, '1': 49.7 });
-      expect(result[2]).toMatchObject({ _docId: '3', '0': -25.2, '1': 66.3 });
+      expect(result[0]).toMatchObject({ _docId: '1', _id: '1', '0': -66.5, '1': 45.2 });
+      expect(result[1]).toMatchObject({ _docId: '2', _id: '2', '0': -55.9, '1': 49.7 });
+      expect(result[2]).toMatchObject({ _docId: '3', _id: '3', '0': -25.2, '1': 66.3 });
     });
 
     it('handles arrays of different lengths', () => {
@@ -297,10 +313,10 @@ describe('Grid Utils', () => {
 
       const result = expandArrayAsColumns(docs, ['values']);
 
-      expect(result[0]).toMatchObject({ '0': 1, '1': 2, '2': 3 });
-      expect(result[1]).toMatchObject({ '0': 4, '1': 5 });
+      expect(result[0]).toMatchObject({ _id: '1', '0': 1, '1': 2, '2': 3 });
+      expect(result[1]).toMatchObject({ _id: '2', '0': 4, '1': 5 });
       expect(result[1]['2']).toBeUndefined();
-      expect(result[2]).toMatchObject({ '0': 6 });
+      expect(result[2]).toMatchObject({ _id: '3', '0': 6 });
     });
   });
 

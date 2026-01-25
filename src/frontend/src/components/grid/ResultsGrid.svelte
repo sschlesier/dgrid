@@ -74,12 +74,14 @@
           _docId: docId,
           _docIndex: index,
           ...(nested as Record<string, unknown>),
+          _id: docId, // Always include parent document's _id (after spread to override any nested _id)
         };
       }
 
       return {
         _docId: docId,
         _docIndex: index,
+        _id: docId, // Always include parent document's _id
         value: nested,
       };
     });
@@ -97,7 +99,7 @@
   $effect(() => {
     if (sortedData.length > 0) {
       const detectedColumns = detectColumns(sortedData as Record<string, unknown>[]);
-      // Filter out internal columns from display
+      // Filter out internal columns from display (but keep _id which comes from _docId)
       const visibleColumns = detectedColumns.filter(
         (col) => !col.key.startsWith('_doc') && col.key !== '_arrayIndex'
       );

@@ -281,6 +281,7 @@ export function expandArrayAsColumns(
     const row: DrilldownDocument = {
       _docId: docId,
       _docIndex: docIndex,
+      _id: docId, // Always include parent document's _id
     };
 
     if (Array.isArray(nested)) {
@@ -316,12 +317,14 @@ export function flattenArrayData(
             _docIndex: docIndex,
             _arrayIndex: arrIndex,
             ...(item as Record<string, unknown>),
+            _id: docId, // Always include parent document's _id (after spread to override any nested _id)
           });
         } else {
           result.push({
             _docId: docId,
             _docIndex: docIndex,
             _arrayIndex: arrIndex,
+            _id: docId, // Always include parent document's _id
             value: item,
           });
         }
@@ -331,11 +334,13 @@ export function flattenArrayData(
         _docId: docId,
         _docIndex: docIndex,
         ...(nested as Record<string, unknown>),
+        _id: docId, // Always include parent document's _id (after spread to override any nested _id)
       });
     } else {
       result.push({
         _docId: docId,
         _docIndex: docIndex,
+        _id: docId, // Always include parent document's _id
         value: nested,
       });
     }
