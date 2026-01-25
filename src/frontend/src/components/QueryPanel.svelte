@@ -26,6 +26,7 @@
 
   // UI state
   let showHistory = $state(false);
+  let editorRef: Editor | null = $state(null);
   let fileDialogMode = $state<'save' | 'load' | null>(null);
   let currentFilePath = $state<string | null>(null);
   let fileError = $state<string | null>(null);
@@ -157,6 +158,8 @@
   function selectHistoryItem(item: { query: string }) {
     queryStore.setQueryText(tab.id, item.query);
     showHistory = false;
+    // Refocus editor so keyboard shortcuts work
+    editorRef?.focus();
   }
 
   function clearHistory() {
@@ -315,6 +318,7 @@
     </div>
 
     <Editor
+      bind:this={editorRef}
       value={queryText}
       onchange={handleQueryChange}
       onexecute={handleExecute}
