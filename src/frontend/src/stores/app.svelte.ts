@@ -3,6 +3,7 @@
 import type { ConnectionResponse, DatabaseInfo, CollectionInfo } from '../../../shared/contracts';
 import type { Tab, Notification, UIState, Theme, TreeNodeData } from '../types';
 import * as api from '../api/client';
+import { queryStore } from './query.svelte';
 
 // Generate unique IDs
 function generateId(): string {
@@ -270,6 +271,8 @@ class AppStore {
     };
     this.tabs = [...this.tabs, tab];
     this.activeTabId = tab.id;
+    // Initialize query store with the tab's initial query
+    queryStore.setQueryText(tab.id, queryText);
     return tab;
   }
 

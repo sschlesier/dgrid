@@ -63,7 +63,9 @@
       {#if appStore.activeConnection?.isConnected}
         <TabBar />
         {#if appStore.activeTab}
-          <QueryPanel tab={appStore.activeTab} />
+          {#key appStore.activeTab.id}
+            <QueryPanel tab={appStore.activeTab} />
+          {/key}
         {:else}
           <div class="empty-state">
             <div class="empty-state-content">

@@ -153,6 +153,9 @@
       state,
       parent: container,
     });
+
+    // Auto-focus so keyboard shortcuts work immediately
+    view.focus();
   });
 
   onDestroy(() => {
