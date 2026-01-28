@@ -133,13 +133,11 @@
         </svg>
       </span>
 
-      <!-- Label -->
-      <span class="node-label">{node.label}</span>
-
-      <!-- Count badge -->
-      {#if node.count !== undefined}
-        <span class="node-count">({node.count})</span>
-      {/if}
+      <!-- Label with optional count -->
+      <span class="node-label">
+        {node.label}{#if node.count !== undefined}
+          <span class="node-count">({node.count})</span>{/if}
+      </span>
     </div>
 
     <!-- Refresh button for supported node types (outside the main clickable area) -->
@@ -254,8 +252,6 @@
   }
 
   .node-count {
-    flex-shrink: 0;
-    font-size: var(--font-size-xs);
     color: var(--color-text-muted);
   }
 
