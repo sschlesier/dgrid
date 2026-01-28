@@ -86,6 +86,11 @@
   const nodeIcon = $derived(getIconForType(node.type));
   const chevronIcon = $derived(isExpanded ? treeIcons.chevronDown : treeIcons.chevronRight);
   const indentStyle = $derived(`padding-left: ${depth * 16 + 4}px`);
+  const isConnected = $derived(
+    node.type === 'connection' &&
+      node.connectionId &&
+      appStore.connections.find((c) => c.id === node.connectionId)?.isConnected
+  );
 </script>
 
 <div class="tree-node" class:selected={isSelected}>
@@ -122,7 +127,7 @@
       </span>
 
       <!-- Type icon -->
-      <span class="node-icon" class:connected={node.type === 'connection' && isExpanded}>
+      <span class="node-icon" class:connected={isConnected}>
         <svg width="16" height="16" viewBox="0 0 16 16">
           {@html nodeIcon}
         </svg>
