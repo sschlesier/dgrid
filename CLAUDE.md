@@ -60,10 +60,10 @@ pnpm build            # Build both backend and frontend
 
 ## Workflow
 
-1. Create feature branch: `git checkout -b feature/description`
-2. Implement with tests
-3. Run `/verify-changes` skill before commit
-4. Create PR with descriptive title
+1. Implement changes with tests
+2. Run `pnpm verify` to validate (types, lint, tests, build)
+3. Commit to git after successful verification
+4. Only push to remote when explicitly requested
 
 ## Security Principles
 
