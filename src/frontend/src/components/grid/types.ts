@@ -1,5 +1,8 @@
 // Grid Types
 
+// View modes for results display
+export type ViewMode = 'table' | 'json' | 'tree';
+
 // BSON types that use the {_type, _value} pattern
 export type BsonType = 'ObjectId' | 'Date' | 'Binary' | 'Decimal128' | 'Long' | 'UUID';
 
@@ -45,6 +48,7 @@ export interface GridState {
   sort: SortState;
   drilldown: DrilldownState;
   pageSize: 50 | 100 | 250 | 500;
+  viewMode: ViewMode; // Current view mode (table, json, tree)
 }
 
 // Serialized BSON value (matches backend/db/bson.ts)

@@ -10,7 +10,7 @@
   import QueryHistory from './QueryHistory.svelte';
   import FileDialog from './FileDialog.svelte';
   import Spinner from './Spinner.svelte';
-  import { ResultsGrid } from './grid';
+  import { ResultsContainer } from './results';
 
   interface Props {
     tab: Tab;
@@ -362,7 +362,7 @@
         <span>Executing query...</span>
       </div>
     {:else if results}
-      <ResultsGrid
+      <ResultsContainer
         tabId={tab.id}
         {results}
         onpagechange={handlePageChange}

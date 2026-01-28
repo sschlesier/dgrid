@@ -5,6 +5,7 @@ import type {
   GridColumn,
   SortDirection,
   DrilldownState,
+  ViewMode,
 } from '../components/grid/types';
 
 // localStorage key for persisted column widths
@@ -44,6 +45,7 @@ function createInitialState(): GridState {
       historyIndex: 0,
     },
     pageSize: 50,
+    viewMode: 'table',
   };
 }
 
@@ -245,6 +247,15 @@ class GridStore {
     this.updateState(tabId, { pageSize });
   }
 
+  // View mode management
+  getViewMode(tabId: string): ViewMode {
+    return this.getState(tabId).viewMode;
+  }
+
+  setViewMode(tabId: string, viewMode: ViewMode): void {
+    this.updateState(tabId, { viewMode });
+  }
+
   // Reset grid state for a tab (e.g., when running a new query)
   resetState(tabId: string): void {
     const state = this.getState(tabId);
@@ -256,9 +267,10 @@ class GridStore {
         history: [[]],
         historyIndex: 0,
       },
-      // Keep pageSize and columnWidths
+      // Keep pageSize, columnWidths, and viewMode
       pageSize: state.pageSize,
       columnWidths: state.columnWidths,
+      viewMode: state.viewMode,
     });
   }
 
