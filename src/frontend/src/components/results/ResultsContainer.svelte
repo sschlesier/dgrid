@@ -3,6 +3,7 @@
   import { gridStore } from '../../stores/grid.svelte';
   import type { ViewMode } from '../grid/types';
   import { ResultsGrid } from '../grid';
+  import { JsonView } from './json';
   import ViewSelector from './ViewSelector.svelte';
 
   interface Props {
@@ -30,7 +31,7 @@
     {#if viewMode === 'table'}
       <ResultsGrid {tabId} {results} {onpagechange} {onpagesizechange} />
     {:else if viewMode === 'json'}
-      <div class="placeholder">JSON View - Coming Soon</div>
+      <JsonView {tabId} {results} {onpagechange} {onpagesizechange} />
     {:else if viewMode === 'tree'}
       <div class="placeholder">Tree View - Coming Soon</div>
     {/if}
