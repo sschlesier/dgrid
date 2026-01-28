@@ -4,6 +4,7 @@
   import type { ViewMode } from '../grid/types';
   import { ResultsGrid } from '../grid';
   import { JsonView } from './json';
+  import { TreeView } from './tree';
   import ViewSelector from './ViewSelector.svelte';
 
   interface Props {
@@ -33,7 +34,7 @@
     {:else if viewMode === 'json'}
       <JsonView {tabId} {results} {onpagechange} {onpagesizechange} />
     {:else if viewMode === 'tree'}
-      <div class="placeholder">Tree View - Coming Soon</div>
+      <TreeView {tabId} {results} {onpagechange} {onpagesizechange} />
     {/if}
   </div>
 </div>
@@ -59,14 +60,5 @@
     flex-direction: column;
     flex: 1;
     overflow: hidden;
-  }
-
-  .placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-md);
   }
 </style>
