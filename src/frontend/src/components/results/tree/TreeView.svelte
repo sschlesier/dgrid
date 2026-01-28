@@ -1,8 +1,9 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { ExecuteQueryResponse } from '../../../../../shared/contracts';
-  import { searchDocument, getAncestorPaths, getAllPaths } from './tree-utils';
+  import { searchDocument, getAncestorPaths, getAllPaths, getDocumentSummary } from './tree-utils';
   import TreeField from './TreeField.svelte';
+  import TypeIcon from './TypeIcon.svelte';
   import TreeToolbar from './TreeToolbar.svelte';
   import { GridPagination } from '../../grid';
   import { gridStore } from '../../../stores/grid.svelte';
@@ -40,7 +41,13 @@
     if (searchMatches.size > 0) {
       const ancestors = getAncestorPaths(Array.from(searchMatches));
       const currentExpanded = untrack(() => expandedPaths);
-      expandedPaths = new Set([...currentExpanded, ...ancestors]);
+      // Also expand the document rows that contain matches
+      const docIndices = new Set<string>();
+      for (const match of searchMatches) {
+        const docIndex = match.split('.')[0];
+        docIndices.add(`doc:${docIndex}`);
+      }
+      expandedPaths = new Set([...currentExpanded, ...ancestors, ...docIndices]);
     }
   });
 
@@ -58,9 +65,20 @@
     expandedPaths = newExpanded;
   }
 
+  function handleDocToggle(docIndex: number) {
+    const docPath = `doc:${docIndex}`;
+    handleToggle(docPath);
+  }
+
+  function isDocExpanded(docIndex: number): boolean {
+    return expandedPaths.has(`doc:${docIndex}`);
+  }
+
   function handleExpandAll() {
     const allPaths: string[] = [];
+    // Add all document paths
     docs.forEach((doc, index) => {
+      allPaths.push(`doc:${index}`);
       allPaths.push(...getAllPaths(doc, index));
     });
     expandedPaths = new Set(allPaths);
@@ -76,10 +94,23 @@
       onpagesizechange(size);
     }
   }
+
+  function handleDocKeydown(event: KeyboardEvent, docIndex: number) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleDocToggle(docIndex);
+    } else if (event.key === 'ArrowRight' && !isDocExpanded(docIndex)) {
+      event.preventDefault();
+      handleDocToggle(docIndex);
+    } else if (event.key === 'ArrowLeft' && isDocExpanded(docIndex)) {
+      event.preventDefault();
+      handleDocToggle(docIndex);
+    }
+  }
 </script>
 
 <div class="tree-view">
-  <div class="tree-header">
+  <div class="tree-toolbar">
     <TreeToolbar
       {searchQuery}
       matchCount={searchMatches.size}
@@ -101,27 +132,69 @@
     </div>
   {:else}
     <div class="tree-content">
-      {#each docs as doc, docIndex (docIndex)}
-        <div class="document-tree">
-          <div class="document-header">
-            <span class="document-label">Document {docIndex + 1}</span>
+      <div class="tree-table">
+        <!-- Header row -->
+        <div class="tree-header-cell">Key</div>
+        <div class="tree-header-cell">Value</div>
+        <div class="tree-header-cell">Type</div>
+
+        {#each docs as doc, docIndex (docIndex)}
+          {@const summary = getDocumentSummary(doc, docIndex)}
+          {@const docExpanded = isDocExpanded(docIndex)}
+
+          <!-- Document row -->
+          <div
+            class="tree-row document-row"
+            class:expanded={docExpanded}
+            role="button"
+            tabindex="0"
+            onclick={() => handleDocToggle(docIndex)}
+            onkeydown={(e) => handleDocKeydown(e, docIndex)}
+          >
+            <!-- Key cell: document summary -->
+            <div class="key-cell" style="padding-left: var(--space-sm)">
+              <span class="field-chevron">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                  <path
+                    d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z"
+                  />
+                </svg>
+              </span>
+              <TypeIcon type="Object" />
+              <span class="doc-label">{summary.label}</span>
+              <span class="doc-id">
+                <span class="id-prefix">{'{_id : '}</span>
+                <span class="id-value">{summary.idDisplay}</span>
+                <span class="id-suffix">{'}'}</span>
+              </span>
+            </div>
+
+            <!-- Value cell: field count -->
+            <div class="value-cell">
+              <span class="field-count">{'{ '}{summary.fieldCount} fields{' }'}</span>
+            </div>
+
+            <!-- Type cell -->
+            <div class="type-cell">Document</div>
           </div>
-          <div class="document-fields">
+
+          <!-- Document fields (when expanded) -->
+          {#if docExpanded}
             {#each Object.entries(doc) as [key, value] (key)}
               <TreeField
                 fieldKey={key}
                 {value}
                 {docIndex}
                 path={[key]}
-                depth={0}
+                depth={1}
                 {expandedPaths}
                 {searchMatches}
                 ontoggle={handleToggle}
               />
             {/each}
-          </div>
-        </div>
-      {/each}
+          {/if}
+        {/each}
+      </div>
     </div>
   {/if}
 
@@ -144,7 +217,7 @@
     background-color: var(--color-bg-primary);
   }
 
-  .tree-header {
+  .tree-toolbar {
     display: flex;
     align-items: center;
     padding: var(--space-xs) var(--space-sm);
@@ -155,37 +228,134 @@
   .tree-content {
     flex: 1;
     overflow: auto;
-    padding: var(--space-md);
+    padding: var(--space-sm);
   }
 
-  .document-tree {
+  .tree-table {
+    display: grid;
+    grid-template-columns: var(--tree-key-column) var(--tree-value-column) var(--tree-type-column);
+    background-color: var(--color-bg-primary);
     border: 1px solid var(--color-border-light);
     border-radius: var(--radius-md);
     overflow: hidden;
-    margin-bottom: var(--space-md);
-    background-color: var(--color-bg-primary);
   }
 
-  .document-tree:last-child {
-    margin-bottom: 0;
-  }
-
-  .document-header {
+  .tree-header-cell {
     display: flex;
     align-items: center;
-    padding: var(--space-xs) var(--space-sm);
+    height: var(--tree-node-height);
+    padding: 0 var(--space-sm);
     background-color: var(--color-bg-secondary);
     border-bottom: 1px solid var(--color-border-light);
-  }
-
-  .document-label {
+    font-family: var(--font-mono);
     font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-semibold);
     color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
-  .document-fields {
-    padding: var(--space-xs) 0;
+  /* Document row styles */
+  .tree-row {
+    display: contents;
+  }
+
+  .tree-row:hover > .key-cell,
+  .tree-row:hover > .value-cell,
+  .tree-row:hover > .type-cell {
+    background-color: var(--color-bg-hover);
+  }
+
+  .tree-row:focus > .key-cell,
+  .tree-row:focus > .value-cell,
+  .tree-row:focus > .type-cell {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+  }
+
+  .document-row {
+    cursor: pointer;
+  }
+
+  .document-row > .key-cell,
+  .document-row > .value-cell,
+  .document-row > .type-cell {
+    background-color: var(--color-bg-secondary);
+  }
+
+  .document-row:hover > .key-cell,
+  .document-row:hover > .value-cell,
+  .document-row:hover > .type-cell {
+    background-color: var(--color-bg-tertiary);
+  }
+
+  .key-cell,
+  .value-cell,
+  .type-cell {
+    display: flex;
+    align-items: center;
+    height: var(--tree-node-height);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    overflow: hidden;
+  }
+
+  .key-cell {
+    gap: var(--space-xs);
+    padding-right: var(--space-sm);
+  }
+
+  .value-cell {
+    padding: 0 var(--space-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .type-cell {
+    padding: 0 var(--space-sm);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+  }
+
+  .field-chevron {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--tree-icon-size);
+    height: var(--tree-icon-size);
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    transition: transform var(--transition-fast);
+  }
+
+  .tree-row.expanded .field-chevron {
+    transform: rotate(90deg);
+  }
+
+  .doc-label {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    margin-right: var(--space-xs);
+  }
+
+  .doc-id {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .id-prefix,
+  .id-suffix {
+    color: var(--color-text-muted);
+  }
+
+  .id-value {
+    color: var(--color-primary);
+  }
+
+  .field-count {
+    color: var(--color-primary);
   }
 
   .empty-state {

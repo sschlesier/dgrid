@@ -87,11 +87,11 @@ describe('Tree Utils', () => {
     });
 
     it('displays array length', () => {
-      expect(getDisplayValue([1, 2, 3], 'Array')).toBe('Array(3)');
+      expect(getDisplayValue([1, 2, 3], 'Array')).toBe('[ 3 elements ]');
     });
 
     it('displays object field count', () => {
-      expect(getDisplayValue({ a: 1, b: 2 }, 'Object')).toBe('Object(2)');
+      expect(getDisplayValue({ a: 1, b: 2 }, 'Object')).toBe('{ 2 fields }');
     });
 
     it('displays ObjectId', () => {

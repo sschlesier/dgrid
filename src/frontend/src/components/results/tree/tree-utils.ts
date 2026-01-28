@@ -7,6 +7,48 @@ interface SerializedBsonValue {
   _value: string;
 }
 
+// Format _id value for document summary
+export function formatIdForSummary(id: unknown): string {
+  if (id === null || id === undefined) return 'null';
+
+  if (isSerializedBson(id)) {
+    const bson = id as SerializedBsonValue;
+    if (bson._type === 'ObjectId') {
+      // Truncate ObjectId to first 12 chars
+      const truncated = bson._value.length > 12 ? bson._value.slice(0, 12) + '...' : bson._value;
+      return truncated;
+    }
+    return bson._value;
+  }
+
+  if (typeof id === 'string') {
+    // Truncate long strings
+    return id.length > 20 ? id.slice(0, 20) + '...' : id;
+  }
+
+  if (typeof id === 'number') {
+    return String(id);
+  }
+
+  return String(id);
+}
+
+// Get document summary for collapsed document row
+export function getDocumentSummary(
+  doc: Record<string, unknown>,
+  index: number
+): { label: string; idDisplay: string; fieldCount: number } {
+  const fieldCount = Object.keys(doc).length;
+  const id = doc._id;
+  const idDisplay = formatIdForSummary(id);
+
+  return {
+    label: `(${index + 1})`,
+    idDisplay,
+    fieldCount,
+  };
+}
+
 // Check if value is a serialized BSON type
 export function isSerializedBson(value: unknown): value is SerializedBsonValue {
   return (
@@ -69,13 +111,13 @@ export function getDisplayValue(value: unknown, type: CellType): string {
 
   if (type === 'Array') {
     const arr = value as unknown[];
-    return `Array(${arr.length})`;
+    return `[ ${arr.length} elements ]`;
   }
 
   if (type === 'Object') {
     const obj = value as Record<string, unknown>;
     const keys = Object.keys(obj);
-    return `Object(${keys.length})`;
+    return `{ ${keys.length} fields }`;
   }
 
   if (type === 'boolean') return value ? 'true' : 'false';

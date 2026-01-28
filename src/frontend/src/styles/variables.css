@@ -112,6 +112,11 @@
   --tree-indent: 16px;
   --tree-icon-size: 16px;
   --tree-node-height: 28px;
+
+  /* Tree view table columns */
+  --tree-key-column: minmax(200px, 1fr);
+  --tree-value-column: minmax(200px, 2fr);
+  --tree-type-column: 100px;
 }
 
 /* Dark theme */

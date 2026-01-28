@@ -1,5 +1,6 @@
 <script lang="ts">
   import TreeField from './TreeField.svelte';
+  import TypeIcon from './TypeIcon.svelte';
   import {
     detectValueType,
     isExpandable,
@@ -72,20 +73,20 @@
   }
 </script>
 
-<div class="tree-field" style="--depth: {depth};">
-  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div
-    class="field-row"
-    class:expandable
-    class:expanded
-    class:match={isMatch}
-    onclick={handleToggle}
-    onkeydown={handleKeydown}
-    role={expandable ? 'button' : undefined}
-    tabindex={expandable ? 0 : undefined}
-  >
-    <span class="field-indent" style="width: calc({depth} * var(--tree-indent))"></span>
-
+<!-- Row wrapper with display: contents so cells flow into parent grid -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div
+  class="tree-row"
+  class:expandable
+  class:expanded
+  class:match={isMatch}
+  role={expandable ? 'button' : undefined}
+  tabindex={expandable ? 0 : undefined}
+  onclick={handleToggle}
+  onkeydown={handleKeydown}
+>
+  <!-- Key cell -->
+  <div class="key-cell" style="padding-left: calc({depth} * var(--tree-indent) + var(--space-sm))">
     {#if expandable}
       <span class="field-chevron">
         <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
@@ -97,65 +98,88 @@
     {:else}
       <span class="field-spacer"></span>
     {/if}
-
+    <TypeIcon type={valueType} />
     <span class="field-key" class:match={isMatch}>{fieldKey}</span>
-    <span class="field-colon">:</span>
-    <span class="field-type {typeClass}">{getTypeBadge(valueType)}</span>
-    <span class="field-value {typeClass}">{displayValue}</span>
   </div>
 
-  {#if expanded && children.length > 0}
-    <div class="field-children">
-      {#each children as child (child.key)}
-        <TreeField
-          fieldKey={child.key}
-          value={child.value}
-          {docIndex}
-          path={[...path, child.key]}
-          depth={depth + 1}
-          {expandedPaths}
-          {searchMatches}
-          {ontoggle}
-        />
-      {/each}
-    </div>
-  {/if}
+  <!-- Value cell -->
+  <div class="value-cell {typeClass}">{displayValue}</div>
+
+  <!-- Type cell -->
+  <div class="type-cell">{getTypeBadge(valueType)}</div>
 </div>
 
+{#if expanded && children.length > 0}
+  {#each children as child (child.key)}
+    <TreeField
+      fieldKey={child.key}
+      value={child.value}
+      {docIndex}
+      path={[...path, child.key]}
+      depth={depth + 1}
+      {expandedPaths}
+      {searchMatches}
+      {ontoggle}
+    />
+  {/each}
+{/if}
+
 <style>
-  .tree-field {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
+  .tree-row {
+    display: contents;
   }
 
-  .field-row {
-    display: flex;
-    align-items: center;
-    height: var(--tree-node-height);
-    padding-right: var(--space-sm);
-    border-radius: var(--radius-sm);
-    cursor: default;
-  }
-
-  .field-row.expandable {
-    cursor: pointer;
-  }
-
-  .field-row:hover {
+  /* Style the cells when row is hovered */
+  .tree-row:hover > .key-cell,
+  .tree-row:hover > .value-cell,
+  .tree-row:hover > .type-cell {
     background-color: var(--color-bg-hover);
   }
 
-  .field-row:focus {
+  .tree-row.match > .key-cell,
+  .tree-row.match > .value-cell,
+  .tree-row.match > .type-cell {
+    background-color: var(--color-warning-light);
+  }
+
+  .tree-row:focus > .key-cell,
+  .tree-row:focus > .value-cell,
+  .tree-row:focus > .type-cell {
     outline: 2px solid var(--color-primary);
     outline-offset: -2px;
   }
 
-  .field-row.match {
-    background-color: var(--color-warning-light);
+  .tree-row.expandable {
+    cursor: pointer;
   }
 
-  .field-indent {
-    flex-shrink: 0;
+  .key-cell,
+  .value-cell,
+  .type-cell {
+    display: flex;
+    align-items: center;
+    height: var(--tree-node-height);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    overflow: hidden;
+  }
+
+  .key-cell {
+    gap: var(--space-xs);
+    padding-right: var(--space-sm);
+  }
+
+  .value-cell {
+    padding: 0 var(--space-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .type-cell {
+    padding: 0 var(--space-sm);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
   }
 
   .field-chevron {
@@ -169,7 +193,7 @@
     transition: transform var(--transition-fast);
   }
 
-  .field-row.expanded .field-chevron {
+  .tree-row.expanded .field-chevron {
     transform: rotate(90deg);
   }
 
@@ -181,7 +205,6 @@
   .field-key {
     color: var(--color-text-primary);
     font-weight: var(--font-weight-medium);
-    margin-left: var(--space-xs);
   }
 
   .field-key.match {
@@ -191,27 +214,7 @@
     border-radius: 2px;
   }
 
-  .field-colon {
-    color: var(--color-text-muted);
-    margin-right: var(--space-xs);
-  }
-
-  .field-type {
-    font-size: var(--font-size-xs);
-    padding: 1px 4px;
-    border-radius: var(--radius-sm);
-    background-color: var(--color-bg-tertiary);
-    color: var(--color-text-secondary);
-    margin-right: var(--space-xs);
-  }
-
-  .field-value {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* Type-specific colors */
+  /* Type-specific value colors */
   .type-id {
     color: var(--color-primary);
   }
@@ -244,9 +247,5 @@
 
   .type-binary {
     color: var(--color-text-secondary);
-  }
-
-  .field-children {
-    /* Children are indented via their own depth */
   }
 </style>
