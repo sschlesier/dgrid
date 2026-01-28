@@ -19,19 +19,29 @@
 
   let searchQuery = $state('');
   let expandedPaths = $state<Set<string>>(new Set());
+  let currentMatchIndex = $state(0);
 
   const gridState = $derived(gridStore.getState(tabId));
   const docs = $derived(results.documents as Record<string, unknown>[]);
 
-  // Search results
-  const searchMatches = $derived.by(() => {
-    if (!searchQuery.trim()) return new Set<string>();
+  // Search results - keep as array for navigation, derive Set for highlighting
+  const searchMatchList = $derived.by(() => {
+    if (!searchQuery.trim()) return [];
 
     const matches: string[] = [];
     docs.forEach((doc, index) => {
       matches.push(...searchDocument(doc, searchQuery, index));
     });
-    return new Set(matches);
+    return matches;
+  });
+
+  const searchMatches = $derived(new Set(searchMatchList));
+
+  // Reset current match index when search changes
+  $effect(() => {
+    // Access searchQuery to create dependency
+    searchQuery;
+    currentMatchIndex = 0;
   });
 
   // Auto-expand to show search matches
@@ -53,6 +63,30 @@
 
   function handleSearch(query: string) {
     searchQuery = query;
+  }
+
+  function handleNextMatch() {
+    if (searchMatchList.length === 0) return;
+    currentMatchIndex = (currentMatchIndex + 1) % searchMatchList.length;
+    scrollToCurrentMatch();
+  }
+
+  function handlePrevMatch() {
+    if (searchMatchList.length === 0) return;
+    currentMatchIndex = (currentMatchIndex - 1 + searchMatchList.length) % searchMatchList.length;
+    scrollToCurrentMatch();
+  }
+
+  function scrollToCurrentMatch() {
+    if (searchMatchList.length === 0) return;
+    const matchPath = searchMatchList[currentMatchIndex];
+    // Find the element by data-path attribute and scroll to it
+    requestAnimationFrame(() => {
+      const element = document.querySelector(`[data-path="${matchPath}"]`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
   }
 
   function handleToggle(path: string) {
@@ -113,8 +147,11 @@
   <div class="tree-toolbar">
     <TreeToolbar
       {searchQuery}
-      matchCount={searchMatches.size}
+      matchCount={searchMatchList.length}
+      {currentMatchIndex}
       onsearch={handleSearch}
+      onnextmatch={handleNextMatch}
+      onprevmatch={handlePrevMatch}
       onexpandall={handleExpandAll}
       oncollapseall={handleCollapseAll}
     />

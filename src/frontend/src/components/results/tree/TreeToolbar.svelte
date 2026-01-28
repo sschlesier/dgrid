@@ -2,21 +2,55 @@
   interface Props {
     searchQuery: string;
     matchCount: number;
+    currentMatchIndex: number;
     onsearch: (_query: string) => void;
+    onnextmatch: () => void;
+    onprevmatch: () => void;
     onexpandall: () => void;
     oncollapseall: () => void;
   }
 
-  let { searchQuery, matchCount, onsearch, onexpandall, oncollapseall }: Props = $props();
+  let {
+    searchQuery,
+    matchCount,
+    currentMatchIndex,
+    onsearch,
+    onnextmatch,
+    onprevmatch,
+    onexpandall,
+    oncollapseall,
+  }: Props = $props();
 
   let inputRef: HTMLInputElement | undefined = $state();
+  let localValue = $state(searchQuery);
+  let debounceTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  // Sync local value when external searchQuery changes (e.g., on clear)
+  $effect(() => {
+    localValue = searchQuery;
+  });
 
   function handleInput(event: Event) {
     const target = event.target as HTMLInputElement;
-    onsearch(target.value);
+    localValue = target.value;
+
+    // Clear any pending debounce
+    if (debounceTimeout) {
+      clearTimeout(debounceTimeout);
+    }
+
+    // Debounce the search callback
+    debounceTimeout = setTimeout(() => {
+      onsearch(localValue);
+    }, 250);
   }
 
   function handleClear() {
+    // Clear any pending debounce
+    if (debounceTimeout) {
+      clearTimeout(debounceTimeout);
+    }
+    localValue = '';
     onsearch('');
     inputRef?.focus();
   }
@@ -24,6 +58,13 @@
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       handleClear();
+    } else if (event.key === 'Enter' || event.key === 'F3') {
+      event.preventDefault();
+      if (event.shiftKey) {
+        onprevmatch();
+      } else {
+        onnextmatch();
+      }
     }
   }
 </script>
@@ -40,13 +81,43 @@
       type="text"
       class="search-input"
       placeholder="Search fields and values..."
-      value={searchQuery}
+      value={localValue}
       oninput={handleInput}
       onkeydown={handleKeydown}
     />
-    {#if searchQuery}
-      <span class="match-count">{matchCount} match{matchCount !== 1 ? 'es' : ''}</span>
-      <button class="clear-btn" onclick={handleClear} title="Clear search">
+    {#if localValue}
+      <span class="match-count">
+        {#if matchCount > 0}
+          {currentMatchIndex + 1} of {matchCount}
+        {:else}
+          0 matches
+        {/if}
+      </span>
+      <button
+        class="nav-btn"
+        onclick={onprevmatch}
+        disabled={matchCount === 0}
+        title="Previous match (Shift+Enter)"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+          <path
+            d="M3.47 7.78a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 1.06L5.31 7h8.94a.75.75 0 0 1 0 1.5H5.31l3.47 3.47a.751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018L3.47 8.78Z"
+          />
+        </svg>
+      </button>
+      <button
+        class="nav-btn"
+        onclick={onnextmatch}
+        disabled={matchCount === 0}
+        title="Next match (Enter)"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+          <path
+            d="M12.53 8.22a.75.75 0 0 1 0 1.06l-4.25 4.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L10.69 9H1.75a.75.75 0 0 1 0-1.5h8.94L7.22 4.03a.75.75 0 0 1 1.06-1.06l4.25 4.25Z"
+          />
+        </svg>
+      </button>
+      <button class="clear-btn" onclick={handleClear} title="Clear search (Esc)">
         <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
           <path
             d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"
@@ -143,6 +214,31 @@
   .clear-btn:hover {
     background-color: var(--color-bg-hover);
     color: var(--color-text-primary);
+  }
+
+  .nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .nav-btn:hover:not(:disabled) {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  .nav-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 
   .toolbar-actions {

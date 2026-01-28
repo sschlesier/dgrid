@@ -86,7 +86,11 @@
   onkeydown={handleKeydown}
 >
   <!-- Key cell -->
-  <div class="key-cell" style="padding-left: calc({depth} * var(--tree-indent) + var(--space-sm))">
+  <div
+    class="key-cell"
+    data-path={fullPath}
+    style="padding-left: calc({depth} * var(--tree-indent) + var(--space-sm))"
+  >
     {#if expandable}
       <span class="field-chevron">
         <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
