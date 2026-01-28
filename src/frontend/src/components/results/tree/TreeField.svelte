@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TreeField from './TreeField.svelte';
   import {
     detectValueType,
     isExpandable,
@@ -72,6 +73,7 @@
 </script>
 
 <div class="tree-field" style="--depth: {depth};">
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
     class="field-row"
     class:expandable
@@ -80,7 +82,7 @@
     onclick={handleToggle}
     onkeydown={handleKeydown}
     role={expandable ? 'button' : undefined}
-    tabindex={expandable ? 0 : -1}
+    tabindex={expandable ? 0 : undefined}
   >
     <span class="field-indent" style="width: calc({depth} * var(--tree-indent))"></span>
 
@@ -105,7 +107,7 @@
   {#if expanded && children.length > 0}
     <div class="field-children">
       {#each children as child (child.key)}
-        <svelte:self
+        <TreeField
           fieldKey={child.key}
           value={child.value}
           {docIndex}
