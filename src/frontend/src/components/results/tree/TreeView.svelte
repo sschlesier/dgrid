@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { ExecuteQueryResponse } from '../../../../../shared/contracts';
   import { searchDocument, getAncestorPaths, getAllPaths } from './tree-utils';
   import TreeField from './TreeField.svelte';
@@ -33,10 +34,13 @@
   });
 
   // Auto-expand to show search matches
+  // Use untrack to read expandedPaths without creating a dependency on it
+  // This prevents an infinite loop where writing expandedPaths triggers the effect again
   $effect(() => {
     if (searchMatches.size > 0) {
       const ancestors = getAncestorPaths(Array.from(searchMatches));
-      expandedPaths = new Set([...expandedPaths, ...ancestors]);
+      const currentExpanded = untrack(() => expandedPaths);
+      expandedPaths = new Set([...currentExpanded, ...ancestors]);
     }
   });
 
