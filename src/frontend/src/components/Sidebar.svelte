@@ -216,12 +216,6 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    opacity: 0;
-    transition: opacity var(--transition-fast);
-  }
-
-  .connection-tree-item:hover .action-buttons {
-    opacity: 1;
   }
 
   .action-btn {

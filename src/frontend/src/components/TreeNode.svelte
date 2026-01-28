@@ -274,12 +274,7 @@
     flex-shrink: 0;
     color: var(--color-text-muted);
     border-radius: var(--radius-sm);
-    opacity: 0;
     transition: all var(--transition-fast);
-  }
-
-  .tree-node-row:hover .refresh-btn {
-    opacity: 1;
   }
 
   .refresh-btn:hover {
