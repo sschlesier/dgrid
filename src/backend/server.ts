@@ -11,14 +11,28 @@ import { createConnectionStorage } from './storage/connections.js';
 import { createPasswordStorage } from './storage/keyring.js';
 import { createConnectionPool } from './db/mongodb.js';
 import { staticPlugin, isSeaRuntime } from './static.js';
+import { initTray, cleanupTray, type TrayContext } from './tray/index.js';
+import { openBrowser } from './tray/browser.js';
 
 const HOST = '127.0.0.1';
 const PORT = 3001;
 const DATA_DIR = process.env.DGRID_DATA_DIR ?? join(homedir(), '.dgrid');
 
+// Parse command line arguments
+function parseArgs(): { tray: boolean; noOpen: boolean } {
+  const args = process.argv.slice(2);
+  return {
+    tray: args.includes('--tray'),
+    noOpen: args.includes('--no-open'),
+  };
+}
+
 async function main(): Promise<void> {
+  const args = parseArgs();
+  const isSea = isSeaRuntime();
+
   // Use production logging for SEA runtime or when NODE_ENV=production
-  const useProductionLogging = process.env.NODE_ENV === 'production' || isSeaRuntime();
+  const useProductionLogging = process.env.NODE_ENV === 'production' || isSea;
 
   const app = Fastify({
     logger: {
@@ -86,9 +100,18 @@ async function main(): Promise<void> {
     });
   });
 
+  // Tray context (if enabled)
+  let trayContext: TrayContext | null = null;
+
   // Graceful shutdown
   const shutdown = async (): Promise<void> => {
     app.log.info('Shutting down...');
+
+    // Cleanup tray if active
+    if (trayContext) {
+      cleanupTray(trayContext);
+    }
+
     await pool.disconnectAll();
     await app.close();
     process.exit(0);
@@ -101,6 +124,18 @@ async function main(): Promise<void> {
   try {
     await app.listen({ host: HOST, port: PORT });
     app.log.info(`Server listening on http://${HOST}:${PORT}`);
+
+    // Initialize tray for SEA or when --tray flag is passed
+    const useTray = isSea || args.tray;
+    if (useTray) {
+      app.log.info('Initializing system tray...');
+      trayContext = initTray(shutdown);
+    }
+
+    // Auto-open browser unless --no-open flag is passed
+    if ((isSea || args.tray) && !args.noOpen) {
+      openBrowser();
+    }
   } catch (err) {
     app.log.error(err);
     process.exit(1);
