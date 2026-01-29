@@ -26,6 +26,7 @@
     "bundle:backend": "tsx scripts/bundle.ts",
     "bundle": "pnpm build:frontend && pnpm bundle:backend",
     "sea:build": "pnpm bundle && tsx scripts/build-sea.ts",
+    "release": "tsx scripts/release.ts",
     "prepare": "husky",
     "start": "node dist/backend/server.js",
     "e2e": "playwright test",
