@@ -11,9 +11,9 @@ export default [
   {
     ignores: ['dist/**', 'build/**', 'node_modules/**', '.svelte-kit/**'],
   },
-  // Config files at root level (no project checking)
+  // Config files and scripts (no project checking)
   {
-    files: ['*.config.ts', '*.config.js'],
+    files: ['*.config.ts', '*.config.js', 'scripts/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       globals: {

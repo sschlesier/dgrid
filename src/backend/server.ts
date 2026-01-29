@@ -17,13 +17,15 @@ const PORT = 3001;
 const DATA_DIR = process.env.DGRID_DATA_DIR ?? join(homedir(), '.dgrid');
 
 async function main(): Promise<void> {
+  // Use production logging for SEA runtime or when NODE_ENV=production
+  const useProductionLogging = process.env.NODE_ENV === 'production' || isSeaRuntime();
+
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? 'info',
-      transport:
-        process.env.NODE_ENV !== 'production'
-          ? { target: 'pino-pretty', options: { colorize: true } }
-          : undefined,
+      transport: useProductionLogging
+        ? undefined
+        : { target: 'pino-pretty', options: { colorize: true } },
     },
   });
 
