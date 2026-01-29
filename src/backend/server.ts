@@ -10,6 +10,7 @@ import { websocketRoutes } from './routes/websocket.js';
 import { createConnectionStorage } from './storage/connections.js';
 import { createPasswordStorage } from './storage/keyring.js';
 import { createConnectionPool } from './db/mongodb.js';
+import { staticPlugin, isSeaRuntime } from './static.js';
 
 const HOST = '127.0.0.1';
 const PORT = 3001;
@@ -63,6 +64,12 @@ async function main(): Promise<void> {
 
   // Health check endpoint
   app.get('/health', async () => ({ status: 'ok' }));
+
+  // Serve static frontend in production mode or SEA runtime
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction || isSeaRuntime()) {
+    await app.register(staticPlugin);
+  }
 
   // Error handler
   app.setErrorHandler((error, _request, reply) => {
