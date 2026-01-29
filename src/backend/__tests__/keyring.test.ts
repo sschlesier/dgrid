@@ -1,29 +1,35 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  createPasswordStorage,
+  _setKeyringModule,
+  _resetKeyringModule,
+} from '../storage/keyring.js';
 
-// Mock @napi-rs/keyring
+// Mock keyring Entry
 const mockGetPassword = vi.fn();
 const mockSetPassword = vi.fn();
 const mockDeletePassword = vi.fn();
 
-vi.mock('@napi-rs/keyring', () => ({
+const mockKeyringModule = {
   Entry: vi.fn().mockImplementation(() => ({
     getPassword: mockGetPassword,
     setPassword: mockSetPassword,
     deletePassword: mockDeletePassword,
   })),
-}));
-
-import { createPasswordStorage } from '../storage/keyring.js';
+};
 
 describe('Password Storage', () => {
   let storage: ReturnType<typeof createPasswordStorage>;
 
   beforeEach(() => {
+    // Inject mock module before creating storage
+    _setKeyringModule(mockKeyringModule);
     storage = createPasswordStorage('test-service');
     vi.clearAllMocks();
   });
 
   afterEach(() => {
+    _resetKeyringModule();
     vi.clearAllMocks();
   });
 

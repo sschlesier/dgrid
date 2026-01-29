@@ -25,6 +25,7 @@
     "verify": "pnpm type-check && pnpm lint && pnpm test run && pnpm build && pnpm e2e",
     "bundle:backend": "tsx scripts/bundle.ts",
     "bundle": "pnpm build:frontend && pnpm bundle:backend",
+    "sea:build": "pnpm bundle && tsx scripts/build-sea.ts",
     "prepare": "husky",
     "start": "node dist/backend/server.js",
     "e2e": "playwright test",
