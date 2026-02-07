@@ -13,7 +13,7 @@ import { createConnectionPool } from './db/mongodb.js';
 
 const HOST = '127.0.0.1';
 const PORT = 3001;
-const DATA_DIR = join(homedir(), '.dgrid');
+const DATA_DIR = process.env.DGRID_DATA_DIR ?? join(homedir(), '.dgrid');
 
 async function main(): Promise<void> {
   const app = Fastify({
