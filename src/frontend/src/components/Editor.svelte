@@ -11,6 +11,7 @@
   import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
   import { javascript } from '@codemirror/lang-javascript';
   import { vim } from '@replit/codemirror-vim';
+  import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
   import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
   import { bracketMatching } from '@codemirror/language';
 
@@ -130,12 +131,13 @@
       highlightActiveLine(),
       history(),
       bracketMatching(),
+      closeBrackets(),
       highlightSelectionMatches(),
       javascript(),
       theme,
       updateListener,
       createExecuteKeymap(),
-      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+      keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       vimCompartment.of(vimMode ? vim() : []),
       readonlyCompartment.of(EditorState.readOnly.of(readonly)),
     ];
