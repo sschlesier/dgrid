@@ -32,12 +32,12 @@ export default defineConfig({
 
   webServer: [
     {
-      // Use wrapper so backend receives DGRID_DATA_DIR from .mongo-info.json (globalSetup
-      // runs in a separate process, so the runner never has that env when starting webServer).
+      // Wrapper starts mongodb-memory-server then launches backend with DGRID_DATA_DIR.
+      // Needs extra timeout for MongoDB download/startup on first run.
       command: 'node tests/e2e/run-backend-e2e.js',
       url: 'http://127.0.0.1:3001/health',
       reuseExistingServer: !process.env.CI,
-      timeout: 30_000,
+      timeout: 60_000,
     },
     {
       command: 'pnpm dev:frontend',

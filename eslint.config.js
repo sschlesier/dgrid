@@ -29,7 +29,7 @@ export default [
   },
   // Test files (no project checking)
   {
-    files: ['tests/**/*.ts', 'src/**/__tests__/**/*.ts'],
+    files: ['tests/**/*.ts', 'tests/**/*.js', 'src/**/__tests__/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       globals: {
