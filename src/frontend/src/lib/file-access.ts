@@ -16,6 +16,11 @@ const FILE_TYPES: FilePickerAcceptType[] = [
   },
 ];
 
+// eslint-disable-next-line no-undef
+const CSV_FILE_TYPES: FilePickerAcceptType[] = [
+  { description: 'CSV Files', accept: { 'text/csv': ['.csv'] } },
+];
+
 export interface OpenFileResult {
   handle: FileSystemFileHandle;
   name: string;
@@ -64,6 +69,25 @@ export async function saveFile(
       types: FILE_TYPES,
       suggestedName: suggestedName ?? 'query.js',
     }));
+
+  const writable = await handle.createWritable();
+  await writable.write(content);
+  await writable.close();
+
+  return handle;
+}
+
+/**
+ * Save CSV content using the native file picker with CSV-specific filters.
+ */
+export async function saveCsvFile(
+  content: string,
+  suggestedName = 'export.csv'
+): Promise<FileSystemFileHandle> {
+  const handle = await window.showSaveFilePicker({
+    types: CSV_FILE_TYPES,
+    suggestedName,
+  });
 
   const writable = await handle.createWritable();
   await writable.write(content);
