@@ -65,8 +65,7 @@ export function selectors(page: Page) {
       prevPageButton: () => page.locator('.page-nav .nav-btn[title="Previous page"]'),
       jsonView: () => page.locator('.json-view'),
       treeView: () => page.locator('.tree-view'),
-      exportPageButton: () => page.locator('.export-csv-btn', { hasText: 'Export Page' }),
-      exportAllButton: () => page.locator('.export-csv-btn', { hasText: 'Export All' }),
+      exportButton: () => page.locator('.export-csv-btn', { hasText: 'Export CSV' }),
     },
 
     notifications: {

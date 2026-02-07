@@ -51,7 +51,7 @@ test.describe('CSV Export', () => {
     await deleteAllConnections(request);
   });
 
-  test('export buttons visible when results exist', async ({ page, s, mongoInfo }) => {
+  test('export button visible when results exist', async ({ page, s, mongoInfo }) => {
     await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
       { name: 'Alice', value: 1 },
       { name: 'Bob', value: 2 },
@@ -59,27 +59,11 @@ test.describe('CSV Export', () => {
 
     await setupWithResults(page, s, mongoInfo);
 
-    // Both export buttons should be visible
-    await expect(s.results.exportPageButton()).toBeVisible();
-    await expect(s.results.exportAllButton()).toBeVisible();
-    // Export All should show the count
-    await expect(s.results.exportAllButton()).toContainText('Export All (2)');
+    await expect(s.results.exportButton()).toBeVisible();
+    await expect(s.results.exportButton()).toHaveText('Export CSV');
   });
 
-  test('export all button shows total count', async ({ page, s, mongoInfo }) => {
-    const docs = Array.from({ length: 75 }, (_, i) => ({
-      name: `Item ${i}`,
-      value: i,
-    }));
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, docs);
-
-    await setupWithResults(page, s, mongoInfo);
-
-    // Export All should show total count (not just page count)
-    await expect(s.results.exportAllButton()).toContainText('Export All (75)');
-  });
-
-  test('export buttons hidden when no results', async ({ page, s, mongoInfo }) => {
+  test('export button hidden when no results', async ({ page, s, mongoInfo }) => {
     await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'Alice' }]);
 
     await page.goto('/');
@@ -96,8 +80,7 @@ test.describe('CSV Export', () => {
     await expect(s.sidebar.treeItem(TEST_COLLECTION)).toBeVisible({ timeout: 10_000 });
     await s.sidebar.treeItem(TEST_COLLECTION).click();
 
-    // Before executing a query, export buttons should not be visible
-    await expect(s.results.exportPageButton()).not.toBeVisible();
-    await expect(s.results.exportAllButton()).not.toBeVisible();
+    // Before executing a query, export button should not be visible
+    await expect(s.results.exportButton()).not.toBeVisible();
   });
 });
