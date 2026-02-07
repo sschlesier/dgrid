@@ -66,7 +66,7 @@ async function main(): Promise<void> {
   const archivePath = join(RELEASE_DIR, archiveName);
 
   console.log(`\nCreating archive: ${archiveName}`);
-  execSync(`tar -czvf "${archivePath}" dgrid native/`, {
+  execSync(`tar -czvf "${archivePath}" dgrid native/ traybin/`, {
     cwd: DIST_DIR,
     stdio: 'inherit',
   });

@@ -157,6 +157,37 @@ function signBinary(): void {
   });
 }
 
+function copyTrayBinary(): void {
+  console.log('Copying tray binary...');
+
+  const trayBinDir = join(DIST_SEA_DIR, 'traybin');
+  if (!existsSync(trayBinDir)) {
+    mkdirSync(trayBinDir, { recursive: true });
+  }
+
+  const platformBinNames: Record<string, string> = {
+    darwin: 'tray_darwin_release',
+    linux: 'tray_linux_release',
+    win32: 'tray_windows_release.exe',
+  };
+
+  const binName = platformBinNames[process.platform];
+  if (!binName) {
+    console.warn(`  Warning: No tray binary for platform ${process.platform}`);
+    return;
+  }
+
+  const srcPath = join(ROOT_DIR, 'node_modules/systray2/traybin', binName);
+  if (existsSync(srcPath)) {
+    const destPath = join(trayBinDir, binName);
+    copyFileSync(srcPath, destPath);
+    chmodSync(destPath, 0o755);
+    console.log(`  Copied: ${binName}`);
+  } else {
+    console.warn(`  Warning: Tray binary not found: ${srcPath}`);
+  }
+}
+
 function copyNativeModules(): void {
   console.log('Copying native modules...');
 
@@ -235,6 +266,7 @@ async function main(): Promise<void> {
   createExecutable();
   signBinary();
   copyNativeModules();
+  copyTrayBinary();
   cleanup();
   printStats();
 }

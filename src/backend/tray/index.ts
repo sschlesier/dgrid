@@ -1,9 +1,13 @@
-import SysTray from 'systray2';
+import SysTrayModule from 'systray2';
+
+// systray2 uses `export default` which becomes { default: fn } when bundled to CJS
+const SysTray =
+  (SysTrayModule as unknown as { default: typeof SysTrayModule }).default ?? SysTrayModule;
 import { TRAY_ICON } from './icons.js';
 import { openBrowser } from './browser.js';
 
 export interface TrayContext {
-  systray: SysTray | null;
+  systray: InstanceType<typeof SysTray> | null;
   onQuit: () => Promise<void>;
 }
 
@@ -19,6 +23,7 @@ export function initTray(onQuit: () => Promise<void>): TrayContext {
   const systray = new SysTray({
     menu: {
       icon: TRAY_ICON,
+      isTemplateIcon: process.platform === 'darwin',
       title: '',
       tooltip: 'DGrid - MongoDB GUI',
       items: [
