@@ -10,6 +10,8 @@ import type {
   CollectionInfo,
   ExecuteQueryRequest,
   ExecuteQueryResponse,
+  UpdateFieldRequest,
+  UpdateFieldResponse,
   ErrorResponse,
 } from '../../../shared/contracts';
 
@@ -170,6 +172,18 @@ export async function executeQuery(
     }
     throw error;
   }
+}
+
+// Document endpoints
+
+export async function updateField(
+  connectionId: string,
+  data: UpdateFieldRequest
+): Promise<UpdateFieldResponse> {
+  return request<UpdateFieldResponse>(`/connections/${connectionId}/documents/field`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
 }
 
 // File endpoints

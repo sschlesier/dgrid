@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { connectionRoutes } from './connections.js';
 import { databaseRoutes } from './databases.js';
 import { queryRoutes } from './query.js';
+import { documentRoutes } from './documents.js';
 import { fileRoutes } from './files.js';
 import { ConnectionStorage } from '../storage/connections.js';
 import { PasswordStorage } from '../storage/keyring.js';
@@ -31,6 +32,11 @@ export async function apiRoutes(fastify: FastifyInstance, opts: ApiRoutesOptions
 
   // Register query routes
   await fastify.register(queryRoutes, {
+    pool,
+  });
+
+  // Register document routes
+  await fastify.register(documentRoutes, {
     pool,
   });
 

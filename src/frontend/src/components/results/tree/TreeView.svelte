@@ -2,20 +2,44 @@
   import { untrack } from 'svelte';
   import type { ExecuteQueryResponse } from '../../../../../shared/contracts';
   import { searchDocument, getAncestorPaths, getAllPaths, getDocumentSummary } from './tree-utils';
+  import { detectValueType } from './tree-utils';
   import TreeField from './TreeField.svelte';
   import TypeIcon from './TypeIcon.svelte';
   import TreeToolbar from './TreeToolbar.svelte';
   import { GridPagination } from '../../grid';
   import { gridStore } from '../../../stores/grid.svelte';
+  import EditFieldDialog from '../../EditFieldDialog.svelte';
 
   interface Props {
     tabId: string;
     results: ExecuteQueryResponse;
+    connectionId: string;
+    database: string;
+    collection: string;
     onpagechange?: (_page: number) => void;
     onpagesizechange?: (_size: 50 | 100 | 250 | 500) => void;
   }
 
-  let { tabId, results, onpagechange, onpagesizechange }: Props = $props();
+  let {
+    tabId,
+    results,
+    connectionId,
+    database,
+    collection,
+    onpagechange,
+    onpagesizechange,
+  }: Props = $props();
+
+  // Edit state
+  interface EditingField {
+    docId: unknown;
+    docIndex: number;
+    fieldPath: string;
+    value: unknown;
+    cellType: string;
+  }
+
+  let editingField = $state<EditingField | null>(null);
 
   let searchQuery = $state('');
   let expandedPaths = $state<Set<string>>(new Set());
@@ -141,6 +165,39 @@
       handleDocToggle(docIndex);
     }
   }
+
+  function handleFieldEdit(docIndex: number, fieldPath: string, value: unknown) {
+    const doc = docs[docIndex];
+    if (!doc) return;
+    const docId = doc._id;
+    editingField = {
+      docId,
+      docIndex,
+      fieldPath,
+      value,
+      cellType: detectValueType(value),
+    };
+  }
+
+  function handleEditSaved(fieldPath: string, newValue: unknown) {
+    if (editingField) {
+      const doc = docs[editingField.docIndex];
+      if (doc) {
+        const parts = fieldPath.split('.');
+        let current: Record<string, unknown> = doc;
+        for (let i = 0; i < parts.length - 1; i++) {
+          const next = current[parts[i]];
+          if (next && typeof next === 'object' && !Array.isArray(next)) {
+            current = next as Record<string, unknown>;
+          } else {
+            break;
+          }
+        }
+        current[parts[parts.length - 1]] = newValue;
+      }
+    }
+    editingField = null;
+  }
 </script>
 
 <div class="tree-view">
@@ -227,6 +284,7 @@
                 {expandedPaths}
                 {searchMatches}
                 ontoggle={handleToggle}
+                onedit={handleFieldEdit}
               />
             {/each}
           {/if}
@@ -244,6 +302,22 @@
     onpagesizechange={handlePageSizeChange}
   />
 </div>
+
+{#if editingField}
+  <EditFieldDialog
+    field={{
+      connectionId,
+      database,
+      collection,
+      docId: editingField.docId,
+      fieldPath: editingField.fieldPath,
+      value: editingField.value,
+      cellType: detectValueType(editingField.value) as import('../../grid/types').CellType,
+    }}
+    onclose={() => (editingField = null)}
+    onsaved={handleEditSaved}
+  />
+{/if}
 
 <style>
   .tree-view {

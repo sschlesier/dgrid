@@ -24,6 +24,13 @@
   let isExecuting = $derived(queryStore.getIsExecuting(tab.id));
   let error = $derived(queryStore.getError(tab.id));
 
+  // Extract collection name from query text (e.g., "db.users.find()")
+  const collectionName = $derived.by(() => {
+    const text = queryStore.getQueryText(tab.id);
+    const match = text.match(/db\.(\w+)\./);
+    return match ? match[1] : '';
+  });
+
   // UI state
   let showHistory = $state(false);
   let editorRef: Editor | null = $state(null);
@@ -365,6 +372,9 @@
       <ResultsContainer
         tabId={tab.id}
         {results}
+        connectionId={tab.connectionId}
+        database={tab.database}
+        collection={collectionName}
         onpagechange={handlePageChange}
         onpagesizechange={handlePageSizeChange}
       />

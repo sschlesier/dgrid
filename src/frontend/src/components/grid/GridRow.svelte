@@ -8,9 +8,10 @@
     offsetY: number;
     rowIndex: number;
     ondrill?: (_field: string) => void;
+    onedit?: (_fieldKey: string, _value: unknown) => void;
   }
 
-  let { doc, columns, offsetY, rowIndex, ondrill }: Props = $props();
+  let { doc, columns, offsetY, rowIndex, ondrill, onedit }: Props = $props();
 </script>
 
 <div
@@ -20,7 +21,13 @@
   data-row-index={rowIndex}
 >
   {#each columns as column (column.key)}
-    <GridCell value={doc[column.key]} width={column.width} fieldKey={column.key} {ondrill} />
+    <GridCell
+      value={doc[column.key]}
+      width={column.width}
+      fieldKey={column.key}
+      {ondrill}
+      {onedit}
+    />
   {/each}
 </div>
 

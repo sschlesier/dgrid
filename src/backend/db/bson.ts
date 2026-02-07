@@ -51,7 +51,7 @@ function serializeValue(value: unknown): unknown {
   return value;
 }
 
-function deserializeValue(value: unknown): unknown {
+export function deserializeValue(value: unknown): unknown {
   if (value === null || value === undefined) {
     return value;
   }

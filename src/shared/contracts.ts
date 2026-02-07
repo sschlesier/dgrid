@@ -82,6 +82,21 @@ export interface ExecuteQueryResponse {
   executionTimeMs: number;
 }
 
+// Document Field Updates
+export interface UpdateFieldRequest {
+  database: string;
+  collection: string;
+  documentId: unknown;
+  fieldPath: string;
+  value: unknown;
+  type: string;
+}
+
+export interface UpdateFieldResponse {
+  success: boolean;
+  modifiedCount: number;
+}
+
 // Error Response
 export interface ErrorResponse {
   error: string;

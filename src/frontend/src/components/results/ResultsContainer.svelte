@@ -10,11 +10,22 @@
   interface Props {
     tabId: string;
     results: ExecuteQueryResponse;
+    connectionId: string;
+    database: string;
+    collection: string;
     onpagechange?: (_page: number) => void;
     onpagesizechange?: (_size: 50 | 100 | 250 | 500) => void;
   }
 
-  let { tabId, results, onpagechange, onpagesizechange }: Props = $props();
+  let {
+    tabId,
+    results,
+    connectionId,
+    database,
+    collection,
+    onpagechange,
+    onpagesizechange,
+  }: Props = $props();
 
   const viewMode = $derived(gridStore.getViewMode(tabId));
 
@@ -30,11 +41,27 @@
 
   <div class="results-content">
     {#if viewMode === 'table'}
-      <ResultsGrid {tabId} {results} {onpagechange} {onpagesizechange} />
+      <ResultsGrid
+        {tabId}
+        {results}
+        {connectionId}
+        {database}
+        {collection}
+        {onpagechange}
+        {onpagesizechange}
+      />
     {:else if viewMode === 'json'}
       <JsonView {tabId} {results} {onpagechange} {onpagesizechange} />
     {:else if viewMode === 'tree'}
-      <TreeView {tabId} {results} {onpagechange} {onpagesizechange} />
+      <TreeView
+        {tabId}
+        {results}
+        {connectionId}
+        {database}
+        {collection}
+        {onpagechange}
+        {onpagesizechange}
+      />
     {/if}
   </div>
 </div>

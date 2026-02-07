@@ -1,15 +1,17 @@
 <script lang="ts">
   import type { CellType } from './types';
   import { detectCellType, formatCellValue, getCellTypeClass, isDrillable } from './utils';
+  import { matchesShortcut } from '../../utils/keyboard';
 
   interface Props {
     value: unknown;
     width: number;
     ondrill?: (_field: string) => void;
+    onedit?: (_fieldKey: string, _value: unknown) => void;
     fieldKey?: string;
   }
 
-  let { value, width, ondrill, fieldKey }: Props = $props();
+  let { value, width, ondrill, onedit, fieldKey }: Props = $props();
 
   let showCopyButton = $state(false);
   let copied = $state(false);
@@ -29,6 +31,11 @@
     if ((event.key === 'Enter' || event.key === ' ') && canDrill && ondrill && fieldKey) {
       event.preventDefault();
       ondrill(fieldKey);
+    }
+    if (matchesShortcut(event, { key: 'e', meta: true, handler: () => {} }) && onedit && fieldKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      onedit(fieldKey, value);
     }
   }
 
@@ -60,7 +67,7 @@
   onmouseenter={() => (showCopyButton = true)}
   onmouseleave={() => (showCopyButton = false)}
   role={canDrill ? 'button' : undefined}
-  tabindex={canDrill ? 0 : undefined}
+  tabindex="0"
 >
   <span class="cell-content" title={displayValue}>
     {displayValue}
@@ -156,7 +163,7 @@
     background-color: var(--color-bg-hover);
   }
 
-  .drillable:focus {
+  .grid-cell:focus {
     outline: 2px solid var(--color-primary);
     outline-offset: -2px;
   }

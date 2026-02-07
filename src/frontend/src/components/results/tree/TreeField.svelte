@@ -9,6 +9,7 @@
     getTypeBadge,
     buildPath,
   } from './tree-utils';
+  import { matchesShortcut } from '../../../utils/keyboard';
 
   interface Props {
     fieldKey: string | number;
@@ -19,10 +20,20 @@
     expandedPaths: Set<string>;
     searchMatches: Set<string>;
     ontoggle: (_path: string) => void;
+    onedit?: (_docIndex: number, _fieldPath: string, _value: unknown) => void;
   }
 
-  let { fieldKey, value, docIndex, path, depth, expandedPaths, searchMatches, ontoggle }: Props =
-    $props();
+  let {
+    fieldKey,
+    value,
+    docIndex,
+    path,
+    depth,
+    expandedPaths,
+    searchMatches,
+    ontoggle,
+    onedit,
+  }: Props = $props();
 
   const fullPath = $derived(buildPath(docIndex, path));
   const valueType = $derived(detectValueType(value));
@@ -60,6 +71,13 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
+    if (matchesShortcut(event, { key: 'e', meta: true, handler: () => {} }) && onedit) {
+      event.preventDefault();
+      event.stopPropagation();
+      const fieldPath = path.map(String).join('.');
+      onedit(docIndex, fieldPath, value);
+      return;
+    }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       handleToggle();
@@ -81,7 +99,7 @@
   class:expanded
   class:match={isMatch}
   role={expandable ? 'button' : undefined}
-  tabindex={expandable ? 0 : undefined}
+  tabindex="0"
   onclick={handleToggle}
   onkeydown={handleKeydown}
 >
@@ -124,6 +142,7 @@
       {expandedPaths}
       {searchMatches}
       {ontoggle}
+      {onedit}
     />
   {/each}
 {/if}

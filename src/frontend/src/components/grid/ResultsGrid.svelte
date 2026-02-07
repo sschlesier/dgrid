@@ -10,21 +10,45 @@
     sortDocuments,
     getNestedValue,
     isSerializedBson,
+    detectCellType,
   } from './utils';
   import type { DrilldownDocument, GridColumn } from './types';
   import GridHeader from './GridHeader.svelte';
   import GridRow from './GridRow.svelte';
   import GridBreadcrumb from './GridBreadcrumb.svelte';
   import GridPagination from './GridPagination.svelte';
+  import EditFieldDialog from '../EditFieldDialog.svelte';
 
   interface Props {
     tabId: string;
     results: ExecuteQueryResponse;
+    connectionId: string;
+    database: string;
+    collection: string;
     onpagechange?: (_page: number) => void;
     onpagesizechange?: (_size: 50 | 100 | 250 | 500) => void;
   }
 
-  let { tabId, results, onpagechange, onpagesizechange }: Props = $props();
+  let {
+    tabId,
+    results,
+    connectionId,
+    database,
+    collection,
+    onpagechange,
+    onpagesizechange,
+  }: Props = $props();
+
+  // Edit state
+  interface EditingField {
+    docId: unknown;
+    docIndex: number;
+    fieldPath: string;
+    value: unknown;
+    cellType: string;
+  }
+
+  let editingField = $state<EditingField | null>(null);
 
   // Virtual scroll constants
   const ROW_HEIGHT = 32;
@@ -200,6 +224,41 @@
     }
   }
 
+  function handleEdit(doc: Record<string, unknown>, fieldKey: string, value: unknown) {
+    const fullPath = drilldownPath.length > 0 ? [...drilldownPath, fieldKey].join('.') : fieldKey;
+    const docId = doc._docId ?? doc._id;
+    const docIndex = typeof doc._docIndex === 'number' ? doc._docIndex : 0;
+    editingField = {
+      docId,
+      docIndex,
+      fieldPath: fullPath,
+      value,
+      cellType: detectCellType(value) as string,
+    };
+  }
+
+  function handleEditSaved(fieldPath: string, newValue: unknown) {
+    // Update in-memory document
+    if (editingField) {
+      const docs = results.documents as Record<string, unknown>[];
+      const doc = docs[editingField.docIndex];
+      if (doc) {
+        const parts = fieldPath.split('.');
+        let current: Record<string, unknown> = doc;
+        for (let i = 0; i < parts.length - 1; i++) {
+          const next = current[parts[i]];
+          if (next && typeof next === 'object' && !Array.isArray(next)) {
+            current = next as Record<string, unknown>;
+          } else {
+            break;
+          }
+        }
+        current[parts[parts.length - 1]] = newValue;
+      }
+    }
+    editingField = null;
+  }
+
   function handlePageSizeChange(size: 50 | 100 | 250 | 500) {
     gridStore.setPageSize(tabId, size);
     if (onpagesizechange) {
@@ -247,6 +306,7 @@
               offsetY={(visibleStart + i) * ROW_HEIGHT}
               rowIndex={visibleStart + i}
               ondrill={handleDrill}
+              onedit={(fieldKey, value) => handleEdit(doc, fieldKey, value)}
             />
           {/each}
         </div>
@@ -263,6 +323,22 @@
     onpagesizechange={handlePageSizeChange}
   />
 </div>
+
+{#if editingField}
+  <EditFieldDialog
+    field={{
+      connectionId,
+      database,
+      collection,
+      docId: editingField.docId,
+      fieldPath: editingField.fieldPath,
+      value: editingField.value,
+      cellType: detectCellType(editingField.value),
+    }}
+    onclose={() => (editingField = null)}
+    onsaved={handleEditSaved}
+  />
+{/if}
 
 <style>
   .results-grid {
