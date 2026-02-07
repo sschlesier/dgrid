@@ -71,13 +71,6 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (matchesShortcut(event, { key: 'e', meta: true, handler: () => {} }) && onedit) {
-      event.preventDefault();
-      event.stopPropagation();
-      const fieldPath = path.map(String).join('.');
-      onedit(docIndex, fieldPath, value);
-      return;
-    }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       handleToggle();
@@ -89,25 +82,40 @@
       ontoggle(fullPath);
     }
   }
+
+  function handleValueKeydown(event: KeyboardEvent) {
+    if (matchesShortcut(event, { key: 'e', meta: true, handler: () => {} }) && onedit) {
+      event.preventDefault();
+      event.stopPropagation();
+      triggerEdit();
+    }
+  }
+
+  function handleValueDblClick() {
+    triggerEdit();
+  }
+
+  function triggerEdit() {
+    if (onedit) {
+      const fieldPath = path.map(String).join('.');
+      onedit(docIndex, fieldPath, value);
+    }
+  }
 </script>
 
 <!-- Row wrapper with display: contents so cells flow into parent grid -->
-<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-<div
-  class="tree-row"
-  class:expandable
-  class:expanded
-  class:match={isMatch}
-  role={expandable ? 'button' : undefined}
-  tabindex="0"
-  onclick={handleToggle}
-  onkeydown={handleKeydown}
->
+<div class="tree-row" class:expandable class:expanded class:match={isMatch}>
   <!-- Key cell -->
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class="key-cell"
     data-path={fullPath}
     style="padding-left: calc({depth} * var(--tree-indent) + var(--space-sm))"
+    role={expandable ? 'button' : undefined}
+    tabindex={expandable ? 0 : undefined}
+    onclick={handleToggle}
+    onkeydown={handleKeydown}
   >
     {#if expandable}
       <span class="field-chevron">
@@ -124,8 +132,17 @@
     <span class="field-key" class:match={isMatch}>{fieldKey}</span>
   </div>
 
-  <!-- Value cell -->
-  <div class="value-cell {typeClass}">{displayValue}</div>
+  <!-- Value cell - focusable for Cmd+E editing, double-click to edit -->
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="value-cell {typeClass}"
+    tabindex="0"
+    ondblclick={handleValueDblClick}
+    onkeydown={handleValueKeydown}
+  >
+    {displayValue}
+  </div>
 
   <!-- Type cell -->
   <div class="type-cell">{getTypeBadge(valueType)}</div>
@@ -165,15 +182,13 @@
     background-color: var(--color-warning-light);
   }
 
-  .tree-row:focus > .key-cell,
-  .tree-row:focus > .value-cell,
-  .tree-row:focus > .type-cell {
-    outline: 2px solid var(--color-primary);
-    outline-offset: -2px;
-  }
-
   .tree-row.expandable {
     cursor: pointer;
+  }
+
+  .key-cell:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
   }
 
   .key-cell,
@@ -197,6 +212,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    cursor: default;
+  }
+
+  .value-cell:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
   }
 
   .type-cell {
