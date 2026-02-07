@@ -5,10 +5,22 @@ const SysTray =
   (SysTrayModule as unknown as { default: typeof SysTrayModule }).default ?? SysTrayModule;
 import { TRAY_ICON } from './icons.js';
 import { openBrowser } from './browser.js';
+import { checkForUpdate } from './update-checker.js';
+import { exec } from 'child_process';
+
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+// Menu item seq_ids
+const SEQ_OPEN = 0;
+// seq_id 1 = separator
+const SEQ_UPDATE = 2;
+const SEQ_QUIT = 3;
 
 export interface TrayContext {
   systray: InstanceType<typeof SysTray> | null;
   onQuit: () => Promise<void>;
+  updateTimer: ReturnType<typeof setInterval> | null;
+  updateUrl?: string;
 }
 
 /**
@@ -18,6 +30,7 @@ export function initTray(onQuit: () => Promise<void>): TrayContext {
   const context: TrayContext = {
     systray: null,
     onQuit,
+    updateTimer: null,
   };
 
   const systray = new SysTray({
@@ -40,6 +53,13 @@ export function initTray(onQuit: () => Promise<void>): TrayContext {
           enabled: false,
         },
         {
+          title: 'Update available',
+          tooltip: 'Download the latest version',
+          checked: false,
+          enabled: true,
+          hidden: true,
+        },
+        {
           title: 'Quit',
           tooltip: 'Stop server and quit',
           checked: false,
@@ -53,17 +73,57 @@ export function initTray(onQuit: () => Promise<void>): TrayContext {
 
   systray.onClick((action) => {
     switch (action.seq_id) {
-      case 0: // Open DGrid
+      case SEQ_OPEN:
         openBrowser();
         break;
-      case 2: // Quit
+      case SEQ_UPDATE:
+        if (context.updateUrl) {
+          exec(`open "${context.updateUrl}"`);
+        }
+        break;
+      case SEQ_QUIT:
         handleQuit(context);
         break;
     }
   });
 
   context.systray = systray;
+
+  // Start update checks
+  const currentVersion = typeof DGRID_VERSION !== 'undefined' ? DGRID_VERSION : 'dev';
+  if (currentVersion !== 'dev') {
+    scheduleUpdateChecks(context, currentVersion);
+  }
+
   return context;
+}
+
+async function runUpdateCheck(context: TrayContext, currentVersion: string): Promise<void> {
+  const result = await checkForUpdate(currentVersion);
+  if (result.available && result.version && context.systray) {
+    context.updateUrl = result.url;
+    context.systray.sendAction({
+      type: 'update-item',
+      seq_id: SEQ_UPDATE,
+      item: {
+        title: `Update available (v${result.version})`,
+        tooltip: 'Click to download the latest version',
+        checked: false,
+        enabled: true,
+        hidden: false,
+      },
+    });
+  }
+}
+
+function scheduleUpdateChecks(context: TrayContext, currentVersion: string): void {
+  // Check immediately
+  runUpdateCheck(context, currentVersion);
+
+  // Then every 6 hours
+  context.updateTimer = setInterval(() => {
+    runUpdateCheck(context, currentVersion);
+  }, UPDATE_CHECK_INTERVAL_MS);
 }
 
 /**
@@ -87,6 +147,10 @@ async function handleQuit(context: TrayContext): Promise<void> {
  * Cleanup the tray
  */
 export function cleanupTray(context: TrayContext): void {
+  if (context.updateTimer) {
+    clearInterval(context.updateTimer);
+    context.updateTimer = null;
+  }
   if (context.systray) {
     context.systray.kill(false);
     context.systray = null;

@@ -79,7 +79,8 @@ async function main(): Promise<void> {
   });
 
   // Health check endpoint
-  app.get('/health', async () => ({ status: 'ok' }));
+  const version = typeof DGRID_VERSION !== 'undefined' ? DGRID_VERSION : 'dev';
+  app.get('/health', async () => ({ status: 'ok', version }));
 
   // Serve static frontend in production mode or SEA runtime
   const isProduction = process.env.NODE_ENV === 'production';

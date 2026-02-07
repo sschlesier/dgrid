@@ -56,6 +56,7 @@ export default [
       globals: {
         ...globals.node,
         ...globals.browser,
+        DGRID_VERSION: 'readonly',
       },
     },
     plugins: {
@@ -108,6 +109,7 @@ export default [
       },
       globals: {
         ...globals.browser,
+        DGRID_VERSION: 'readonly',
         // Svelte 5 runes
         $state: 'readonly',
         $derived: 'readonly',

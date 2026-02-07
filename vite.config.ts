@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { readFileSync } from 'fs';
+
+const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
 
 export default defineConfig({
   plugins: [svelte()],
   root: 'src/frontend',
+  define: {
+    DGRID_VERSION: JSON.stringify(pkg.version),
+  },
   server: {
     port: 5173,
     proxy: {

@@ -42,19 +42,20 @@ jobs:
       - name: Build SEA
         run: pnpm sea:build
 
-      - name: Create archive
+      - name: Generate checksums
         run: |
-          cd dist/sea
-          tar -czvf dgrid-${{ matrix.target }}.tar.gz dgrid native/
-          shasum -a 256 dgrid-${{ matrix.target }}.tar.gz > dgrid-${{ matrix.target }}.tar.gz.sha256
+          cd dist/release
+          for f in *.dmg; do
+            shasum -a 256 "$f" > "$f.sha256"
+          done
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: dgrid-${{ matrix.target }}
           path: |
-            dist/sea/dgrid-${{ matrix.target }}.tar.gz
-            dist/sea/dgrid-${{ matrix.target }}.tar.gz.sha256
+            dist/release/*.dmg
+            dist/release/*.sha256
 
   release:
     needs: build
@@ -70,7 +71,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/**/*.tar.gz
+            artifacts/**/*.dmg
             artifacts/**/*.sha256
           generate_release_notes: true
         env:

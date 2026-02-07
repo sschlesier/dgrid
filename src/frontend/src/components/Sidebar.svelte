@@ -150,6 +150,10 @@
       {/each}
     {/if}
   </div>
+
+  <div class="sidebar-footer">
+    v{typeof DGRID_VERSION !== 'undefined' ? DGRID_VERSION : 'dev'}
+  </div>
 </aside>
 
 <style>
@@ -177,6 +181,13 @@
     flex: 1;
     overflow-y: auto;
     padding: var(--space-sm);
+  }
+
+  .sidebar-footer {
+    padding: var(--space-sm);
+    border-top: 1px solid var(--color-border-light);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
   }
 
   .empty-state {

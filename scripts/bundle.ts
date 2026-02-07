@@ -9,12 +9,17 @@
  */
 
 import * as esbuild from 'esbuild';
-import { mkdirSync, existsSync } from 'fs';
+import { mkdirSync, existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 
 const ROOT_DIR = dirname(dirname(import.meta.url.replace('file://', '')));
 const ENTRY_POINT = join(ROOT_DIR, 'src/backend/server.ts');
 const OUT_FILE = join(ROOT_DIR, 'dist/sea/server.cjs');
+
+function getVersion(): string {
+  const pkg = JSON.parse(readFileSync(join(ROOT_DIR, 'package.json'), 'utf-8'));
+  return pkg.version;
+}
 
 // Native modules that can't be bundled - must be loaded at runtime
 const EXTERNAL_MODULES = [
@@ -39,6 +44,9 @@ async function bundle(): Promise<void> {
       format: 'cjs', // SEA requires CommonJS
       outfile: OUT_FILE,
       external: EXTERNAL_MODULES,
+      define: {
+        DGRID_VERSION: JSON.stringify(getVersion()),
+      },
       minify: false, // Keep readable for debugging
       sourcemap: false,
       metafile: true,
