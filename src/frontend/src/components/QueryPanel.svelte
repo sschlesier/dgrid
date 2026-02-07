@@ -6,6 +6,7 @@
   import { gridStore } from '../stores/grid.svelte';
   import { watchFile } from '../api/websocket';
   import * as api from '../api/client';
+  import { supportsFileSystemAccess, openFile, saveFile } from '../lib/file-access';
   import Editor from './Editor.svelte';
   import QueryHistory from './QueryHistory.svelte';
   import FileDialog from './FileDialog.svelte';
@@ -36,8 +37,12 @@
   let editorRef: Editor | null = $state(null);
   let fileDialogMode = $state<'save' | 'load' | null>(null);
   let currentFilePath = $state<string | null>(null);
+  let fileHandle = $state<FileSystemFileHandle | null>(null);
+  let currentFileName = $state<string | null>(null);
   let fileError = $state<string | null>(null);
   let unwatchFile = $state<(() => void) | null>(null);
+
+  const useNativePicker = supportsFileSystemAccess();
 
   function handleQueryChange(value: string) {
     queryStore.setQueryText(tab.id, value);
@@ -173,15 +178,67 @@
     queryStore.clearHistory();
   }
 
-  // File dialog handlers
-  function openLoadDialog() {
-    fileDialogMode = 'load';
-    fileError = null;
+  // File dialog handlers - native picker or fallback dialog
+  async function handleOpen() {
+    if (useNativePicker) {
+      try {
+        const result = await openFile();
+        queryStore.setQueryText(tab.id, result.content);
+        fileHandle = result.handle;
+        currentFileName = result.name;
+        currentFilePath = null;
+      } catch (e) {
+        // User cancelled the picker - not an error
+        if ((e as DOMException).name === 'AbortError') return;
+        console.error('Failed to open file:', e);
+      }
+    } else {
+      fileDialogMode = 'load';
+      fileError = null;
+    }
   }
 
-  function openSaveDialog() {
-    fileDialogMode = 'save';
-    fileError = null;
+  async function handleSave() {
+    if (useNativePicker) {
+      try {
+        const content = queryStore.getQueryText(tab.id);
+        fileHandle = await saveFile(content, fileHandle, currentFileName ?? 'query.js');
+        currentFileName = (await fileHandle.getFile()).name;
+        currentFilePath = null;
+      } catch (e) {
+        if ((e as DOMException).name === 'AbortError') return;
+        console.error('Failed to save file:', e);
+      }
+    } else if (currentFilePath) {
+      // Fallback: save directly to known path
+      try {
+        const content = queryStore.getQueryText(tab.id);
+        await api.writeFile({ path: currentFilePath, content });
+      } catch (e) {
+        fileError = (e as Error).message;
+        fileDialogMode = 'save';
+      }
+    } else {
+      fileDialogMode = 'save';
+      fileError = null;
+    }
+  }
+
+  async function handleSaveAs() {
+    if (useNativePicker) {
+      try {
+        const content = queryStore.getQueryText(tab.id);
+        fileHandle = await saveFile(content, null, currentFileName ?? 'query.js');
+        currentFileName = (await fileHandle.getFile()).name;
+        currentFilePath = null;
+      } catch (e) {
+        if ((e as DOMException).name === 'AbortError') return;
+        console.error('Failed to save file:', e);
+      }
+    } else {
+      fileDialogMode = 'save';
+      fileError = null;
+    }
   }
 
   function closeFileDialog() {
@@ -195,6 +252,8 @@
       queryStore.setQueryText(tab.id, result.content);
       editorStore.addRecentPath(path);
       currentFilePath = path;
+      currentFileName = path.split('/').pop() ?? null;
+      fileHandle = null;
       fileDialogMode = null;
       fileError = null;
 
@@ -211,6 +270,8 @@
       await api.writeFile({ path, content });
       editorStore.addRecentPath(path);
       currentFilePath = path;
+      currentFileName = path.split('/').pop() ?? null;
+      fileHandle = null;
       fileDialogMode = null;
       fileError = null;
 
@@ -238,6 +299,23 @@
     });
   }
 
+  // Keyboard shortcuts for file operations
+  function handleKeydown(event: KeyboardEvent) {
+    const mod = event.metaKey || event.ctrlKey;
+    if (!mod) return;
+
+    if (event.key === 's' && event.shiftKey) {
+      event.preventDefault();
+      handleSaveAs();
+    } else if (event.key === 's') {
+      event.preventDefault();
+      handleSave();
+    } else if (event.key === 'o') {
+      event.preventDefault();
+      handleOpen();
+    }
+  }
+
   // Cleanup on component destroy
   $effect(() => {
     return () => {
@@ -247,6 +325,8 @@
     };
   });
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="query-panel">
   <div class="editor-section">
@@ -276,7 +356,7 @@
         <span>History</span>
       </button>
 
-      <button class="toolbar-btn" onclick={openLoadDialog} title="Load from File">
+      <button class="toolbar-btn" onclick={handleOpen} title="Open File (⌘O)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path
             d="M3.5 3.75a.25.25 0 0 1 .25-.25h5a.75.75 0 0 0 0-1.5h-5A1.75 1.75 0 0 0 2 3.75v8.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 12.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25h-8.5a.25.25 0 0 1-.25-.25v-8.5Z"
@@ -285,16 +365,25 @@
             d="M13.78 1.22a.75.75 0 0 1 0 1.06L8.06 8l1.72 1.72a.75.75 0 1 1-1.06 1.06l-2.25-2.25a.75.75 0 0 1 0-1.06l5.25-5.25a.75.75 0 0 1 1.06 0Z"
           />
         </svg>
-        <span>Load</span>
+        <span>Open</span>
       </button>
 
-      <button class="toolbar-btn" onclick={openSaveDialog} title="Save to File">
+      <button class="toolbar-btn" onclick={handleSave} title="Save (⌘S)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path
             d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z"
           />
         </svg>
         <span>Save</span>
+      </button>
+
+      <button class="toolbar-btn" onclick={handleSaveAs} title="Save As (⌘⇧S)">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path
+            d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z"
+          />
+        </svg>
+        <span>Save As</span>
       </button>
 
       <div class="toolbar-divider"></div>
@@ -315,9 +404,9 @@
 
       <div class="toolbar-spacer"></div>
 
-      {#if currentFilePath}
-        <span class="toolbar-file" title={currentFilePath}>
-          {currentFilePath.split('/').pop()}
+      {#if currentFileName || currentFilePath}
+        <span class="toolbar-file" title={currentFilePath ?? currentFileName ?? ''}>
+          {currentFileName ?? currentFilePath?.split('/').pop()}
         </span>
       {/if}
 

@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
-import { readFile, writeFile, access, constants } from 'fs/promises';
-import { basename, extname, resolve, isAbsolute } from 'path';
+import { readFile, writeFile, mkdir, access, constants } from 'fs/promises';
+import { basename, dirname, extname, resolve, isAbsolute } from 'path';
 import { watch, FSWatcher } from 'chokidar';
 
 export interface FileRoutesOptions {
@@ -34,7 +34,9 @@ function isPathSafe(filePath: string): boolean {
   // Block sensitive paths
   const blockedPatterns = [
     '/etc/',
-    '/var/',
+    '/var/log/',
+    '/var/run/',
+    '/var/lib/',
     '/usr/',
     '/bin/',
     '/sbin/',
@@ -165,6 +167,8 @@ export async function fileRoutes(
     }
 
     try {
+      // Ensure parent directory exists
+      await mkdir(dirname(filePath), { recursive: true });
       await writeFile(filePath, content, 'utf-8');
       return reply.send({
         success: true,
@@ -177,6 +181,13 @@ export async function fileRoutes(
           error: 'Forbidden',
           message: 'Permission denied',
           statusCode: 403,
+        });
+      }
+      if (error.code === 'ENOENT') {
+        return reply.status(400).send({
+          error: 'BadRequest',
+          message: `Parent directory does not exist: ${dirname(filePath)}`,
+          statusCode: 400,
         });
       }
       throw error;
