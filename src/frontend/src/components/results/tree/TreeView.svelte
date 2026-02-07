@@ -8,6 +8,7 @@
   import TreeToolbar from './TreeToolbar.svelte';
   import { GridPagination } from '../../grid';
   import { gridStore } from '../../../stores/grid.svelte';
+  import { queryStore } from '../../../stores/query.svelte';
   import EditFieldDialog from '../../EditFieldDialog.svelte';
 
   interface Props {
@@ -179,24 +180,12 @@
     };
   }
 
-  function handleEditSaved(fieldPath: string, newValue: unknown) {
-    if (editingField) {
-      const doc = docs[editingField.docIndex];
-      if (doc) {
-        const parts = fieldPath.split('.');
-        let current: Record<string, unknown> = doc;
-        for (let i = 0; i < parts.length - 1; i++) {
-          const next = current[parts[i]];
-          if (next && typeof next === 'object' && !Array.isArray(next)) {
-            current = next as Record<string, unknown>;
-          } else {
-            break;
-          }
-        }
-        current[parts[parts.length - 1]] = newValue;
-      }
-    }
+  async function handleEditSaved() {
     editingField = null;
+    // Re-execute the query at the current page to reload fresh data
+    const query = queryStore.getQueryText(tabId);
+    const pageSize = gridStore.getPageSize(tabId);
+    await queryStore.loadPage(tabId, connectionId, database, query, results.page, pageSize);
   }
 </script>
 

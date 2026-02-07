@@ -18,7 +18,7 @@
   interface Props {
     field: EditFieldInfo;
     onclose: () => void;
-    onsaved: (_fieldPath: string, _newValue: unknown) => void;
+    onsaved: () => void;
   }
 
   let { field, onclose, onsaved }: Props = $props();
@@ -85,6 +85,7 @@
   let valueText = $state(valueToText(field.value, field.cellType));
   let isSaving = $state(false);
   let error = $state<string | null>(null);
+  let valueRef = $state<HTMLTextAreaElement | HTMLSelectElement | undefined>();
 
   const hideValueEditor = $derived(selectedType === 'null');
   const showBooleanSelect = $derived(selectedType === 'boolean');
@@ -93,6 +94,18 @@
   $effect(() => {
     if (selectedType === 'boolean' && valueText !== 'true' && valueText !== 'false') {
       valueText = 'true';
+    }
+  });
+
+  // Auto-focus and select the value input on mount
+  $effect(() => {
+    if (valueRef) {
+      requestAnimationFrame(() => {
+        valueRef!.focus();
+        if (valueRef instanceof HTMLTextAreaElement) {
+          valueRef.select();
+        }
+      });
     }
   });
 
@@ -198,7 +211,7 @@
         type: selectedType,
       });
       appStore.notify('success', 'Field updated');
-      onsaved(field.fieldPath, result.value);
+      onsaved();
     } catch (err) {
       error = (err as Error).message;
     } finally {
@@ -209,6 +222,14 @@
   function handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       onclose();
+    }
+    // Enter to save (but not in multi-line textarea for Array/Object)
+    if (event.key === 'Enter' && !isSaving) {
+      const isMultiLine = selectedType === 'Array' || selectedType === 'Object';
+      if (!isMultiLine || event.metaKey || event.ctrlKey) {
+        event.preventDefault();
+        handleSave();
+      }
     }
   }
 </script>
@@ -255,7 +276,7 @@
         <div class="form-group">
           <label for="field-value">Value</label>
           {#if showBooleanSelect}
-            <select id="field-value" bind:value={valueText}>
+            <select id="field-value" bind:value={valueText} bind:this={valueRef}>
               <option value="true">true</option>
               <option value="false">false</option>
             </select>
@@ -263,6 +284,7 @@
             <textarea
               id="field-value"
               bind:value={valueText}
+              bind:this={valueRef}
               rows={selectedType === 'Array' || selectedType === 'Object' ? 8 : 3}
               placeholder="Enter value..."
               spellcheck="false"
