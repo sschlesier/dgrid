@@ -10,6 +10,7 @@ import type {
   CollectionInfo,
   ExecuteQueryRequest,
   ExecuteQueryResponse,
+  ExportCsvRequest,
   UpdateFieldRequest,
   UpdateFieldResponse,
   ErrorResponse,
@@ -172,6 +173,33 @@ export async function executeQuery(
     }
     throw error;
   }
+}
+
+// Export endpoints
+
+export async function exportCsv(
+  connectionId: string,
+  data: ExportCsvRequest,
+  options?: { signal?: AbortSignal }
+): Promise<Response> {
+  const response = await fetch(`${API_BASE}/connections/${connectionId}/export-csv`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    signal: options?.signal,
+  });
+
+  if (!response.ok) {
+    let errorData: ErrorResponse;
+    try {
+      errorData = await response.json();
+    } catch {
+      throw new ApiError(response.status, 'UnknownError', response.statusText);
+    }
+    throw new ApiError(errorData.statusCode, errorData.error, errorData.message, errorData.details);
+  }
+
+  return response;
 }
 
 // Document endpoints

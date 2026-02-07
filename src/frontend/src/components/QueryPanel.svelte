@@ -464,6 +464,7 @@
         connectionId={tab.connectionId}
         database={tab.database}
         collection={collectionName}
+        query={queryText}
         onpagechange={handlePageChange}
         onpagesizechange={handlePageSizeChange}
       />

@@ -82,6 +82,12 @@ export interface ExecuteQueryResponse {
   executionTimeMs: number;
 }
 
+// CSV Export
+export interface ExportCsvRequest {
+  query: string;
+  database: string;
+}
+
 // Document Field Updates
 export interface UpdateFieldRequest {
   database: string;

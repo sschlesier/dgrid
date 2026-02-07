@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { appStore } from '../stores/app.svelte';
   import { queryStore } from '../stores/query.svelte';
+  import { exportStore } from '../stores/export.svelte';
   import { registerShortcut, unregisterShortcut } from '../utils/keyboard';
 
   function handleNewTab() {
@@ -13,6 +14,7 @@
   }
 
   function handleCloseTab(id: string) {
+    exportStore.cleanupTab(id);
     queryStore.cleanupTab(id);
     appStore.closeTab(id);
   }
