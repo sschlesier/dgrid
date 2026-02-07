@@ -12,9 +12,9 @@ export function selectors(page: Page) {
     sidebar: {
       root: () => page.locator('aside.sidebar'),
       tree: () => page.locator('[role="tree"]'),
-      treeItem: (name: string) =>
-        page.locator('[role="treeitem"]', { hasText: name }),
+      treeItem: (name: string) => page.locator('[role="treeitem"]', { hasText: name }),
       emptyState: () => page.locator('aside.sidebar .empty-state'),
+      actionButton: (title: string) => page.locator(`.action-btn[title="${title}"]`),
     },
 
     connectionDialog: {
@@ -38,6 +38,8 @@ export function selectors(page: Page) {
       bar: () => page.locator('.tabbar'),
       tab: (name: string) => page.getByRole('tab', { name: new RegExp(name, 'i') }),
       activeTab: () => page.locator('.tab.active'),
+      closeButton: (name: string) =>
+        page.getByRole('tab', { name: new RegExp(name, 'i') }).locator('.tab-close'),
       newTabButton: () => page.locator('.new-tab-btn'),
     },
 
@@ -55,7 +57,16 @@ export function selectors(page: Page) {
       gridRow: (index: number) => page.locator('.grid-row').nth(index),
       gridCell: () => page.locator('.grid-cell'),
       viewSelector: () => page.locator('.view-selector'),
-      pagination: () => page.locator('.grid-pagination'),
+      viewButton: (name: string) => page.locator(`.view-btn[title="${name} View"]`),
+      pagination: () => page.locator('.pagination'),
+      paginationCount: () => page.locator('.pagination .count'),
+      pageInfo: () => page.locator('.page-info'),
+      nextPageButton: () => page.locator('.page-nav .nav-btn[title="Next page"]'),
+      prevPageButton: () => page.locator('.page-nav .nav-btn[title="Previous page"]'),
+      jsonView: () => page.locator('.json-view'),
+      treeView: () => page.locator('.tree-view'),
+      exportPageButton: () => page.locator('.export-csv-btn', { hasText: 'Export Page' }),
+      exportAllButton: () => page.locator('.export-csv-btn', { hasText: 'Export All' }),
     },
 
     notifications: {
@@ -65,6 +76,34 @@ export function selectors(page: Page) {
 
     statusBar: {
       root: () => page.locator('.statusbar'),
+      center: () => page.locator('.statusbar-center'),
+    },
+
+    editDialog: {
+      overlay: () =>
+        page
+          .locator('.dialog-overlay')
+          .filter({ has: page.locator('h2', { hasText: 'Edit Field' }) }),
+      fieldPath: () => page.locator('.field-path-display'),
+      typeSelect: () => page.locator('#field-type'),
+      valueInput: () => page.locator('#field-value'),
+      saveButton: () => page.locator('.save-btn'),
+      cancelButton: () => page.locator('.dialog-footer .cancel-btn'),
+    },
+
+    exportOverlay: {
+      overlay: () => page.locator('.export-overlay'),
+      status: () => page.locator('.export-status'),
+      cancelButton: () => page.locator('.export-overlay .cancel-btn'),
+    },
+
+    history: {
+      toolbarButton: () => page.locator('.toolbar-btn', { hasText: 'History' }),
+      dropdown: () => page.locator('.history-dropdown'),
+      item: () => page.locator('.history-item'),
+      itemQuery: () => page.locator('.item-query'),
+      clearButton: () => page.locator('.clear-btn'),
+      emptyState: () => page.locator('.empty-history'),
     },
   };
 }

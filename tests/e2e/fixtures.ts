@@ -1,4 +1,5 @@
 import { test as base, expect, type Page, type APIRequestContext } from '@playwright/test';
+import { MongoClient } from 'mongodb';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -24,6 +25,36 @@ function readMongoInfo(): MongoInfo {
   return JSON.parse(raw) as MongoInfo;
 }
 
+/** Seed documents into the test MongoDB. Returns a cleanup function that drops the database. */
+export async function seedDatabase(
+  mongoInfo: MongoInfo,
+  database: string,
+  collection: string,
+  documents: Record<string, unknown>[]
+): Promise<void> {
+  const uri = `mongodb://${mongoInfo.host}:${mongoInfo.port}`;
+  const client = new MongoClient(uri);
+  try {
+    await client.connect();
+    const db = client.db(database);
+    await db.collection(collection).insertMany(documents);
+  } finally {
+    await client.close();
+  }
+}
+
+/** Drop a database from the test MongoDB. */
+export async function cleanupDatabase(mongoInfo: MongoInfo, database: string): Promise<void> {
+  const uri = `mongodb://${mongoInfo.host}:${mongoInfo.port}`;
+  const client = new MongoClient(uri);
+  try {
+    await client.connect();
+    await client.db(database).dropDatabase();
+  } finally {
+    await client.close();
+  }
+}
+
 /** Delete all connections via the API. Call in beforeEach for test isolation. */
 export async function deleteAllConnections(request: APIRequestContext): Promise<void> {
   const response = await request.get(`${API_BASE}/connections`);
@@ -46,12 +77,21 @@ export const test = base.extend<AppFixtures>({
 
 export { expect };
 
+/** Expand a tree node by clicking its chevron. */
+export async function expandTreeNode(page: Page, name: string): Promise<void> {
+  const s = selectors(page);
+  const item = s.sidebar.treeItem(name);
+  // Click the node to select it, then press ArrowRight to expand
+  await item.click();
+  await page.keyboard.press('ArrowRight');
+}
+
 // --- Helper functions ---
 
 /** Open the New Connection dialog, fill it, and save. Returns after dialog closes. */
 export async function createConnection(
   page: Page,
-  opts: { name: string; host: string; port: number },
+  opts: { name: string; host: string; port: number }
 ): Promise<void> {
   const s = selectors(page);
 
