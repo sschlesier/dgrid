@@ -33,6 +33,9 @@ Thumbs.db
 # Testing
 coverage/
 .nyc_output/
+test-results/
+playwright-report/
+tests/e2e/.mongo-info.json
 
 # Cache
 .cache/

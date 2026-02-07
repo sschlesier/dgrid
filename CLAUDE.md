@@ -14,6 +14,7 @@ A clean, modern MongoDB GUI built with Fastify and Svelte, optimized for AI-assi
 - **Backend**: Fastify 5.x, MongoDB driver, TypeScript 5.7
 - **Frontend**: Svelte 5 (runes), Vite 7, CodeMirror 6
 - **Testing**: Vitest 3, mongodb-memory-server
+- **E2E Testing**: Playwright (Chromium)
 - **Package Manager**: pnpm (required)
 
 ## Code Style
@@ -37,6 +38,11 @@ pnpm type-check       # TypeScript compilation check
 pnpm lint             # ESLint check
 pnpm test             # Run test suite
 
+# E2E Testing
+pnpm e2e              # Run Playwright E2E tests
+pnpm e2e:headed       # Run E2E tests with visible browser
+pnpm e2e:ui           # Playwright interactive UI mode
+
 # Building
 pnpm build            # Build both backend and frontend
 ```
@@ -48,6 +54,8 @@ pnpm build            # Build both backend and frontend
 - Focus on behavior, not implementation details
 - Integration tests use mongodb-memory-server for real MongoDB
 - Component tests use @testing-library/svelte
+- E2E tests use Playwright with real backend/frontend servers
+- E2E test MongoDB is provided by mongodb-memory-server (no external DB needed)
 
 ## Architecture Patterns
 
@@ -57,6 +65,9 @@ pnpm build            # Build both backend and frontend
 - **Frontend Stores**: `src/frontend/src/stores/{domain}.svelte.ts` (Svelte 5 runes)
 - **Frontend Components**: `src/frontend/src/components/{Component}.svelte`
 - **API Contracts**: `src/shared/contracts.ts` (single source of truth)
+- **E2E Tests**: `tests/e2e/specs/{feature}.spec.ts`
+- **E2E Fixtures**: `tests/e2e/fixtures.ts`
+- **E2E Selectors**: `tests/e2e/helpers/selectors.ts`
 
 ## Workflow
 
@@ -104,3 +115,4 @@ See `.claude/rules/` for detailed guidelines on:
 - Svelte component structure
 - Testing patterns
 - TypeScript conventions
+- E2E testing patterns

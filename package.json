@@ -24,7 +24,11 @@
     "format:check": "prettier --check .",
     "verify": "pnpm type-check && pnpm lint && pnpm test run && pnpm build",
     "prepare": "husky",
-    "start": "node dist/backend/server.js"
+    "start": "node dist/backend/server.js",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:ui": "playwright test --ui",
+    "e2e:report": "playwright show-report"
   },
   "keywords": [
     "mongodb",
@@ -57,6 +61,7 @@
   "devDependencies": {
     "@codemirror/lang-json": "^6.0.2",
     "@eslint/js": "^9.39.2",
+    "@playwright/test": "^1.58.2",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",
