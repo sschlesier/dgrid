@@ -38,7 +38,7 @@ async function main(): Promise<void> {
   });
 
   await app.register(rateLimit, {
-    max: 100,
+    max: process.env.DGRID_DATA_DIR ? 10000 : 100,
     timeWindow: '1 minute',
   });
 

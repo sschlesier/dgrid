@@ -58,7 +58,9 @@ export async function cleanupDatabase(mongoInfo: MongoInfo, database: string): P
 /** Delete all connections via the API. Call in beforeEach for test isolation. */
 export async function deleteAllConnections(request: APIRequestContext): Promise<void> {
   const response = await request.get(`${API_BASE}/connections`);
-  const connections = (await response.json()) as { id: string }[];
+  if (!response.ok()) return;
+  const body = await response.json();
+  const connections = Array.isArray(body) ? (body as { id: string }[]) : [];
   for (const conn of connections) {
     await request.delete(`${API_BASE}/connections/${conn.id}`);
   }
