@@ -37,10 +37,12 @@ async function main(): Promise<void> {
     exposedHeaders: ['X-Total-Count'],
   });
 
-  await app.register(rateLimit, {
-    max: process.env.DGRID_DATA_DIR ? 10000 : 100,
-    timeWindow: '1 minute',
-  });
+  if (!process.env.DGRID_DATA_DIR) {
+    await app.register(rateLimit, {
+      max: 100,
+      timeWindow: '1 minute',
+    });
+  }
 
   // WebSocket support for file watching
   await app.register(websocket);
