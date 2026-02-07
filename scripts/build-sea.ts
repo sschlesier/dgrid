@@ -7,6 +7,8 @@
  * 2. Creates the SEA blob using Node.js
  * 3. Copies the Node.js binary and injects the blob
  * 4. Signs the binary for macOS
+ * 5. Packages into macOS .app bundle
+ * 6. Creates DMG installer
  */
 
 import { execSync } from 'child_process';
@@ -19,6 +21,8 @@ import {
   existsSync,
   mkdirSync,
   rmSync,
+  readFileSync,
+  renameSync,
 } from 'fs';
 import { join } from 'path';
 
@@ -29,6 +33,13 @@ const BUNDLE_FILE = join(DIST_SEA_DIR, 'server.cjs');
 const SEA_CONFIG = join(DIST_SEA_DIR, 'sea-config.json');
 const SEA_BLOB = join(DIST_SEA_DIR, 'sea-prep.blob');
 const OUTPUT_BINARY = join(DIST_SEA_DIR, 'dgrid');
+const APP_BUNDLE = join(DIST_SEA_DIR, 'DGrid.app');
+const RELEASE_DIR = join(ROOT_DIR, 'dist/release');
+
+function getVersion(): string {
+  const pkg = JSON.parse(readFileSync(join(ROOT_DIR, 'package.json'), 'utf-8'));
+  return pkg.version;
+}
 
 interface SeaConfig {
   main: string;
@@ -237,6 +248,159 @@ function copyNativeModules(): void {
   }
 }
 
+function copyAppIcon(): void {
+  if (process.platform !== 'darwin') return;
+
+  const icnsSrc = join(ROOT_DIR, 'assets', 'dgrid.icns');
+  const icnsDest = join(DIST_SEA_DIR, 'dgrid.icns');
+
+  if (existsSync(icnsSrc)) {
+    copyFileSync(icnsSrc, icnsDest);
+    console.log('Copied app icon.');
+  } else {
+    console.warn('  Warning: assets/dgrid.icns not found, .app will have no icon');
+  }
+}
+
+function createAppBundle(): void {
+  if (process.platform !== 'darwin') {
+    console.log('Skipping .app bundle (not macOS)');
+    return;
+  }
+
+  console.log('Creating macOS .app bundle...');
+
+  const version = getVersion();
+
+  // Clean previous bundle
+  rmSync(APP_BUNDLE, { recursive: true, force: true });
+
+  // Create directory structure
+  const contentsDir = join(APP_BUNDLE, 'Contents');
+  const macosDir = join(contentsDir, 'MacOS');
+  const resourcesDir = join(contentsDir, 'Resources');
+
+  mkdirSync(macosDir, { recursive: true });
+  mkdirSync(resourcesDir, { recursive: true });
+
+  // Move binary into MacOS/
+  renameSync(OUTPUT_BINARY, join(macosDir, 'dgrid'));
+
+  // Move native/ and traybin/ into MacOS/ (alongside binary for path compat)
+  const nativeSrc = join(DIST_SEA_DIR, 'native');
+  const traybinSrc = join(DIST_SEA_DIR, 'traybin');
+
+  if (existsSync(nativeSrc)) {
+    renameSync(nativeSrc, join(macosDir, 'native'));
+  }
+  if (existsSync(traybinSrc)) {
+    renameSync(traybinSrc, join(macosDir, 'traybin'));
+  }
+
+  // Copy icon to Resources/
+  const icnsPath = join(DIST_SEA_DIR, 'dgrid.icns');
+  if (existsSync(icnsPath)) {
+    copyFileSync(icnsPath, join(resourcesDir, 'dgrid.icns'));
+    rmSync(icnsPath, { force: true });
+  }
+
+  // Write Info.plist
+  const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key>
+  <string>dgrid</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.dgrid.app</string>
+  <key>CFBundleDisplayName</key>
+  <string>DGrid</string>
+  <key>CFBundleName</key>
+  <string>DGrid</string>
+  <key>CFBundleVersion</key>
+  <string>${version}</string>
+  <key>CFBundleShortVersionString</key>
+  <string>${version}</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleIconFile</key>
+  <string>dgrid</string>
+  <key>LSUIElement</key>
+  <true/>
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+</dict>
+</plist>
+`;
+  writeFileSync(join(contentsDir, 'Info.plist'), infoPlist);
+
+  // Write PkgInfo
+  writeFileSync(join(contentsDir, 'PkgInfo'), 'APPL????');
+
+  // Codesign the entire bundle
+  console.log('  Signing .app bundle (ad-hoc)...');
+  execSync(`codesign --force --deep --sign - "${APP_BUNDLE}"`, {
+    stdio: 'inherit',
+  });
+
+  console.log(`  Created: DGrid.app`);
+}
+
+function createDmg(): void {
+  if (process.platform !== 'darwin') {
+    console.log('Skipping DMG (not macOS)');
+    return;
+  }
+
+  if (!existsSync(APP_BUNDLE)) {
+    console.log('Skipping DMG (.app bundle not found)');
+    return;
+  }
+
+  console.log('Creating DMG installer...');
+
+  const version = getVersion();
+  const arch = process.arch;
+
+  if (!existsSync(RELEASE_DIR)) {
+    mkdirSync(RELEASE_DIR, { recursive: true });
+  }
+
+  const dmgName = `DGrid-${version}-${arch}.dmg`;
+  const dmgPath = join(RELEASE_DIR, dmgName);
+
+  // Remove existing DMG
+  rmSync(dmgPath, { force: true });
+
+  // Create a staging directory with .app and Applications symlink
+  const stagingDir = join(DIST_SEA_DIR, 'dmg-staging');
+  rmSync(stagingDir, { recursive: true, force: true });
+  mkdirSync(stagingDir, { recursive: true });
+
+  // Copy .app to staging
+  execSync(`cp -R "${APP_BUNDLE}" "${stagingDir}/"`, { stdio: 'pipe' });
+
+  // Create Applications symlink for drag-to-install
+  execSync(`ln -s /Applications "${join(stagingDir, 'Applications')}"`, {
+    stdio: 'pipe',
+  });
+
+  // Create compressed DMG from staging directory
+  execSync(
+    `hdiutil create -volname "DGrid" -srcfolder "${stagingDir}" -ov -format UDZO "${dmgPath}"`,
+    { stdio: 'inherit' }
+  );
+
+  // Cleanup staging
+  rmSync(stagingDir, { recursive: true, force: true });
+
+  const stats = statSync(dmgPath);
+  const sizeMB = (stats.size / 1024 / 1024).toFixed(1);
+  console.log(`  Created: ${dmgName} (${sizeMB} MB)`);
+}
+
 function cleanup(): void {
   console.log('Cleaning up...');
   // Remove intermediate files
@@ -245,12 +409,20 @@ function cleanup(): void {
 }
 
 function printStats(): void {
-  const stats = statSync(OUTPUT_BINARY);
-  const sizeMB = (stats.size / 1024 / 1024).toFixed(1);
   console.log(`\nSEA build complete!`);
-  console.log(`  Output: ${OUTPUT_BINARY}`);
-  console.log(`  Size: ${sizeMB} MB`);
-  console.log(`\nRun with: ${OUTPUT_BINARY}`);
+
+  if (process.platform === 'darwin' && existsSync(APP_BUNDLE)) {
+    // Show .app bundle info
+    const appSize = execSync(`du -sh "${APP_BUNDLE}"`, { encoding: 'utf-8' }).trim().split('\t')[0];
+    console.log(`  App bundle: ${APP_BUNDLE} (${appSize})`);
+    console.log(`\nRun with: open ${APP_BUNDLE}`);
+  } else {
+    const stats = statSync(OUTPUT_BINARY);
+    const sizeMB = (stats.size / 1024 / 1024).toFixed(1);
+    console.log(`  Output: ${OUTPUT_BINARY}`);
+    console.log(`  Size: ${sizeMB} MB`);
+    console.log(`\nRun with: ${OUTPUT_BINARY}`);
+  }
 }
 
 async function main(): Promise<void> {
@@ -267,6 +439,9 @@ async function main(): Promise<void> {
   signBinary();
   copyNativeModules();
   copyTrayBinary();
+  copyAppIcon();
+  createAppBundle();
+  createDmg();
   cleanup();
   printStats();
 }
