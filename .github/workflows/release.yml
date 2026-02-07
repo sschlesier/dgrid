@@ -66,3 +66,50 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-homebrew:
+    name: Update Homebrew Tap
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout homebrew-dgrid
+        uses: actions/checkout@v4
+        with:
+          repository: sschlesier/homebrew-dgrid
+          path: homebrew-tap
+          token: ${{ secrets.HOMEBREW_PUSH_TOKEN }}
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dgrid-darwin-arm64
+          path: artifacts
+
+      - name: Update Cask
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG_NAME#v}
+          SHA256=$(awk '{print $1}' artifacts/*.sha256)
+
+          CASK=homebrew-tap/Casks/dgrid.rb
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" "$CASK"
+          sed -i "s/sha256 \".*\"/sha256 \"${SHA256}\"/" "$CASK"
+
+          echo "Updated Cask to version ${VERSION} with sha256 ${SHA256}"
+          cat "$CASK"
+
+      - name: Push changes
+        run: |
+          cd homebrew-tap
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+          if git diff --quiet Casks/dgrid.rb; then
+            echo "No changes to cask"
+            exit 0
+          fi
+
+          git add Casks/dgrid.rb
+          git commit -m "Update dgrid to ${GITHUB_REF#refs/tags/}"
+          git push origin main
