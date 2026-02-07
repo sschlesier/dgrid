@@ -22,7 +22,7 @@
     "lint:fix": "eslint . --ext .ts,.js,.svelte --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "pnpm type-check && pnpm lint && pnpm test run && pnpm build",
+    "verify": "pnpm type-check && pnpm lint && pnpm test run && pnpm build && pnpm e2e",
     "prepare": "husky",
     "start": "node dist/backend/server.js",
     "e2e": "playwright test",

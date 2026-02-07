@@ -98,6 +98,30 @@ await expect(s.results.gridViewport()).toBeVisible();
 await expect(s.results.gridCell().first()).toContainText('Alice');
 ```
 
+## Coverage Expectations
+
+Every user-facing feature needs E2E coverage. When implementing a new feature:
+
+1. **Add selectors first** — any new UI element gets a selector in `helpers/selectors.ts`
+2. **Add or extend a spec** — one spec file per feature area in `tests/e2e/specs/`
+3. **Test the happy path at minimum** — user can perform the action and see the expected result
+4. **Test error states when meaningful** — invalid input, failed operations, empty states
+
+Existing spec files and what they cover:
+
+- `smoke.spec.ts` — app loads, health check, connection dialog basics
+- `connections.spec.ts` — create, test, connect
+- `connection-crud.spec.ts` — edit, delete connections
+- `sidebar-navigation.spec.ts` — expand tree, click collection, disconnect, refresh
+- `query-execution.spec.ts` — find queries, Cmd+Enter, errors, pagination, status bar
+- `field-editing.spec.ts` — edit values, change types, cancel
+- `tab-management.spec.ts` — create/close tabs, independent state
+- `results-views.spec.ts` — table/JSON/tree view switching
+- `csv-export.spec.ts` — export buttons visibility and counts
+- `query-history.spec.ts` — history entries, reload, clear
+
+When adding a feature that fits an existing area, extend the existing spec. Only create a new spec file for a genuinely new feature area.
+
 ## Anti-Patterns
 
 - **Don't use `page.waitForTimeout()`** — use `expect().toBeVisible()` or other auto-waiting assertions

@@ -33,7 +33,7 @@ pnpm dev:backend      # Backend only (http://localhost:3001)
 pnpm dev:frontend     # Frontend only (http://localhost:5173)
 
 # Verification (use after changes)
-pnpm verify           # Run all checks (types, lint, tests, build)
+pnpm verify           # Run all checks (types, lint, tests, build, e2e)
 pnpm type-check       # TypeScript compilation check
 pnpm lint             # ESLint check
 pnpm test             # Run test suite
@@ -71,10 +71,25 @@ pnpm build            # Build both backend and frontend
 
 ## Workflow
 
-1. Implement changes with tests
-2. Run `pnpm verify` to validate (types, lint, tests, build)
+1. Implement changes with tests (unit/integration AND E2E — see below)
+2. Run `pnpm verify` to validate (types, lint, tests, build, **E2E**)
 3. Commit to git after successful verification
 4. Only push to remote when explicitly requested
+
+## E2E Coverage Requirement
+
+Every user-facing feature or behavior change **must** include E2E test coverage. This includes:
+
+- New UI features (buttons, dialogs, views, interactions)
+- Changes to existing UI behavior
+- New or modified API endpoints that affect the frontend
+- Bug fixes for issues that a user could observe
+
+When adding a feature:
+
+1. Add selectors to `tests/e2e/helpers/selectors.ts` for any new UI elements
+2. Add or extend a spec in `tests/e2e/specs/{feature}.spec.ts`
+3. Run `pnpm e2e` to verify before committing
 
 ## Security Principles
 
