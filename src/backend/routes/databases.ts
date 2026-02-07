@@ -1,7 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { Db } from 'mongodb';
 import { ConnectionPool } from '../db/mongodb.js';
-import { DatabaseInfo, CollectionInfo } from '../../shared/contracts.js';
+import { DatabaseInfo, CollectionInfo, CollectionSchemaResponse } from '../../shared/contracts.js';
+import { collectColumns } from '../db/csv.js';
 
 export interface DatabaseRoutesOptions {
   pool: ConnectionPool;
@@ -186,6 +187,55 @@ export async function databaseRoutes(
         };
 
         return reply.send(info);
+      } catch (e) {
+        const error = e as Error;
+        return reply.status(500).send({
+          error: 'DatabaseError',
+          message: error.message,
+          statusCode: 500,
+        });
+      }
+    }
+  );
+
+  // Get collection schema (field names from sample)
+  fastify.get<{ Params: { id: string; db: string; coll: string } }>(
+    '/connections/:id/databases/:db/collections/:coll/schema',
+    async (request, reply) => {
+      const { id, db: dbName, coll: collName } = request.params;
+
+      if (!pool.isConnected(id)) {
+        return reply.status(400).send({
+          error: 'BadRequest',
+          message: 'Connection not active. Please connect first.',
+          statusCode: 400,
+        });
+      }
+
+      const client = pool.getClient(id);
+      if (!client) {
+        return reply.status(500).send({
+          error: 'InternalError',
+          message: 'Failed to get database client',
+          statusCode: 500,
+        });
+      }
+
+      try {
+        const db = client.db(dbName);
+        const docs = await db
+          .collection(collName)
+          .aggregate([{ $sample: { size: 100 } }])
+          .toArray();
+
+        const fields = collectColumns(docs);
+
+        const result: CollectionSchemaResponse = {
+          fields,
+          sampleSize: docs.length,
+        };
+
+        return reply.send(result);
       } catch (e) {
         const error = e as Error;
         return reply.status(500).send({

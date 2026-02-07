@@ -14,6 +14,7 @@
   import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
   import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
   import { bracketMatching } from '@codemirror/language';
+  import { fieldCompletionExtension } from '../lib/fieldCompletion';
 
   interface Props {
     value?: string;
@@ -22,6 +23,7 @@
     vimMode?: boolean;
     readonly?: boolean;
     placeholder?: string;
+    fieldNames?: string[];
   }
 
   let {
@@ -31,12 +33,18 @@
     vimMode = false,
     readonly = false,
     placeholder = '',
+    fieldNames = [],
   }: Props = $props();
 
   let container: HTMLDivElement;
   let view: EditorView | null = null;
   let vimCompartment = new Compartment();
   let readonlyCompartment = new Compartment();
+  let autocompleteCompartment = new Compartment();
+
+  // Mutable ref so the completion source closure always reads the latest field names.
+  // Updated by the "Sync autocomplete field names" $effect below.
+  let currentFieldNames: string[] = [];
 
   // Theme using CSS variables for light/dark support
   const theme = EditorView.theme({
@@ -102,6 +110,23 @@
       backgroundColor: 'var(--color-primary) !important',
       color: 'var(--color-primary-text) !important',
     },
+    // Autocomplete tooltip styling
+    '.cm-tooltip.cm-tooltip-autocomplete': {
+      backgroundColor: 'var(--color-bg-primary)',
+      border: '1px solid var(--color-border-medium)',
+      borderRadius: 'var(--radius-md)',
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete ul li': {
+      padding: '2px 8px',
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--font-size-sm)',
+      color: 'var(--color-text-primary)',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete ul li[aria-selected]': {
+      backgroundColor: 'var(--color-primary)',
+      color: 'var(--color-primary-text)',
+    },
   });
 
   // Execute keybinding (Cmd/Ctrl + Enter)
@@ -137,6 +162,9 @@
       theme,
       updateListener,
       createExecuteKeymap(),
+      autocompleteCompartment.of(
+        currentFieldNames.length > 0 ? fieldCompletionExtension(() => currentFieldNames) : []
+      ),
       keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       vimCompartment.of(vimMode ? vim() : []),
       readonlyCompartment.of(EditorState.readOnly.of(readonly)),
@@ -178,6 +206,18 @@
     if (view) {
       view.dispatch({
         effects: readonlyCompartment.reconfigure(EditorState.readOnly.of(readonly)),
+      });
+    }
+  });
+
+  // Sync autocomplete field names
+  $effect(() => {
+    currentFieldNames = fieldNames;
+    if (view) {
+      view.dispatch({
+        effects: autocompleteCompartment.reconfigure(
+          fieldNames.length > 0 ? fieldCompletionExtension(() => currentFieldNames) : []
+        ),
       });
     }
   });

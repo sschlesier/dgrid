@@ -103,6 +103,12 @@ export interface UpdateFieldResponse {
   modifiedCount: number;
 }
 
+// Schema Sampling
+export interface CollectionSchemaResponse {
+  fields: string[];
+  sampleSize: number;
+}
+
 // Error Response
 export interface ErrorResponse {
   error: string;

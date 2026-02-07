@@ -4,6 +4,7 @@
   import { queryStore } from '../stores/query.svelte';
   import { editorStore } from '../stores/editor.svelte';
   import { gridStore } from '../stores/grid.svelte';
+  import { schemaStore } from '../stores/schema.svelte';
   import { watchFile } from '../api/websocket';
   import * as api from '../api/client';
   import { supportsFileSystemAccess, openFile, saveFile } from '../lib/file-access';
@@ -31,6 +32,18 @@
     const match = text.match(/db\.(\w+)\./);
     return match ? match[1] : '';
   });
+
+  // Fetch schema when collection changes
+  $effect(() => {
+    if (collectionName && tab.connectionId && tab.database) {
+      schemaStore.fetchSchema(tab.connectionId, tab.database, collectionName);
+    }
+  });
+
+  // Field names for autocomplete
+  let fieldNames = $derived(
+    collectionName ? schemaStore.getFields(tab.connectionId, tab.database, collectionName) : []
+  );
 
   // UI state
   let showHistory = $state(false);
@@ -62,6 +75,17 @@
 
     const pageSize = gridStore.getPageSize(tab.id);
     await queryStore.executeQuery(tab.id, tab.connectionId, tab.database, query, 1, pageSize);
+
+    // Enrich schema cache from result documents
+    const queryResults = queryStore.getResults(tab.id);
+    if (queryResults && collectionName) {
+      schemaStore.enrichFromDocuments(
+        tab.connectionId,
+        tab.database,
+        collectionName,
+        queryResults.documents
+      );
+    }
   }
 
   function handleCancel() {
@@ -420,6 +444,7 @@
       onexecute={handleExecute}
       vimMode={editorStore.vimMode}
       placeholder="Enter your MongoDB query here... (e.g., db.collection.find())"
+      {fieldNames}
     />
   </div>
 

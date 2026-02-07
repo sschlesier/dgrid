@@ -8,6 +8,7 @@ import type {
   TestConnectionResponse,
   DatabaseInfo,
   CollectionInfo,
+  CollectionSchemaResponse,
   ExecuteQueryRequest,
   ExecuteQueryResponse,
   ExportCsvRequest,
@@ -144,6 +145,18 @@ export async function getCollections(
 ): Promise<CollectionInfo[]> {
   return request<CollectionInfo[]>(
     `/connections/${connectionId}/databases/${database}/collections`
+  );
+}
+
+// Schema endpoints
+
+export async function getCollectionSchema(
+  connectionId: string,
+  database: string,
+  collection: string
+): Promise<CollectionSchemaResponse> {
+  return request<CollectionSchemaResponse>(
+    `/connections/${connectionId}/databases/${database}/collections/${collection}/schema`
   );
 }
 

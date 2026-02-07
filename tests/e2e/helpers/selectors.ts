@@ -49,6 +49,9 @@ export function selectors(page: Page) {
       executeButton: () => page.locator('.execute-btn'),
       cancelButton: () => page.locator('.cancel-btn'),
       errorDisplay: () => page.locator('.error-display'),
+      autocomplete: () => page.locator('.cm-tooltip-autocomplete'),
+      autocompleteOption: (label: string) =>
+        page.locator('.cm-tooltip-autocomplete .cm-completionLabel', { hasText: label }),
     },
 
     results: {

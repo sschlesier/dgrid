@@ -4,6 +4,7 @@ import type { ConnectionResponse, DatabaseInfo, CollectionInfo } from '../../../
 import type { Tab, Notification, UIState, Theme, TreeNodeData } from '../types';
 import * as api from '../api/client';
 import { queryStore } from './query.svelte';
+import { schemaStore } from './schema.svelte';
 
 // Generate unique IDs
 function generateId(): string {
@@ -187,6 +188,7 @@ class AppStore {
         this.databases = [];
         this.collections = new Map();
       }
+      schemaStore.clearConnection(id);
       this.notify('info', `Disconnected from "${connection.name}"`);
     } catch (error) {
       this.notify('error', `Failed to disconnect: ${(error as Error).message}`);
