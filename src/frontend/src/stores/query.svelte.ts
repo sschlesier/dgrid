@@ -80,7 +80,8 @@ class QueryStore {
     database: string,
     query: string,
     page = 1,
-    pageSize: 50 | 100 | 250 | 500 = 50
+    pageSize: 50 | 100 | 250 | 500 = 50,
+    silent = false
   ): Promise<ExecuteQueryResponse | null> {
     // Cancel any existing query for this tab
     this.cancelQuery(tabId);
@@ -89,10 +90,12 @@ class QueryStore {
     const abortController = new AbortController();
     this.abortControllers.set(tabId, abortController);
 
-    // Set executing state
-    const newExecuting = new Map(this.isExecuting);
-    newExecuting.set(tabId, true);
-    this.isExecuting = newExecuting;
+    // Set executing state (skip when silent to keep view mounted)
+    if (!silent) {
+      const newExecuting = new Map(this.isExecuting);
+      newExecuting.set(tabId, true);
+      this.isExecuting = newExecuting;
+    }
 
     // Clear previous error
     const newErrors = new Map(this.errors);
@@ -173,9 +176,10 @@ class QueryStore {
     database: string,
     query: string,
     page: number,
-    pageSize: 50 | 100 | 250 | 500 = 50
+    pageSize: 50 | 100 | 250 | 500 = 50,
+    silent = false
   ): Promise<ExecuteQueryResponse | null> {
-    return this.executeQuery(tabId, connectionId, database, query, page, pageSize);
+    return this.executeQuery(tabId, connectionId, database, query, page, pageSize, silent);
   }
 
   // Clear results for a tab

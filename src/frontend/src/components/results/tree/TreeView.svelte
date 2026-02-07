@@ -185,7 +185,7 @@
     // Re-execute the query at the current page to reload fresh data
     const query = queryStore.getQueryText(tabId);
     const pageSize = gridStore.getPageSize(tabId);
-    await queryStore.loadPage(tabId, connectionId, database, query, results.page, pageSize);
+    await queryStore.loadPage(tabId, connectionId, database, query, results.page, pageSize, true);
   }
 </script>
 
