@@ -122,6 +122,22 @@ Do NOT add any attribution to commits. This means:
 - No mentions of AI, Claude, or any contributor in commit messages
 - Just the commit message itself, nothing else
 
+## Releasing
+
+Follow [semver](https://semver.org/) when choosing the increment:
+
+- **patch** — bug fixes, minor UI tweaks, internal refactors with no behavior change
+- **minor** — new features, new UI capabilities, non-breaking additions
+- **major** — breaking changes to data formats, config, or workflows that require user action
+
+```bash
+pnpm version patch    # or minor / major — bumps version, commits, and creates v* tag
+git push origin main && git push origin <tag>   # triggers release workflow
+```
+
+- Always use `pnpm version` — never manually edit the version in `package.json`
+- The `v*` tag push triggers the GitHub Actions release workflow (build, GitHub release, Homebrew cask update)
+
 ## Common Patterns
 
 See `.claude/rules/` for detailed guidelines on:
