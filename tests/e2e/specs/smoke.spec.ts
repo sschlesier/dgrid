@@ -41,4 +41,30 @@ test.describe('Smoke Tests', () => {
     await expect(s.connectionDialog.portInput()).toHaveValue('27017');
     await expect(s.connectionDialog.nameInput()).toHaveValue('');
   });
+
+  test('help button opens keyboard shortcuts modal', async ({ page, s }) => {
+    await page.goto('/');
+
+    // Click help button in header
+    await s.header.helpButton().click();
+    await expect(s.shortcutsModal.modal()).toBeVisible();
+    await expect(s.shortcutsModal.heading()).toHaveText('Keyboard Shortcuts');
+
+    // Close with Escape
+    await page.keyboard.press('Escape');
+    await expect(s.shortcutsModal.modal()).not.toBeVisible();
+  });
+
+  test('? shortcut opens keyboard shortcuts modal', async ({ page, s }) => {
+    await page.goto('/');
+
+    // Press ? to open shortcuts modal
+    await page.keyboard.type('?');
+    await expect(s.shortcutsModal.modal()).toBeVisible();
+    await expect(s.shortcutsModal.heading()).toHaveText('Keyboard Shortcuts');
+
+    // Close by clicking overlay
+    await s.shortcutsModal.overlay().click({ position: { x: 5, y: 5 } });
+    await expect(s.shortcutsModal.modal()).not.toBeVisible();
+  });
 });

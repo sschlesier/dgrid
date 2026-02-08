@@ -1,28 +1,6 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
   import { appStore } from '../stores/app.svelte';
   import { queryStore } from '../stores/query.svelte';
-  import KeyboardShortcutsModal from './KeyboardShortcutsModal.svelte';
-  import { registerShortcut, unregisterShortcut } from '../utils/keyboard';
-
-  let showShortcuts = $state(false);
-
-  function toggleShortcuts() {
-    showShortcuts = !showShortcuts;
-  }
-
-  onMount(() => {
-    registerShortcut('show-help', {
-      key: '?',
-      handler: () => {
-        showShortcuts = true;
-      },
-    });
-  });
-
-  onDestroy(() => {
-    unregisterShortcut('show-help');
-  });
 
   // Get results info for current tab
   function getResultsInfo(): string {
@@ -84,22 +62,11 @@
   </div>
 
   <div class="statusbar-right">
-    <button class="help-btn" onclick={toggleShortcuts} title="Keyboard Shortcuts (?)">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-        <path
-          d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm3 1a1 1 0 0 0 0 2h2a1 1 0 0 0 0-2H3zm4 0a1 1 0 0 0 0 2h2a1 1 0 0 0 0-2H7zm4 0a1 1 0 0 0 0 2h2a1 1 0 0 0 0-2h-2zM3 6a1 1 0 0 0 0 2h2a1 1 0 0 0 0-2H3zm4 0a1 1 0 0 0 0 2h2a1 1 0 0 0 0-2H7zm4 0a1 1 0 0 0 0 2h2a1 1 0 0 0 0-2h-2zM3 9a1 1 0 0 0 0 2h10a1 1 0 0 0 0-2H3z"
-        />
-      </svg>
-    </button>
     <button class="theme-toggle" onclick={cycleTheme} title={`Theme: ${appStore.ui.theme}`}>
       {getThemeIcon()}
     </button>
   </div>
 </footer>
-
-{#if showShortcuts}
-  <KeyboardShortcutsModal onclose={() => (showShortcuts = false)} />
-{/if}
 
 <style>
   .statusbar {
@@ -152,8 +119,7 @@
     color: var(--color-text-muted);
   }
 
-  .theme-toggle,
-  .help-btn {
+  .theme-toggle {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -165,8 +131,7 @@
     color: var(--color-text-secondary);
   }
 
-  .theme-toggle:hover,
-  .help-btn:hover {
+  .theme-toggle:hover {
     background-color: var(--color-bg-hover);
     color: var(--color-text-primary);
   }

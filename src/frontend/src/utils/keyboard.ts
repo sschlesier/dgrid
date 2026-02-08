@@ -36,8 +36,10 @@ export function matchesModifier(event: KeyboardEvent, shortcut: KeyboardShortcut
   if (!wantsPrimaryMod && hasPrimaryMod) return false;
 
   // Check shift modifier
+  // When a primary modifier (ctrl/meta) is declared, enforce strict shift matching.
+  // When no primary modifier, allow shiftKey to pass through (e.g. "?" is Shift+/).
   if (shortcut.shift && !event.shiftKey) return false;
-  if (!shortcut.shift && event.shiftKey) return false;
+  if (!shortcut.shift && event.shiftKey && wantsPrimaryMod) return false;
 
   // Check alt modifier
   if (shortcut.alt && !event.altKey) return false;

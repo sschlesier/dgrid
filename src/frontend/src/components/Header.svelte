@@ -1,11 +1,33 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import { appStore } from '../stores/app.svelte';
+  import KeyboardShortcutsModal from './KeyboardShortcutsModal.svelte';
+  import { registerShortcut, unregisterShortcut } from '../utils/keyboard';
 
   interface Props {
     onNewConnection: () => void;
   }
 
   let { onNewConnection }: Props = $props();
+
+  let showShortcuts = $state(false);
+
+  function toggleShortcuts() {
+    showShortcuts = !showShortcuts;
+  }
+
+  onMount(() => {
+    registerShortcut('show-help', {
+      key: '?',
+      handler: () => {
+        showShortcuts = true;
+      },
+    });
+  });
+
+  onDestroy(() => {
+    unregisterShortcut('show-help');
+  });
 </script>
 
 <header class="header">
@@ -25,11 +47,36 @@
   </div>
 
   <div class="header-right">
+    <button class="help-btn" onclick={toggleShortcuts} title="Keyboard Shortcuts (?)">
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+      >
+        <circle cx="10" cy="10" r="8" />
+        <text
+          x="10"
+          y="14"
+          text-anchor="middle"
+          fill="currentColor"
+          stroke="none"
+          font-size="11"
+          font-weight="600">?</text
+        >
+      </svg>
+    </button>
     <button class="header-btn primary" onclick={onNewConnection} title="Add new connection">
       New Connection
     </button>
   </div>
 </header>
+
+{#if showShortcuts}
+  <KeyboardShortcutsModal onclose={() => (showShortcuts = false)} />
+{/if}
 
 <style>
   .header {
@@ -99,5 +146,21 @@
 
   .header-btn.primary:hover:not(:disabled) {
     background-color: var(--color-primary-hover);
+  }
+
+  .help-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+  }
+
+  .help-btn:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
   }
 </style>
