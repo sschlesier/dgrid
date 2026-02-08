@@ -11,8 +11,9 @@
 import * as esbuild from 'esbuild';
 import { mkdirSync, existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-const ROOT_DIR = dirname(dirname(import.meta.url.replace('file://', '')));
+const ROOT_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const ENTRY_POINT = join(ROOT_DIR, 'src/backend/server.ts');
 const OUT_FILE = join(ROOT_DIR, 'dist/sea/server.cjs');
 
