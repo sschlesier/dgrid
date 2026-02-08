@@ -130,11 +130,18 @@ Follow [semver](https://semver.org/) when choosing the increment:
 - **minor** — new features, new UI capabilities, non-breaking additions
 - **major** — breaking changes to data formats, config, or workflows that require user action
 
+Steps:
+
+1. Update `CHANGES.md` — add a section for the new version with user-facing changes on the top of the file
+2. Run `pnpm version patch` (or `minor` / `major`) — bumps `package.json`, commits, and creates the `v*` tag
+3. `git push origin main && git push origin <tag>` — triggers the release workflow
+
 ```bash
 pnpm version patch    # or minor / major — bumps version, commits, and creates v* tag
 git push origin main && git push origin <tag>   # triggers release workflow
 ```
 
+- Always update `CHANGES.md` before running `pnpm version`
 - Always use `pnpm version` — never manually edit the version in `package.json`
 - The `v*` tag push triggers the GitHub Actions release workflow (build, GitHub release, Homebrew cask update)
 
