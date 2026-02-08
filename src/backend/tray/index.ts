@@ -4,9 +4,8 @@ import SysTrayModule from 'systray2';
 const SysTray =
   (SysTrayModule as unknown as { default: typeof SysTrayModule }).default ?? SysTrayModule;
 import { TRAY_ICON } from './icons.js';
-import { openBrowser } from './browser.js';
+import { openBrowser, openUrl } from './browser.js';
 import { checkForUpdate } from './update-checker.js';
-import { exec } from 'child_process';
 
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -78,7 +77,7 @@ export function initTray(onQuit: () => Promise<void>): TrayContext {
         break;
       case SEQ_UPDATE:
         if (context.updateUrl) {
-          exec(`open "${context.updateUrl}"`);
+          openUrl(context.updateUrl);
         }
         break;
       case SEQ_QUIT:

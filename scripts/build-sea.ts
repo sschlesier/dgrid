@@ -7,8 +7,8 @@
  * 2. Creates the SEA blob using Node.js
  * 3. Copies the Node.js binary and injects the blob
  * 4. Signs the binary for macOS
- * 5. Packages into macOS .app bundle
- * 6. Creates DMG installer
+ * 5. Packages into macOS .app bundle / Windows zip
+ * 6. Creates DMG installer (macOS) or zip archive (Windows)
  */
 
 import { execSync } from 'child_process';
@@ -26,13 +26,17 @@ import {
 } from 'fs';
 import { join } from 'path';
 
+const IS_WIN = process.platform === 'win32';
+const IS_MAC = process.platform === 'darwin';
+const EXE_NAME = IS_WIN ? 'dgrid.exe' : 'dgrid';
+
 const ROOT_DIR = process.cwd();
 const DIST_SEA_DIR = join(ROOT_DIR, 'dist/sea');
 const FRONTEND_DIR = join(ROOT_DIR, 'dist/frontend');
 const BUNDLE_FILE = join(DIST_SEA_DIR, 'server.cjs');
 const SEA_CONFIG = join(DIST_SEA_DIR, 'sea-config.json');
 const SEA_BLOB = join(DIST_SEA_DIR, 'sea-prep.blob');
-const OUTPUT_BINARY = join(DIST_SEA_DIR, 'dgrid');
+const OUTPUT_BINARY = join(DIST_SEA_DIR, EXE_NAME);
 const APP_BUNDLE = join(DIST_SEA_DIR, 'DGrid.app');
 const RELEASE_DIR = join(ROOT_DIR, 'dist/release');
 
@@ -114,10 +118,12 @@ function createExecutable(): void {
 
   // Copy Node.js binary
   copyFileSync(nodeBinary, OUTPUT_BINARY);
-  chmodSync(OUTPUT_BINARY, 0o755);
+  if (!IS_WIN) {
+    chmodSync(OUTPUT_BINARY, 0o755);
+  }
 
   // Remove existing code signature on macOS
-  if (process.platform === 'darwin') {
+  if (IS_MAC) {
     console.log('  Removing code signature...');
     try {
       execSync(`codesign --remove-signature "${OUTPUT_BINARY}"`, {
@@ -147,7 +153,7 @@ function createExecutable(): void {
     'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
   ];
 
-  if (process.platform === 'darwin') {
+  if (IS_MAC) {
     postjectArgs.push('--macho-segment-name', 'NODE_SEA');
   }
 
@@ -158,7 +164,7 @@ function createExecutable(): void {
 }
 
 function signBinary(): void {
-  if (process.platform !== 'darwin') {
+  if (!IS_MAC) {
     return;
   }
 
@@ -192,7 +198,9 @@ function copyTrayBinary(): void {
   if (existsSync(srcPath)) {
     const destPath = join(trayBinDir, binName);
     copyFileSync(srcPath, destPath);
-    chmodSync(destPath, 0o755);
+    if (!IS_WIN) {
+      chmodSync(destPath, 0o755);
+    }
     console.log(`  Copied: ${binName}`);
   } else {
     console.warn(`  Warning: Tray binary not found: ${srcPath}`);
@@ -249,21 +257,31 @@ function copyNativeModules(): void {
 }
 
 function copyAppIcon(): void {
-  if (process.platform !== 'darwin') return;
+  if (IS_MAC) {
+    const icnsSrc = join(ROOT_DIR, 'assets', 'dgrid.icns');
+    const icnsDest = join(DIST_SEA_DIR, 'dgrid.icns');
 
-  const icnsSrc = join(ROOT_DIR, 'assets', 'dgrid.icns');
-  const icnsDest = join(DIST_SEA_DIR, 'dgrid.icns');
+    if (existsSync(icnsSrc)) {
+      copyFileSync(icnsSrc, icnsDest);
+      console.log('Copied app icon (.icns).');
+    } else {
+      console.warn('  Warning: assets/dgrid.icns not found, .app will have no icon');
+    }
+  } else if (IS_WIN) {
+    const icoSrc = join(ROOT_DIR, 'assets', 'dgrid.ico');
+    const icoDest = join(DIST_SEA_DIR, 'dgrid.ico');
 
-  if (existsSync(icnsSrc)) {
-    copyFileSync(icnsSrc, icnsDest);
-    console.log('Copied app icon.');
-  } else {
-    console.warn('  Warning: assets/dgrid.icns not found, .app will have no icon');
+    if (existsSync(icoSrc)) {
+      copyFileSync(icoSrc, icoDest);
+      console.log('Copied app icon (.ico).');
+    } else {
+      console.warn('  Warning: assets/dgrid.ico not found');
+    }
   }
 }
 
 function createAppBundle(): void {
-  if (process.platform !== 'darwin') {
+  if (!IS_MAC) {
     console.log('Skipping .app bundle (not macOS)');
     return;
   }
@@ -349,7 +367,7 @@ function createAppBundle(): void {
 }
 
 function createDmg(): void {
-  if (process.platform !== 'darwin') {
+  if (!IS_MAC) {
     console.log('Skipping DMG (not macOS)');
     return;
   }
@@ -401,6 +419,73 @@ function createDmg(): void {
   console.log(`  Created: ${dmgName} (${sizeMB} MB)`);
 }
 
+function createWindowsZip(): void {
+  if (!IS_WIN) {
+    return;
+  }
+
+  console.log('Creating Windows zip archive...');
+
+  const version = getVersion();
+
+  if (!existsSync(RELEASE_DIR)) {
+    mkdirSync(RELEASE_DIR, { recursive: true });
+  }
+
+  const zipName = `DGrid-${version}-win-x64.zip`;
+  const zipPath = join(RELEASE_DIR, zipName);
+
+  // Remove existing zip
+  rmSync(zipPath, { force: true });
+
+  // Create staging directory
+  const stagingDir = join(DIST_SEA_DIR, 'zip-staging', 'DGrid');
+  rmSync(join(DIST_SEA_DIR, 'zip-staging'), { recursive: true, force: true });
+  mkdirSync(stagingDir, { recursive: true });
+
+  // Copy executable
+  copyFileSync(OUTPUT_BINARY, join(stagingDir, EXE_NAME));
+
+  // Copy native modules
+  const nativeDir = join(DIST_SEA_DIR, 'native');
+  if (existsSync(nativeDir)) {
+    const destNative = join(stagingDir, 'native');
+    mkdirSync(destNative, { recursive: true });
+    for (const entry of readdirSync(nativeDir)) {
+      copyFileSync(join(nativeDir, entry), join(destNative, entry));
+    }
+  }
+
+  // Copy tray binary
+  const trayBinDir = join(DIST_SEA_DIR, 'traybin');
+  if (existsSync(trayBinDir)) {
+    const destTray = join(stagingDir, 'traybin');
+    mkdirSync(destTray, { recursive: true });
+    for (const entry of readdirSync(trayBinDir)) {
+      copyFileSync(join(trayBinDir, entry), join(destTray, entry));
+    }
+  }
+
+  // Copy icon if present
+  const icoPath = join(DIST_SEA_DIR, 'dgrid.ico');
+  if (existsSync(icoPath)) {
+    copyFileSync(icoPath, join(stagingDir, 'dgrid.ico'));
+  }
+
+  // Create zip using PowerShell (archives the DGrid folder so users extract DGrid/dgrid.exe)
+  execSync(
+    `powershell -NoProfile -Command "Compress-Archive -Path '${stagingDir}' -DestinationPath '${zipPath}' -Force"`,
+    { stdio: 'inherit' }
+  );
+
+  // Cleanup staging
+  rmSync(join(DIST_SEA_DIR, 'zip-staging'), { recursive: true, force: true });
+
+  const stats = statSync(zipPath);
+  const sizeMB = (stats.size / 1024 / 1024).toFixed(1);
+  console.log(`  Created: ${zipName} (${sizeMB} MB)`);
+}
+
 function cleanup(): void {
   console.log('Cleaning up...');
   // Remove intermediate files
@@ -411,11 +496,21 @@ function cleanup(): void {
 function printStats(): void {
   console.log(`\nSEA build complete!`);
 
-  if (process.platform === 'darwin' && existsSync(APP_BUNDLE)) {
+  if (IS_MAC && existsSync(APP_BUNDLE)) {
     // Show .app bundle info
     const appSize = execSync(`du -sh "${APP_BUNDLE}"`, { encoding: 'utf-8' }).trim().split('\t')[0];
     console.log(`  App bundle: ${APP_BUNDLE} (${appSize})`);
     console.log(`\nRun with: open ${APP_BUNDLE}`);
+  } else if (IS_WIN) {
+    const version = getVersion();
+    const zipName = `DGrid-${version}-win-x64.zip`;
+    const zipPath = join(RELEASE_DIR, zipName);
+    if (existsSync(zipPath)) {
+      const stats = statSync(zipPath);
+      const sizeMB = (stats.size / 1024 / 1024).toFixed(1);
+      console.log(`  Zip: ${zipPath} (${sizeMB} MB)`);
+    }
+    console.log(`\nRun with: ${OUTPUT_BINARY}`);
   } else {
     const stats = statSync(OUTPUT_BINARY);
     const sizeMB = (stats.size / 1024 / 1024).toFixed(1);
@@ -426,7 +521,8 @@ function printStats(): void {
 }
 
 async function main(): Promise<void> {
-  console.log('Building SEA for macOS...\n');
+  const platformLabel = IS_MAC ? 'macOS' : IS_WIN ? 'Windows' : 'Linux';
+  console.log(`Building SEA for ${platformLabel}...\n`);
 
   // Ensure output directory exists
   if (!existsSync(DIST_SEA_DIR)) {
@@ -442,6 +538,7 @@ async function main(): Promise<void> {
   copyAppIcon();
   createAppBundle();
   createDmg();
+  createWindowsZip();
   cleanup();
   printStats();
 }

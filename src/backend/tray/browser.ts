@@ -4,16 +4,14 @@ const HOST = '127.0.0.1';
 const PORT = 3001;
 
 /**
- * Open the DGrid URL in the default browser
+ * Open a URL in the default browser using a platform-appropriate command
  */
-export function openBrowser(): void {
-  const url = `http://${HOST}:${PORT}`;
-
+export function openUrl(url: string): void {
   // macOS: use 'open' command
   if (process.platform === 'darwin') {
     exec(`open "${url}"`, (error) => {
       if (error) {
-        console.error('Failed to open browser:', error);
+        console.error('Failed to open URL:', error);
       }
     });
     return;
@@ -23,7 +21,7 @@ export function openBrowser(): void {
   if (process.platform === 'linux') {
     exec(`xdg-open "${url}"`, (error) => {
       if (error) {
-        console.error('Failed to open browser:', error);
+        console.error('Failed to open URL:', error);
       }
     });
     return;
@@ -33,11 +31,18 @@ export function openBrowser(): void {
   if (process.platform === 'win32') {
     exec(`start "" "${url}"`, (error) => {
       if (error) {
-        console.error('Failed to open browser:', error);
+        console.error('Failed to open URL:', error);
       }
     });
     return;
   }
 
   console.error(`Unsupported platform: ${process.platform}`);
+}
+
+/**
+ * Open the DGrid URL in the default browser
+ */
+export function openBrowser(): void {
+  openUrl(`http://${HOST}:${PORT}`);
 }

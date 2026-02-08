@@ -47,8 +47,47 @@ jobs:
             dist/release/*.dmg
             dist/release/*.sha256
 
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build SEA
+        run: pnpm sea:build
+
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist/release/*.zip | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)" | Out-File -Encoding ascii "$($_.FullName).sha256"
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dgrid-win32-x64
+          path: |
+            dist/release/*.zip
+            dist/release/*.sha256
+
   release:
-    needs: build
+    needs: [build, build-windows]
     runs-on: ubuntu-latest
 
     steps:
@@ -62,6 +101,7 @@ jobs:
         with:
           files: |
             artifacts/**/*.dmg
+            artifacts/**/*.zip
             artifacts/**/*.sha256
           generate_release_notes: true
         env:

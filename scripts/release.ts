@@ -47,20 +47,32 @@ async function main(): Promise<void> {
   console.log('Building SEA executable...');
   execSync('pnpm sea:build', { stdio: 'inherit', cwd: ROOT_DIR });
 
-  // Generate checksums for DMGs
+  // Generate checksums for release artifacts
   const artifacts: Array<{ name: string; sha256: string }> = [];
 
   const dmgName = `DGrid-${version}-${process.arch}.dmg`;
   const dmgPath = join(RELEASE_DIR, dmgName);
+  const zipName = `DGrid-${version}-win-x64.zip`;
+  const zipPath = join(RELEASE_DIR, zipName);
+
+  console.log('\nCalculating SHA256 checksums...');
 
   if (existsSync(dmgPath)) {
-    console.log('\nCalculating SHA256 checksums...');
     const dmgSha256 = await calculateSha256(dmgPath);
     const dmgChecksumPath = `${dmgPath}.sha256`;
     writeFileSync(dmgChecksumPath, `${dmgSha256}  ${dmgName}\n`);
     artifacts.push({ name: dmgName, sha256: dmgSha256 });
-  } else {
-    console.warn(`\nWarning: DMG not found at ${dmgPath}`);
+  }
+
+  if (existsSync(zipPath)) {
+    const zipSha256 = await calculateSha256(zipPath);
+    const zipChecksumPath = `${zipPath}.sha256`;
+    writeFileSync(zipChecksumPath, `${zipSha256}  ${zipName}\n`);
+    artifacts.push({ name: zipName, sha256: zipSha256 });
+  }
+
+  if (artifacts.length === 0) {
+    console.warn(`\nWarning: No release artifacts found in ${RELEASE_DIR}`);
   }
 
   // Print summary
