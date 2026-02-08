@@ -95,6 +95,7 @@ jobs:
           CASK=homebrew-tap/Casks/dgrid.rb
           sed -i "s/version \".*\"/version \"${VERSION}\"/" "$CASK"
           sed -i "s/sha256 \".*\"/sha256 \"${SHA256}\"/" "$CASK"
+          sed -i "/^  revision /d" "$CASK"
 
           echo "Updated Cask to version ${VERSION} with sha256 ${SHA256}"
           cat "$CASK"
