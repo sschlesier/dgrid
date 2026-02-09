@@ -1,6 +1,9 @@
 import { join, dirname } from 'path';
 import { existsSync, readdirSync } from 'fs';
+import { createRequire } from 'module';
 import { isSeaRuntime } from '../static.js';
+
+const require = createRequire(import.meta.url);
 
 export interface PasswordStorage {
   get(connectionId: string): Promise<string | undefined>;
@@ -52,11 +55,11 @@ function loadKeyringModule(): KeyringModule {
     }
 
     const modulePath = join(nativeDir, keyringFile);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+
     keyringModule = require(modulePath) as KeyringModule;
   } else {
     // Normal mode - import from node_modules
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+
     keyringModule = require('@napi-rs/keyring') as KeyringModule;
   }
 

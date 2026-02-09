@@ -17,56 +17,75 @@ export interface ConnectionRoutesOptions {
   pool: ConnectionPool;
 }
 
-interface MongoConnectionParams {
-  host: string;
-  port: number;
-  database?: string;
-  username?: string;
-  password?: string;
-  authSource?: string;
+/** Strip credentials from a MongoDB URI, returning the cleaned URI plus extracted username/password. */
+export function stripCredentials(uri: string): {
+  strippedUri: string;
+  username: string;
+  password: string;
+} {
+  const parsed = new URL(uri);
+  const username = decodeURIComponent(parsed.username);
+  const password = decodeURIComponent(parsed.password);
+
+  // Remove credentials from the URL
+  parsed.username = '';
+  parsed.password = '';
+
+  // URL.toString() re-encodes, so we build from parts to avoid double-encoding
+  let strippedUri = `${parsed.protocol}//`;
+  strippedUri += parsed.host;
+  strippedUri += parsed.pathname;
+  if (parsed.search) strippedUri += parsed.search;
+
+  return { strippedUri, username, password };
 }
 
-function buildMongoUri(conn: MongoConnectionParams): string {
-  let uri = 'mongodb://';
+/** Re-insert credentials into a credential-stripped URI for connecting. */
+export function injectCredentials(uri: string, username: string, password: string): string {
+  if (!username) return uri;
 
-  if (conn.username) {
-    uri += encodeURIComponent(conn.username);
-    if (conn.password) {
-      uri += ':' + encodeURIComponent(conn.password);
-    }
-    uri += '@';
+  const parsed = new URL(uri);
+  parsed.username = encodeURIComponent(username);
+  if (password) {
+    parsed.password = encodeURIComponent(password);
   }
 
-  uri += `${conn.host}:${conn.port}`;
+  // Rebuild to avoid URL class encoding issues
+  let result = `${parsed.protocol}//`;
+  result += encodeURIComponent(username);
+  if (password) result += ':' + encodeURIComponent(password);
+  result += '@';
+  result += parsed.host;
+  result += parsed.pathname;
+  if (parsed.search) result += parsed.search;
 
-  if (conn.database) {
-    uri += `/${conn.database}`;
-  }
-
-  const params: string[] = [];
-  if (conn.authSource) {
-    params.push(`authSource=${conn.authSource}`);
-  }
-
-  if (params.length > 0) {
-    uri += '?' + params.join('&');
-  }
-
-  return uri;
+  return result;
 }
 
-function toConnectionResponse(conn: StoredConnection, isConnected: boolean): ConnectionResponse {
+/** Extract database name from a MongoDB URI. */
+function getDatabaseFromUri(uri: string): string | undefined {
+  try {
+    const parsed = new URL(uri);
+    const db = parsed.pathname.slice(1); // remove leading /
+    return db || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function toConnectionResponse(
+  conn: StoredConnection & { error?: string },
+  isConnected: boolean
+): ConnectionResponse {
   return {
     id: conn.id,
     name: conn.name,
-    host: conn.host,
-    port: conn.port,
-    database: conn.database,
+    uri: conn.uri,
     username: conn.username,
-    authSource: conn.authSource,
     isConnected,
     createdAt: conn.createdAt,
     updatedAt: conn.updatedAt,
+    error: conn.error,
   };
 }
 
@@ -100,9 +119,16 @@ export async function connectionRoutes(
 
   // Create connection
   fastify.post<{ Body: CreateConnectionRequest }>('/', async (request, reply) => {
-    const { password, ...connData } = request.body;
+    const { name, uri } = request.body;
 
-    const conn = await storage.create(connData);
+    // Strip credentials from the URI before storing
+    const { strippedUri, username, password } = stripCredentials(uri);
+
+    const conn = await storage.create({
+      name,
+      uri: strippedUri,
+      username: username || undefined,
+    });
 
     if (password) {
       await passwords.set(conn.id, password);
@@ -115,18 +141,29 @@ export async function connectionRoutes(
   fastify.put<{ Params: { id: string }; Body: UpdateConnectionRequest }>(
     '/:id',
     async (request, reply) => {
-      const { password, ...updates } = request.body;
+      const { name, uri } = request.body;
 
       try {
-        const conn = await storage.update(request.params.id, updates);
+        const updates: Partial<Omit<StoredConnection, 'id' | 'createdAt'>> = {};
 
-        if (password !== undefined) {
+        if (name !== undefined) {
+          updates.name = name;
+        }
+
+        if (uri !== undefined) {
+          const { strippedUri, username, password } = stripCredentials(uri);
+          updates.uri = strippedUri;
+          updates.username = username || undefined;
+
           if (password) {
-            await passwords.set(conn.id, password);
+            await passwords.set(request.params.id, password);
           } else {
-            await passwords.delete(conn.id);
+            // No password in new URI — clear stored password
+            await passwords.delete(request.params.id);
           }
         }
+
+        const conn = await storage.update(request.params.id, updates);
 
         return reply.send(toConnectionResponse(conn, pool.isConnected(conn.id)));
       } catch (e) {
@@ -171,8 +208,7 @@ export async function connectionRoutes(
 
   // Test unsaved connection (must be before /:id/test to match correctly)
   fastify.post<{ Body: TestConnectionRequest }>('/test', async (request, reply) => {
-    const { host, port, database, username, password, authSource } = request.body;
-    const uri = buildMongoUri({ host, port, database, username, password, authSource });
+    const { uri } = request.body;
 
     const startTime = Date.now();
     const client = new MongoClient(uri, {
@@ -214,8 +250,18 @@ export async function connectionRoutes(
       });
     }
 
+    if (conn.error) {
+      return reply.status(400).send({
+        error: 'BadRequest',
+        message: conn.error,
+        statusCode: 400,
+      });
+    }
+
     const password = await passwords.get(conn.id);
-    const uri = buildMongoUri({ ...conn, password });
+    const uri = conn.username
+      ? injectCredentials(conn.uri, conn.username, password ?? '')
+      : conn.uri;
 
     const startTime = Date.now();
     const client = new MongoClient(uri, {
@@ -267,11 +313,22 @@ export async function connectionRoutes(
       });
     }
 
+    if (conn.error) {
+      return reply.status(400).send({
+        error: 'BadRequest',
+        message: conn.error,
+        statusCode: 400,
+      });
+    }
+
     const password = await passwords.get(conn.id);
-    const uri = buildMongoUri({ ...conn, password });
+    const uri = conn.username
+      ? injectCredentials(conn.uri, conn.username, password ?? '')
+      : conn.uri;
+    const database = getDatabaseFromUri(conn.uri);
 
     try {
-      await pool.connect(id, { uri, database: conn.database });
+      await pool.connect(id, { uri, database });
       return reply.send(toConnectionResponse(conn, true));
     } catch (e) {
       const error = e as Error;

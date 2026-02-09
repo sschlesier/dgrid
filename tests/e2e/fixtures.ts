@@ -111,6 +111,27 @@ export async function createConnection(
   await expect(s.connectionDialog.overlay()).not.toBeVisible();
 }
 
+/** Open the New Connection dialog, switch to URI tab, fill URI, and save. Returns after dialog closes. */
+export async function createConnectionViaUri(
+  page: Page,
+  opts: { name: string; uri: string }
+): Promise<void> {
+  const s = selectors(page);
+
+  await s.header.newConnectionButton().click();
+  await expect(s.connectionDialog.overlay()).toBeVisible();
+
+  await s.connectionDialog.nameInput().clear();
+  await s.connectionDialog.nameInput().fill(opts.name);
+
+  // Switch to URI tab
+  await s.connectionDialog.uriTab().click();
+  await s.connectionDialog.uriInput().fill(opts.uri);
+
+  await s.connectionDialog.saveButton().click();
+  await expect(s.connectionDialog.overlay()).not.toBeVisible();
+}
+
 /** Click a connection in the sidebar to connect. Waits for the tree item to expand. */
 export async function connectToServer(page: Page, connectionName: string): Promise<void> {
   const s = selectors(page);

@@ -33,6 +33,12 @@ export function selectors(page: Page) {
       testResultSuccess: () => page.locator('.test-result.success'),
       testResultFailure: () => page.locator('.test-result.failure'),
       errorMessage: () => page.locator('.error-message'),
+      formTab: () => page.getByTestId('form-tab'),
+      uriTab: () => page.getByTestId('uri-tab'),
+      uriInput: () => page.getByTestId('uri-input'),
+      uriPreview: () => page.getByTestId('uri-preview'),
+      srvToggle: () => page.getByTestId('srv-toggle'),
+      tlsCheckbox: () => page.getByTestId('tls-checkbox'),
     },
 
     tabs: {

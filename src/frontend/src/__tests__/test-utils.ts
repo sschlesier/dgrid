@@ -12,8 +12,7 @@ export function createMockConnection(
   return {
     id: 'conn-1',
     name: 'Test Connection',
-    host: 'localhost',
-    port: 27017,
+    uri: 'mongodb://localhost:27017',
     isConnected: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

@@ -3,44 +3,27 @@
 // Connection Management
 export interface CreateConnectionRequest {
   name: string;
-  host: string;
-  port: number;
-  database?: string;
-  username?: string;
-  password?: string;
-  authSource?: string;
+  uri: string; // full URI (may contain credentials — backend strips them)
 }
 
 export interface UpdateConnectionRequest {
   name?: string;
-  host?: string;
-  port?: number;
-  database?: string;
-  username?: string;
-  password?: string;
-  authSource?: string;
+  uri?: string; // full URI (may contain credentials — backend strips them)
 }
 
 export interface ConnectionResponse {
   id: string;
   name: string;
-  host: string;
-  port: number;
-  database?: string;
+  uri: string; // credential-stripped URI
   username?: string;
-  authSource?: string;
   isConnected: boolean;
   createdAt: string;
   updatedAt: string;
+  error?: string; // set when connection uses old format
 }
 
 export interface TestConnectionRequest {
-  host: string;
-  port: number;
-  database?: string;
-  username?: string;
-  password?: string;
-  authSource?: string;
+  uri: string; // full URI (may contain credentials)
 }
 
 export interface TestConnectionResponse {

@@ -106,7 +106,7 @@ describe('API client', () => {
     });
 
     it('createConnection sends POST request', async () => {
-      const newConnection = { name: 'New', host: 'localhost', port: 27017 };
+      const newConnection = { name: 'New', uri: 'mongodb://localhost:27017' };
       const created = { id: '1', ...newConnection, isConnected: false };
       mockResponse(created);
 
@@ -153,7 +153,7 @@ describe('API client', () => {
     });
 
     it('testConnection sends POST request', async () => {
-      const testData = { host: 'localhost', port: 27017 };
+      const testData = { uri: 'mongodb://localhost:27017' };
       const testResult = { success: true, message: 'Connected', latencyMs: 10 };
       mockResponse(testResult);
 
@@ -208,7 +208,7 @@ describe('API client', () => {
     });
 
     it('sets Content-Type header for requests with body', async () => {
-      const newConnection = { name: 'New', host: 'localhost', port: 27017 };
+      const newConnection = { name: 'New', uri: 'mongodb://localhost:27017' };
       mockResponse({ id: '1', ...newConnection });
 
       await createConnection(newConnection);

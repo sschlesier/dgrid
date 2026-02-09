@@ -72,9 +72,7 @@ describe('ConnectionDialog', () => {
       const connection = createMockConnection({
         id: 'conn-1',
         name: 'Test Connection',
-        host: '192.168.1.100',
-        port: 27018,
-        database: 'mydb',
+        uri: 'mongodb://192.168.1.100:27018/mydb',
         username: 'testuser',
       });
       (appStore as { connections: unknown[] }).connections = [connection];
@@ -107,6 +105,37 @@ describe('ConnectionDialog', () => {
 
       // Auth Source should now be visible
       expect(screen.getByLabelText('Auth Source')).toBeInTheDocument();
+    });
+  });
+
+  describe('form/uri tabs', () => {
+    it('renders Form and URI tabs', () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      expect(screen.getByTestId('form-tab')).toBeInTheDocument();
+      expect(screen.getByTestId('uri-tab')).toBeInTheDocument();
+    });
+
+    it('shows Form tab content by default', () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      expect(screen.getByTestId('uri-preview')).toBeInTheDocument();
+      expect(screen.queryByTestId('uri-input')).not.toBeInTheDocument();
+    });
+
+    it('switches to URI tab when clicked', async () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      await fireEvent.click(screen.getByTestId('uri-tab'));
+
+      expect(screen.getByTestId('uri-input')).toBeInTheDocument();
+      expect(screen.queryByTestId('uri-preview')).not.toBeInTheDocument();
     });
   });
 
@@ -213,7 +242,7 @@ describe('ConnectionDialog', () => {
   });
 
   describe('save and delete operations', () => {
-    it('calls createConnection for new connection', async () => {
+    it('calls createConnection with URI for new connection', async () => {
       (appStore.createConnection as ReturnType<typeof vi.fn>).mockResolvedValue({});
 
       render(ConnectionDialog, {
@@ -231,8 +260,7 @@ describe('ConnectionDialog', () => {
         expect(appStore.createConnection).toHaveBeenCalledWith(
           expect.objectContaining({
             name: 'New Connection',
-            host: 'localhost',
-            port: 27017,
+            uri: expect.stringContaining('mongodb://'),
           })
         );
       });

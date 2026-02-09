@@ -45,7 +45,7 @@ describe('appStore', () => {
   describe('connections', () => {
     it('loadConnections fetches and stores connections', async () => {
       const connections = [
-        { id: '1', name: 'Test', host: 'localhost', port: 27017, isConnected: false },
+        { id: '1', name: 'Test', uri: 'mongodb://localhost:27017', isConnected: false },
       ];
       mockedApi.getConnections.mockResolvedValue(connections);
 
@@ -56,7 +56,7 @@ describe('appStore', () => {
     });
 
     it('createConnection adds connection to store', async () => {
-      const newConnection = { name: 'New', host: 'localhost', port: 27017 };
+      const newConnection = { name: 'New', uri: 'mongodb://localhost:27017' };
       const created = { id: '1', ...newConnection, isConnected: false };
       mockedApi.createConnection.mockResolvedValue(created);
 
@@ -73,8 +73,7 @@ describe('appStore', () => {
         {
           id: '1',
           name: 'Old',
-          host: 'localhost',
-          port: 27017,
+          uri: 'mongodb://localhost:27017',
           isConnected: false,
           createdAt: '',
           updatedAt: '',
@@ -83,8 +82,7 @@ describe('appStore', () => {
       const updated = {
         id: '1',
         name: 'Updated',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
         isConnected: false,
         createdAt: '',
         updatedAt: '',
@@ -101,8 +99,7 @@ describe('appStore', () => {
         {
           id: '1',
           name: 'Test',
-          host: 'localhost',
-          port: 27017,
+          uri: 'mongodb://localhost:27017',
           isConnected: false,
           createdAt: '',
           updatedAt: '',
@@ -120,8 +117,7 @@ describe('appStore', () => {
         {
           id: '1',
           name: 'Test',
-          host: 'localhost',
-          port: 27017,
+          uri: 'mongodb://localhost:27017',
           isConnected: false,
           createdAt: '',
           updatedAt: '',
@@ -130,8 +126,7 @@ describe('appStore', () => {
       const connected = {
         id: '1',
         name: 'Test',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
         isConnected: true,
         createdAt: '',
         updatedAt: '',
@@ -153,8 +148,7 @@ describe('appStore', () => {
         {
           id: '1',
           name: 'Test',
-          host: 'localhost',
-          port: 27017,
+          uri: 'mongodb://localhost:27017',
           isConnected: false,
           createdAt: '',
           updatedAt: '',
@@ -163,8 +157,7 @@ describe('appStore', () => {
       const connected = {
         id: '1',
         name: 'Test',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
         isConnected: true,
         createdAt: '',
         updatedAt: '',
@@ -196,8 +189,7 @@ describe('appStore', () => {
         {
           id: '1',
           name: 'Test',
-          host: 'localhost',
-          port: 27017,
+          uri: 'mongodb://localhost:27017',
           isConnected: true,
           createdAt: '',
           updatedAt: '',
@@ -207,8 +199,7 @@ describe('appStore', () => {
       const disconnected = {
         id: '1',
         name: 'Test',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
         isConnected: false,
         createdAt: '',
         updatedAt: '',
@@ -282,8 +273,7 @@ describe('appStore', () => {
         {
           id: '1',
           name: 'Test',
-          host: 'localhost',
-          port: 27017,
+          uri: 'mongodb://localhost:27017',
           isConnected: true,
           createdAt: '',
           updatedAt: '',
@@ -305,8 +295,7 @@ describe('appStore', () => {
         {
           id: '1',
           name: 'Connected',
-          host: 'localhost',
-          port: 27017,
+          uri: 'mongodb://localhost:27017',
           isConnected: true,
           createdAt: '',
           updatedAt: '',
@@ -314,8 +303,7 @@ describe('appStore', () => {
         {
           id: '2',
           name: 'Disconnected',
-          host: 'localhost',
-          port: 27017,
+          uri: 'mongodb://localhost:27017',
           isConnected: false,
           createdAt: '',
           updatedAt: '',

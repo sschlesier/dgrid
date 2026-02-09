@@ -77,7 +77,7 @@ describe('Connection Routes', () => {
       await app.inject({
         method: 'POST',
         url: '/',
-        payload: { name: 'Test', host: 'localhost', port: 27017 },
+        payload: { name: 'Test', uri: 'mongodb://localhost:27017' },
       });
 
       const response = await app.inject({
@@ -99,9 +99,7 @@ describe('Connection Routes', () => {
         url: '/',
         payload: {
           name: 'New Connection',
-          host: 'localhost',
-          port: 27017,
-          database: 'mydb',
+          uri: 'mongodb://localhost:27017/mydb',
         },
       });
 
@@ -109,26 +107,26 @@ describe('Connection Routes', () => {
       const conn = response.json();
       expect(conn.id).toBeDefined();
       expect(conn.name).toBe('New Connection');
-      expect(conn.host).toBe('localhost');
-      expect(conn.port).toBe(27017);
-      expect(conn.database).toBe('mydb');
+      expect(conn.uri).toBe('mongodb://localhost:27017/mydb');
       expect(conn.isConnected).toBe(false);
     });
 
-    it('stores password in keyring', async () => {
+    it('strips credentials from URI and stores password in keyring', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/',
         payload: {
           name: 'With Password',
-          host: 'localhost',
-          port: 27017,
-          password: 'secret123',
+          uri: 'mongodb://user:secret123@localhost:27017',
         },
       });
 
       expect(response.statusCode).toBe(201);
       const conn = response.json();
+      // URI should have credentials stripped
+      expect(conn.uri).toBe('mongodb://localhost:27017');
+      expect(conn.username).toBe('user');
+      // Password should be in keyring
       expect(passwordStore.get(conn.id)).toBe('secret123');
     });
   });
@@ -138,7 +136,7 @@ describe('Connection Routes', () => {
       const createRes = await app.inject({
         method: 'POST',
         url: '/',
-        payload: { name: 'Test', host: 'localhost', port: 27017 },
+        payload: { name: 'Test', uri: 'mongodb://localhost:27017' },
       });
       const created = createRes.json();
 
@@ -166,7 +164,7 @@ describe('Connection Routes', () => {
       const createRes = await app.inject({
         method: 'POST',
         url: '/',
-        payload: { name: 'Original', host: 'localhost', port: 27017 },
+        payload: { name: 'Original', uri: 'mongodb://localhost:27017' },
       });
       const created = createRes.json();
 
@@ -180,18 +178,18 @@ describe('Connection Routes', () => {
       expect(response.json().name).toBe('Updated');
     });
 
-    it('updates password', async () => {
+    it('updates password when URI contains credentials', async () => {
       const createRes = await app.inject({
         method: 'POST',
         url: '/',
-        payload: { name: 'Test', host: 'localhost', port: 27017 },
+        payload: { name: 'Test', uri: 'mongodb://localhost:27017' },
       });
       const created = createRes.json();
 
       await app.inject({
         method: 'PUT',
         url: `/${created.id}`,
-        payload: { password: 'newpassword' },
+        payload: { uri: 'mongodb://user:newpassword@localhost:27017' },
       });
 
       expect(passwordStore.get(created.id)).toBe('newpassword');
@@ -213,7 +211,7 @@ describe('Connection Routes', () => {
       const createRes = await app.inject({
         method: 'POST',
         url: '/',
-        payload: { name: 'To Delete', host: 'localhost', port: 27017 },
+        payload: { name: 'To Delete', uri: 'mongodb://localhost:27017' },
       });
       const created = createRes.json();
 
@@ -238,9 +236,7 @@ describe('Connection Routes', () => {
         url: '/',
         payload: {
           name: 'With Password',
-          host: 'localhost',
-          port: 27017,
-          password: 'secret',
+          uri: 'mongodb://user:secret@localhost:27017',
         },
       });
       const created = createRes.json();
@@ -257,15 +253,10 @@ describe('Connection Routes', () => {
 
   describe('POST /test (unsaved connection)', () => {
     it('tests unsaved connection successfully', async () => {
-      // Parse the mongodb-memory-server URI
-      const url = new URL(mongoUri);
-      const host = url.hostname;
-      const port = parseInt(url.port, 10);
-
       const response = await app.inject({
         method: 'POST',
         url: '/test',
-        payload: { host, port },
+        payload: { uri: mongoUri },
       });
 
       expect(response.statusCode).toBe(200);
@@ -280,7 +271,7 @@ describe('Connection Routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/test',
-        payload: { host: '127.0.0.1', port: 1 },
+        payload: { uri: 'mongodb://127.0.0.1:1' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -292,15 +283,10 @@ describe('Connection Routes', () => {
 
   describe('POST /:id/test', () => {
     it('tests connection successfully', async () => {
-      // Parse the mongodb-memory-server URI
-      const url = new URL(mongoUri);
-      const host = url.hostname;
-      const port = parseInt(url.port, 10);
-
       const createRes = await app.inject({
         method: 'POST',
         url: '/',
-        payload: { name: 'Test Conn', host, port },
+        payload: { name: 'Test Conn', uri: mongoUri },
       });
       const created = createRes.json();
 
@@ -320,7 +306,7 @@ describe('Connection Routes', () => {
       const createRes = await app.inject({
         method: 'POST',
         url: '/',
-        payload: { name: 'Bad Conn', host: 'invalid-host', port: 12345 },
+        payload: { name: 'Bad Conn', uri: 'mongodb://invalid-host:12345' },
       });
       const created = createRes.json();
 
@@ -338,15 +324,10 @@ describe('Connection Routes', () => {
 
   describe('POST /:id/connect and /:id/disconnect', () => {
     it('connects and disconnects', async () => {
-      // Parse the mongodb-memory-server URI
-      const url = new URL(mongoUri);
-      const host = url.hostname;
-      const port = parseInt(url.port, 10);
-
       const createRes = await app.inject({
         method: 'POST',
         url: '/',
-        payload: { name: 'Live Conn', host, port },
+        payload: { name: 'Live Conn', uri: mongoUri },
       });
       const created = createRes.json();
 
@@ -370,14 +351,10 @@ describe('Connection Routes', () => {
     });
 
     it('returns error when already connected', async () => {
-      const url = new URL(mongoUri);
-      const host = url.hostname;
-      const port = parseInt(url.port, 10);
-
       const createRes = await app.inject({
         method: 'POST',
         url: '/',
-        payload: { name: 'Live Conn', host, port },
+        payload: { name: 'Live Conn', uri: mongoUri },
       });
       const created = createRes.json();
 
@@ -401,7 +378,7 @@ describe('Connection Routes', () => {
       const createRes = await app.inject({
         method: 'POST',
         url: '/',
-        payload: { name: 'Test', host: 'localhost', port: 27017 },
+        payload: { name: 'Test', uri: 'mongodb://localhost:27017' },
       });
       const created = createRes.json();
 

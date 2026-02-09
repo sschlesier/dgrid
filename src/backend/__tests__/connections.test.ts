@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm } from 'fs/promises';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { createConnectionStorage } from '../storage/connections.js';
+import { stripCredentials, injectCredentials } from '../routes/connections.js';
 
 describe('Connection Storage', () => {
   let tempDir: string;
@@ -24,8 +25,8 @@ describe('Connection Storage', () => {
     });
 
     it('returns all connections', async () => {
-      await storage.create({ name: 'Conn 1', host: 'localhost', port: 27017 });
-      await storage.create({ name: 'Conn 2', host: 'localhost', port: 27018 });
+      await storage.create({ name: 'Conn 1', uri: 'mongodb://localhost:27017' });
+      await storage.create({ name: 'Conn 2', uri: 'mongodb://localhost:27018' });
 
       const connections = await storage.list();
       expect(connections).toHaveLength(2);
@@ -43,8 +44,7 @@ describe('Connection Storage', () => {
     it('returns connection by id', async () => {
       const created = await storage.create({
         name: 'Test',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
       });
 
       const connection = await storage.get(created.id);
@@ -57,8 +57,7 @@ describe('Connection Storage', () => {
     it('creates connection with generated id', async () => {
       const connection = await storage.create({
         name: 'Test',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
       });
 
       expect(connection.id).toBeDefined();
@@ -72,8 +71,7 @@ describe('Connection Storage', () => {
 
       const connection = await storage.create({
         name: 'Test',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
       });
 
       const after = new Date().toISOString();
@@ -88,11 +86,8 @@ describe('Connection Storage', () => {
     it('persists connection to storage', async () => {
       const connection = await storage.create({
         name: 'Persistent',
-        host: 'localhost',
-        port: 27017,
-        database: 'mydb',
+        uri: 'mongodb://localhost:27017/mydb',
         username: 'user',
-        authSource: 'admin',
       });
 
       // Create new storage instance to verify persistence
@@ -101,11 +96,8 @@ describe('Connection Storage', () => {
 
       expect(retrieved).toBeDefined();
       expect(retrieved?.name).toBe('Persistent');
-      expect(retrieved?.host).toBe('localhost');
-      expect(retrieved?.port).toBe(27017);
-      expect(retrieved?.database).toBe('mydb');
+      expect(retrieved?.uri).toBe('mongodb://localhost:27017/mydb');
       expect(retrieved?.username).toBe('user');
-      expect(retrieved?.authSource).toBe('admin');
     });
 
     it('creates data directory if it does not exist', async () => {
@@ -114,8 +106,7 @@ describe('Connection Storage', () => {
 
       const connection = await nestedStorage.create({
         name: 'Test',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
       });
 
       expect(connection.id).toBeDefined();
@@ -130,25 +121,22 @@ describe('Connection Storage', () => {
     it('updates connection fields', async () => {
       const created = await storage.create({
         name: 'Original',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
       });
 
       const updated = await storage.update(created.id, {
         name: 'Updated',
-        port: 27018,
+        uri: 'mongodb://localhost:27018',
       });
 
       expect(updated.name).toBe('Updated');
-      expect(updated.port).toBe(27018);
-      expect(updated.host).toBe('localhost'); // Unchanged
+      expect(updated.uri).toBe('mongodb://localhost:27018');
     });
 
     it('updates updatedAt timestamp', async () => {
       const created = await storage.create({
         name: 'Test',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
       });
 
       // Wait a bit to ensure timestamp difference
@@ -169,8 +157,7 @@ describe('Connection Storage', () => {
     it('persists updates', async () => {
       const created = await storage.create({
         name: 'Original',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
       });
 
       await storage.update(created.id, { name: 'Updated' });
@@ -187,8 +174,7 @@ describe('Connection Storage', () => {
     it('deletes connection', async () => {
       const created = await storage.create({
         name: 'To Delete',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
       });
 
       await storage.delete(created.id);
@@ -206,8 +192,7 @@ describe('Connection Storage', () => {
     it('persists deletion', async () => {
       const created = await storage.create({
         name: 'To Delete',
-        host: 'localhost',
-        port: 27017,
+        uri: 'mongodb://localhost:27017',
       });
 
       await storage.delete(created.id);
@@ -217,6 +202,132 @@ describe('Connection Storage', () => {
       const connections = await newStorage.list();
 
       expect(connections).toHaveLength(0);
+    });
+  });
+
+  describe('old format handling', () => {
+    it('flags connections with host/port but no uri as old format', async () => {
+      // Write an old-format connection file directly
+      const filePath = join(tempDir, 'connections.json');
+      const oldData = {
+        version: 1,
+        connections: [
+          {
+            id: 'old-conn-id',
+            name: 'Old Connection',
+            host: 'localhost',
+            port: 27017,
+            database: 'mydb',
+            username: 'user',
+            authSource: 'admin',
+            createdAt: '2024-01-01T00:00:00.000Z',
+            updatedAt: '2024-01-01T00:00:00.000Z',
+          },
+        ],
+      };
+      await writeFile(filePath, JSON.stringify(oldData), 'utf-8');
+
+      const connections = await storage.list();
+      expect(connections).toHaveLength(1);
+      expect(connections[0].error).toBe(
+        'This connection uses an old format. Please delete and re-create it.'
+      );
+      expect(connections[0].uri).toBe('');
+    });
+
+    it('does not flag new-format connections as old', async () => {
+      const conn = await storage.create({
+        name: 'New Connection',
+        uri: 'mongodb://localhost:27017',
+      });
+
+      const retrieved = await storage.get(conn.id);
+      expect(retrieved?.error).toBeUndefined();
+    });
+  });
+});
+
+describe('URI Credential Helpers', () => {
+  describe('stripCredentials', () => {
+    it('extracts username and password from URI', () => {
+      const result = stripCredentials('mongodb://user:pass@localhost:27017/mydb');
+      expect(result.username).toBe('user');
+      expect(result.password).toBe('pass');
+      expect(result.strippedUri).toBe('mongodb://localhost:27017/mydb');
+    });
+
+    it('handles URI without credentials', () => {
+      const result = stripCredentials('mongodb://localhost:27017/mydb');
+      expect(result.username).toBe('');
+      expect(result.password).toBe('');
+      expect(result.strippedUri).toBe('mongodb://localhost:27017/mydb');
+    });
+
+    it('handles URI with only username', () => {
+      const result = stripCredentials('mongodb://user@localhost:27017');
+      expect(result.username).toBe('user');
+      expect(result.password).toBe('');
+    });
+
+    it('handles SRV URI with credentials', () => {
+      const result = stripCredentials('mongodb+srv://admin:secret@cluster0.example.net/testdb');
+      expect(result.username).toBe('admin');
+      expect(result.password).toBe('secret');
+      expect(result.strippedUri).toBe('mongodb+srv://cluster0.example.net/testdb');
+    });
+
+    it('handles URL-encoded special characters in credentials', () => {
+      const result = stripCredentials('mongodb://user%40domain:p%40ss%3Aword@localhost:27017');
+      expect(result.username).toBe('user@domain');
+      expect(result.password).toBe('p@ss:word');
+      expect(result.strippedUri).toBe('mongodb://localhost:27017');
+    });
+
+    it('preserves query parameters', () => {
+      const result = stripCredentials(
+        'mongodb://user:pass@localhost:27017/mydb?authSource=admin&tls=true'
+      );
+      expect(result.strippedUri).toBe('mongodb://localhost:27017/mydb?authSource=admin&tls=true');
+    });
+  });
+
+  describe('injectCredentials', () => {
+    it('inserts username and password into stripped URI', () => {
+      const result = injectCredentials('mongodb://localhost:27017/mydb', 'user', 'pass');
+      expect(result).toBe('mongodb://user:pass@localhost:27017/mydb');
+    });
+
+    it('returns URI unchanged when username is empty', () => {
+      const result = injectCredentials('mongodb://localhost:27017', '', '');
+      expect(result).toBe('mongodb://localhost:27017');
+    });
+
+    it('handles username without password', () => {
+      const result = injectCredentials('mongodb://localhost:27017', 'user', '');
+      expect(result).toBe('mongodb://user@localhost:27017');
+    });
+
+    it('handles SRV URIs', () => {
+      const result = injectCredentials(
+        'mongodb+srv://cluster0.example.net/testdb',
+        'admin',
+        'secret'
+      );
+      expect(result).toBe('mongodb+srv://admin:secret@cluster0.example.net/testdb');
+    });
+
+    it('URL-encodes special characters in credentials', () => {
+      const result = injectCredentials('mongodb://localhost:27017', 'user@domain', 'p@ss:word');
+      expect(result).toBe('mongodb://user%40domain:p%40ss%3Aword@localhost:27017');
+    });
+
+    it('preserves query parameters', () => {
+      const result = injectCredentials(
+        'mongodb://localhost:27017/mydb?authSource=admin',
+        'user',
+        'pass'
+      );
+      expect(result).toBe('mongodb://user:pass@localhost:27017/mydb?authSource=admin');
     });
   });
 });

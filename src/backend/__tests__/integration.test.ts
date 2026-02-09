@@ -14,8 +14,6 @@ describe('Integration Tests', () => {
   let mongod: MongoMemoryServer;
   let tempDir: string;
   let mongoUri: string;
-  let mongoHost: string;
-  let mongoPort: number;
 
   // Mock password storage
   const passwordStore = new Map<string, string>();
@@ -34,9 +32,6 @@ describe('Integration Tests', () => {
   beforeAll(async () => {
     mongod = await MongoMemoryServer.create();
     mongoUri = mongod.getUri();
-    const url = new URL(mongoUri);
-    mongoHost = url.hostname;
-    mongoPort = parseInt(url.port, 10);
   });
 
   afterAll(async () => {
@@ -75,8 +70,7 @@ describe('Integration Tests', () => {
         url: '/api/connections',
         payload: {
           name: 'Test Connection',
-          host: mongoHost,
-          port: mongoPort,
+          uri: mongoUri,
         },
       });
       expect(createRes.statusCode).toBe(201);
@@ -152,7 +146,7 @@ describe('Integration Tests', () => {
       const createRes = await app.inject({
         method: 'POST',
         url: '/api/connections',
-        payload: { name: 'Query Test', host: mongoHost, port: mongoPort },
+        payload: { name: 'Query Test', uri: mongoUri },
       });
       connectionId = createRes.json().id;
 
@@ -218,7 +212,7 @@ describe('Integration Tests', () => {
       const createRes = await app.inject({
         method: 'POST',
         url: '/api/connections',
-        payload: { name: 'BSON Test', host: mongoHost, port: mongoPort },
+        payload: { name: 'BSON Test', uri: mongoUri },
       });
       connectionId = createRes.json().id;
 
@@ -252,7 +246,7 @@ describe('Integration Tests', () => {
       const createRes = await app.inject({
         method: 'POST',
         url: '/api/connections',
-        payload: { name: 'Error Test', host: mongoHost, port: mongoPort },
+        payload: { name: 'Error Test', uri: mongoUri },
       });
       const connectionId = createRes.json().id;
 
@@ -278,7 +272,7 @@ describe('Integration Tests', () => {
       const createRes = await app.inject({
         method: 'POST',
         url: '/api/connections',
-        payload: { name: 'Not Connected', host: mongoHost, port: mongoPort },
+        payload: { name: 'Not Connected', uri: mongoUri },
       });
       const connectionId = createRes.json().id;
 
@@ -311,14 +305,14 @@ describe('Integration Tests', () => {
       const conn1Res = await app.inject({
         method: 'POST',
         url: '/api/connections',
-        payload: { name: 'Connection 1', host: mongoHost, port: mongoPort },
+        payload: { name: 'Connection 1', uri: mongoUri },
       });
       const conn1Id = conn1Res.json().id;
 
       const conn2Res = await app.inject({
         method: 'POST',
         url: '/api/connections',
-        payload: { name: 'Connection 2', host: mongoHost, port: mongoPort },
+        payload: { name: 'Connection 2', uri: mongoUri },
       });
       const conn2Id = conn2Res.json().id;
 

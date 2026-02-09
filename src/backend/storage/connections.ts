@@ -5,18 +5,58 @@ import { join, dirname } from 'path';
 export interface StoredConnection {
   id: string;
   name: string;
-  host: string;
-  port: number;
-  database?: string;
+  uri: string; // credential-stripped MongoDB URI
+  username?: string; // stored separately for credential reconstruction
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Raw connection as stored on disk — may include old-format fields. */
+interface RawStoredConnection {
+  id: string;
+  name: string;
+  uri?: string;
   username?: string;
+  // Old-format fields (v1)
+  host?: string;
+  port?: number;
+  database?: string;
   authSource?: string;
   createdAt: string;
   updatedAt: string;
 }
 
+/** Check if a raw connection is old-format (missing uri field). */
+export function isOldFormat(conn: RawStoredConnection): boolean {
+  return !conn.uri && !!conn.host;
+}
+
+/** Convert a raw connection to StoredConnection, flagging old-format ones. */
+function toStoredConnection(raw: RawStoredConnection): StoredConnection & { error?: string } {
+  if (isOldFormat(raw)) {
+    return {
+      id: raw.id,
+      name: raw.name,
+      uri: '', // empty — old format
+      username: raw.username,
+      createdAt: raw.createdAt,
+      updatedAt: raw.updatedAt,
+      error: 'This connection uses an old format. Please delete and re-create it.',
+    };
+  }
+  return {
+    id: raw.id,
+    name: raw.name,
+    uri: raw.uri!,
+    username: raw.username,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
 export interface ConnectionStorage {
-  list(): Promise<StoredConnection[]>;
-  get(id: string): Promise<StoredConnection | undefined>;
+  list(): Promise<(StoredConnection & { error?: string })[]>;
+  get(id: string): Promise<(StoredConnection & { error?: string }) | undefined>;
   create(conn: Omit<StoredConnection, 'id' | 'createdAt' | 'updatedAt'>): Promise<StoredConnection>;
   update(
     id: string,
@@ -27,7 +67,7 @@ export interface ConnectionStorage {
 
 interface ConnectionsFile {
   version: number;
-  connections: StoredConnection[];
+  connections: RawStoredConnection[];
 }
 
 async function ensureDir(dir: string): Promise<void> {
@@ -69,14 +109,15 @@ export function createConnectionStorage(dataDir: string): ConnectionStorage {
   const filePath = join(dataDir, 'connections.json');
 
   return {
-    async list(): Promise<StoredConnection[]> {
+    async list(): Promise<(StoredConnection & { error?: string })[]> {
       const data = await readConnectionsFile(filePath);
-      return data.connections;
+      return data.connections.map(toStoredConnection);
     },
 
-    async get(id: string): Promise<StoredConnection | undefined> {
+    async get(id: string): Promise<(StoredConnection & { error?: string }) | undefined> {
       const data = await readConnectionsFile(filePath);
-      return data.connections.find((c) => c.id === id);
+      const raw = data.connections.find((c) => c.id === id);
+      return raw ? toStoredConnection(raw) : undefined;
     },
 
     async create(
@@ -109,16 +150,27 @@ export function createConnectionStorage(dataDir: string): ConnectionStorage {
         throw new Error(`Connection '${id}' not found`);
       }
 
-      const updated: StoredConnection = {
-        ...data.connections[index],
-        ...updates,
+      const raw = data.connections[index];
+      const updated: RawStoredConnection = {
+        id: raw.id,
+        name: updates.name ?? raw.name,
+        uri: updates.uri ?? raw.uri,
+        username: updates.username !== undefined ? updates.username : raw.username,
+        createdAt: raw.createdAt,
         updatedAt: new Date().toISOString(),
       };
 
       data.connections[index] = updated;
       await writeConnectionsFile(filePath, data);
 
-      return updated;
+      return {
+        id: updated.id,
+        name: updated.name,
+        uri: updated.uri ?? '',
+        username: updated.username,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+      };
     },
 
     async delete(id: string): Promise<void> {
