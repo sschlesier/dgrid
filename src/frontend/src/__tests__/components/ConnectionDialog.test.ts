@@ -328,6 +328,109 @@ describe('ConnectionDialog', () => {
     });
   });
 
+  describe('password field and save password behavior', () => {
+    it('password field is disabled when save password is unchecked (default)', () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      const passwordInput = screen.getByLabelText('Password');
+      expect(passwordInput).toBeDisabled();
+    });
+
+    it('password field is enabled when save password is checked', async () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      const checkbox = screen.getByTestId('save-password-checkbox');
+      await fireEvent.click(checkbox);
+
+      const passwordInput = screen.getByLabelText('Password');
+      expect(passwordInput).not.toBeDisabled();
+    });
+
+    it('password clears when save password is unchecked', async () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      // Check save password first
+      const checkbox = screen.getByTestId('save-password-checkbox');
+      await fireEvent.click(checkbox);
+
+      // Type a password
+      const passwordInput = screen.getByLabelText('Password');
+      await fireEvent.input(passwordInput, { target: { value: 'secret' } });
+
+      // Uncheck save password
+      await fireEvent.click(checkbox);
+
+      // Password should be cleared
+      await vi.waitFor(() => {
+        expect(passwordInput).toHaveValue('');
+      });
+    });
+
+    it('shows password prompt when testing with username but no saved password', async () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      // Fill in required fields
+      const nameInput = screen.getByLabelText(/Name/);
+      await fireEvent.input(nameInput, { target: { value: 'Test' } });
+
+      // Enter a username (save password is off by default)
+      const usernameInput = screen.getByLabelText('Username');
+      await fireEvent.input(usernameInput, { target: { value: 'myuser' } });
+
+      // Click test connection
+      const testButton = screen.getByText('Test Connection');
+      await fireEvent.click(testButton);
+
+      // Password prompt should appear
+      await vi.waitFor(() => {
+        expect(screen.getByText('Password Required')).toBeInTheDocument();
+      });
+    });
+
+    it('does not show password prompt when save password is on', async () => {
+      (api.testConnection as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        message: 'OK',
+      });
+
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      // Fill in required fields
+      const nameInput = screen.getByLabelText(/Name/);
+      await fireEvent.input(nameInput, { target: { value: 'Test' } });
+
+      // Check save password
+      const checkbox = screen.getByTestId('save-password-checkbox');
+      await fireEvent.click(checkbox);
+
+      // Enter username and password
+      const usernameInput = screen.getByLabelText('Username');
+      await fireEvent.input(usernameInput, { target: { value: 'myuser' } });
+      const passwordInput = screen.getByLabelText('Password');
+      await fireEvent.input(passwordInput, { target: { value: 'mypass' } });
+
+      // Click test connection
+      const testButton = screen.getByText('Test Connection');
+      await fireEvent.click(testButton);
+
+      // Should NOT show password prompt, should call API directly
+      expect(screen.queryByText('Password Required')).not.toBeInTheDocument();
+      await vi.waitFor(() => {
+        expect(api.testConnection).toHaveBeenCalled();
+      });
+    });
+  });
+
   describe('dialog interactions', () => {
     it('closes when Cancel button is clicked', async () => {
       render(ConnectionDialog, {

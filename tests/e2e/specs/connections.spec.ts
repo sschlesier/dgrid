@@ -210,6 +210,134 @@ test.describe('Connection Management', () => {
     await expect(s.passwordPrompt.overlay()).not.toBeVisible();
   });
 
+  test('password field is disabled by default for new connections', async ({ page, s }) => {
+    await page.goto('/');
+
+    await s.header.newConnectionButton().click();
+    await expect(s.connectionDialog.overlay()).toBeVisible();
+
+    // Save password is unchecked by default → password field should be disabled
+    await expect(s.connectionDialog.savePasswordCheckbox()).not.toBeChecked();
+    await expect(s.connectionDialog.passwordInput()).toBeDisabled();
+  });
+
+  test('password field enables when save password is checked', async ({ page, s }) => {
+    await page.goto('/');
+
+    await s.header.newConnectionButton().click();
+    await expect(s.connectionDialog.overlay()).toBeVisible();
+
+    // Check save password
+    await s.connectionDialog.savePasswordCheckbox().check();
+    await expect(s.connectionDialog.passwordInput()).not.toBeDisabled();
+  });
+
+  test('password field clears and disables when save password is unchecked', async ({
+    page,
+    s,
+  }) => {
+    await page.goto('/');
+
+    await s.header.newConnectionButton().click();
+    await expect(s.connectionDialog.overlay()).toBeVisible();
+
+    // Enable save password and type a password
+    await s.connectionDialog.savePasswordCheckbox().check();
+    await s.connectionDialog.passwordInput().fill('secret123');
+    await expect(s.connectionDialog.passwordInput()).toHaveValue('secret123');
+
+    // Uncheck save password
+    await s.connectionDialog.savePasswordCheckbox().uncheck();
+
+    // Password should be cleared and field disabled
+    await expect(s.connectionDialog.passwordInput()).toHaveValue('');
+    await expect(s.connectionDialog.passwordInput()).toBeDisabled();
+  });
+
+  test('test connection prompts for password when username set and save password off (form)', async ({
+    page,
+    s,
+    mongoInfo,
+  }) => {
+    await page.goto('/');
+
+    await s.header.newConnectionButton().click();
+    await expect(s.connectionDialog.overlay()).toBeVisible();
+
+    await s.connectionDialog.nameInput().fill('Prompt Test');
+    await s.connectionDialog.hostInput().clear();
+    await s.connectionDialog.hostInput().fill(mongoInfo.host);
+    await s.connectionDialog.portInput().clear();
+    await s.connectionDialog.portInput().fill(String(mongoInfo.port));
+
+    // Enter a username (save password is off by default)
+    await s.connectionDialog.usernameInput().fill('testuser');
+
+    // Click test connection → should show password prompt
+    await s.connectionDialog.testButton().click();
+    await expect(s.passwordPrompt.overlay()).toBeVisible();
+
+    // Enter password and submit
+    await s.passwordPrompt.input().fill('testpass');
+    await s.passwordPrompt.connectButton().click();
+
+    // Password prompt should close and test result should appear
+    await expect(s.passwordPrompt.overlay()).not.toBeVisible();
+    // Test result should eventually appear (success or failure depending on auth)
+    await expect(
+      s.connectionDialog.testResultSuccess().or(s.connectionDialog.testResultFailure())
+    ).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('test connection prompts for password in URI mode when username but no password', async ({
+    page,
+    s,
+    mongoInfo,
+  }) => {
+    await page.goto('/');
+
+    await s.header.newConnectionButton().click();
+    await expect(s.connectionDialog.overlay()).toBeVisible();
+
+    await s.connectionDialog.nameInput().fill('URI Prompt Test');
+
+    // Switch to URI tab
+    await s.connectionDialog.uriTab().click();
+    // URI with username but no password
+    await s.connectionDialog
+      .uriInput()
+      .fill(`mongodb://testuser@${mongoInfo.host}:${mongoInfo.port}`);
+
+    // Click test connection → should show password prompt
+    await s.connectionDialog.testButton().click();
+    await expect(s.passwordPrompt.overlay()).toBeVisible();
+
+    // Cancel the prompt
+    await s.passwordPrompt.cancelButton().click();
+    await expect(s.passwordPrompt.overlay()).not.toBeVisible();
+  });
+
+  test('test connection does NOT prompt when no username', async ({ page, s, mongoInfo }) => {
+    await page.goto('/');
+
+    await s.header.newConnectionButton().click();
+    await expect(s.connectionDialog.overlay()).toBeVisible();
+
+    await s.connectionDialog.nameInput().fill('No User Test');
+    await s.connectionDialog.hostInput().clear();
+    await s.connectionDialog.hostInput().fill(mongoInfo.host);
+    await s.connectionDialog.portInput().clear();
+    await s.connectionDialog.portInput().fill(String(mongoInfo.port));
+
+    // No username, save password off → should test directly without prompting
+    await s.connectionDialog.testButton().click();
+
+    // Should NOT show password prompt
+    await expect(s.passwordPrompt.overlay()).not.toBeVisible();
+    // Should show test result directly
+    await expect(s.connectionDialog.testResultSuccess()).toBeVisible({ timeout: 10_000 });
+  });
+
   test('SRV toggle hides port field and auto-checks TLS', async ({ page, s }) => {
     await page.goto('/');
 

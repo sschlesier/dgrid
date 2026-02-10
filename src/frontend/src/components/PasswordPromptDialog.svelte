@@ -3,11 +3,19 @@
     connectionName: string;
     username: string;
     showRemember?: boolean;
+    submitLabel?: string;
     onSubmit: (_password: string, _savePassword: boolean) => void;
     onClose: () => void;
   }
 
-  let { connectionName, username, showRemember = true, onSubmit, onClose }: Props = $props();
+  let {
+    connectionName,
+    username,
+    showRemember = true,
+    submitLabel = 'Connect',
+    onSubmit,
+    onClose,
+  }: Props = $props();
 
   let password = $state('');
   let savePassword = $state(false);
@@ -15,7 +23,7 @@
 
   $effect(() => {
     if (inputRef) {
-      requestAnimationFrame(() => inputRef!.focus());
+      requestAnimationFrame(() => inputRef?.focus());
     }
   });
 
@@ -102,7 +110,7 @@
           onclick={handleConnect}
           data-testid="password-prompt-connect"
         >
-          Connect
+          {submitLabel}
         </button>
       </div>
     </div>

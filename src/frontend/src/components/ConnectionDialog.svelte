@@ -2,6 +2,7 @@
   import { appStore } from '../stores/app.svelte';
   import * as api from '../api/client';
   import Spinner from './Spinner.svelte';
+  import PasswordPromptDialog from './PasswordPromptDialog.svelte';
 
   interface Props {
     connectionId: string | null;
@@ -36,6 +37,11 @@
   let isTesting = $state(false);
   let testResult = $state<{ success: boolean; message: string } | null>(null);
   let error = $state<string | null>(null);
+
+  // Test password prompt state
+  let showTestPasswordPrompt = $state(false);
+  let testPromptUsername = $state('');
+  let testPromptUri = $state('');
 
   /** Parse a MongoDB URI into form fields. */
   function parseMongoUri(uri: string): {
@@ -124,6 +130,13 @@
     }
   });
 
+  // Clear password when save password is toggled off (form tab only)
+  $effect(() => {
+    if (!savePassword) {
+      password = '';
+    }
+  });
+
   function isValid(): boolean {
     if (name.trim() === '') return false;
     if (activeTab === 'uri') {
@@ -165,17 +178,25 @@
     activeTab = 'form';
   }
 
-  async function handleTest() {
-    if (!isValid()) return;
+  /** Inject a password into a MongoDB URI. */
+  function injectPasswordIntoUri(uri: string, pwd: string): string {
+    try {
+      const parsed = new URL(uri);
+      parsed.password = pwd;
+      return parsed.toString();
+    } catch {
+      return uri;
+    }
+  }
 
+  /** Execute test against a saved connection (uses keyring password). */
+  async function executeTestSaved(id: string) {
     isTesting = true;
     testResult = null;
     error = null;
 
     try {
-      const result = await api.testConnection({
-        uri: getFinalUri(),
-      });
+      const result = await api.testSavedConnection(id);
       testResult = result;
     } catch (err) {
       testResult = {
@@ -185,6 +206,55 @@
     } finally {
       isTesting = false;
     }
+  }
+
+  /** Execute the test connection API call. */
+  async function executeTest(uri: string) {
+    isTesting = true;
+    testResult = null;
+    error = null;
+
+    try {
+      const result = await api.testConnection({ uri });
+      testResult = result;
+    } catch (err) {
+      testResult = {
+        success: false,
+        message: (err as Error).message,
+      };
+    } finally {
+      isTesting = false;
+    }
+  }
+
+  async function handleTest() {
+    if (!isValid()) return;
+
+    const uri = getFinalUri();
+    const parsed = parseMongoUri(uri);
+
+    // Editing a saved connection whose password is in the OS keyring?
+    // Use the /:id/test endpoint which retrieves the saved password.
+    if (connectionId && hasSavedPassword && !parsed.password) {
+      await executeTestSaved(connectionId);
+      return;
+    }
+
+    // No saved password and URI has username but no password → prompt
+    if (parsed.username && !parsed.password) {
+      testPromptUsername = parsed.username;
+      testPromptUri = uri;
+      showTestPasswordPrompt = true;
+      return;
+    }
+
+    await executeTest(uri);
+  }
+
+  function handleTestPasswordSubmit(pwd: string) {
+    showTestPasswordPrompt = false;
+    const uri = injectPasswordIntoUri(testPromptUri, pwd);
+    executeTest(uri);
   }
 
   async function handleSave() {
@@ -248,7 +318,7 @@
   }
 
   function handleKeyDown(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
+    if (event.key === 'Escape' && !showTestPasswordPrompt) {
       onClose();
     }
   }
@@ -400,6 +470,7 @@
               type="password"
               bind:value={password}
               placeholder={hasSavedPassword ? '••••••••' : '(optional)'}
+              disabled={!savePassword}
             />
             <label class="checkbox-label save-password-inline">
               <input
@@ -507,6 +578,17 @@
   </div>
 </div>
 
+{#if showTestPasswordPrompt}
+  <PasswordPromptDialog
+    connectionName={name || 'Untitled'}
+    username={testPromptUsername}
+    showRemember={false}
+    submitLabel="Test"
+    onSubmit={(pwd) => handleTestPasswordSubmit(pwd)}
+    onClose={() => (showTestPasswordPrompt = false)}
+  />
+{/if}
+
 <style>
   .dialog-overlay {
     position: fixed;
@@ -612,6 +694,11 @@
   .form-group input:focus {
     outline: none;
     border-color: var(--color-primary);
+  }
+
+  .form-group input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .form-row {

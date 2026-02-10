@@ -40,6 +40,8 @@ export function selectors(page: Page) {
       srvToggle: () => page.getByTestId('srv-toggle'),
       tlsCheckbox: () => page.getByTestId('tls-checkbox'),
       savePasswordCheckbox: () => page.getByTestId('save-password-checkbox'),
+      usernameInput: () => page.locator('input#username'),
+      passwordInput: () => page.locator('input#password'),
     },
 
     passwordPrompt: {

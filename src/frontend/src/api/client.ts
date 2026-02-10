@@ -122,6 +122,13 @@ export async function testConnection(data: TestConnectionRequest): Promise<TestC
   });
 }
 
+export async function testSavedConnection(id: string): Promise<TestConnectionResponse> {
+  return request<TestConnectionResponse>(`/connections/${id}/test`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export async function connectToConnection(
   id: string,
   data?: ConnectRequest
