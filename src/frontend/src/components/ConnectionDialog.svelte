@@ -401,18 +401,15 @@
               bind:value={password}
               placeholder={hasSavedPassword ? '••••••••' : '(optional)'}
             />
+            <label class="checkbox-label save-password-inline">
+              <input
+                type="checkbox"
+                bind:checked={savePassword}
+                data-testid="save-password-checkbox"
+              />
+              Save password
+            </label>
           </div>
-        </div>
-
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input
-              type="checkbox"
-              bind:checked={savePassword}
-              data-testid="save-password-checkbox"
-            />
-            Save password
-          </label>
         </div>
 
         {#if username}
@@ -713,6 +710,11 @@
 
   .checkbox-label input[type='checkbox'] {
     width: auto;
+  }
+
+  .save-password-inline {
+    margin-top: var(--space-xs);
+    font-size: var(--font-size-xs) !important;
   }
 
   /* URI Preview */
