@@ -135,6 +135,7 @@ export async function databaseRoutes(
           })
         );
 
+        collectionInfos.sort((a, b) => a.name.localeCompare(b.name));
         return reply.send(collectionInfos);
       } catch (e) {
         const error = e as Error;
