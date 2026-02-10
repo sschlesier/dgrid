@@ -29,6 +29,7 @@
 
   // Save password preference
   let savePassword = $state(true);
+  let hasSavedPassword = $state(false);
 
   // UI state
   let isLoading = $state(false);
@@ -118,6 +119,7 @@
         }
         // Password is not returned from API for security
         password = '';
+        hasSavedPassword = !!(connection.username && connection.savePassword);
       }
     }
   });
@@ -393,7 +395,12 @@
           </div>
           <div class="form-group flex-1">
             <label for="password">Password</label>
-            <input id="password" type="password" bind:value={password} placeholder="(optional)" />
+            <input
+              id="password"
+              type="password"
+              bind:value={password}
+              placeholder={hasSavedPassword ? '••••••••' : '(optional)'}
+            />
           </div>
         </div>
 
