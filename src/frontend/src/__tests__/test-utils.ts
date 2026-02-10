@@ -13,6 +13,7 @@ export function createMockConnection(
     id: 'conn-1',
     name: 'Test Connection',
     uri: 'mongodb://localhost:27017',
+    savePassword: true,
     isConnected: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

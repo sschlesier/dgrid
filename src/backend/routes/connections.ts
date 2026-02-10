@@ -9,6 +9,7 @@ import {
   ConnectionResponse,
   TestConnectionRequest,
   TestConnectionResponse,
+  ConnectRequest,
 } from '../../shared/contracts.js';
 
 export interface ConnectionRoutesOptions {
@@ -82,6 +83,7 @@ function toConnectionResponse(
     name: conn.name,
     uri: conn.uri,
     username: conn.username,
+    savePassword: conn.savePassword,
     isConnected,
     createdAt: conn.createdAt,
     updatedAt: conn.updatedAt,
@@ -119,7 +121,7 @@ export async function connectionRoutes(
 
   // Create connection
   fastify.post<{ Body: CreateConnectionRequest }>('/', async (request, reply) => {
-    const { name, uri } = request.body;
+    const { name, uri, savePassword = true } = request.body;
 
     // Strip credentials from the URI before storing
     const { strippedUri, username, password } = stripCredentials(uri);
@@ -128,9 +130,10 @@ export async function connectionRoutes(
       name,
       uri: strippedUri,
       username: username || undefined,
+      savePassword,
     });
 
-    if (password) {
+    if (password && savePassword) {
       await passwords.set(conn.id, password);
     }
 
@@ -141,7 +144,7 @@ export async function connectionRoutes(
   fastify.put<{ Params: { id: string }; Body: UpdateConnectionRequest }>(
     '/:id',
     async (request, reply) => {
-      const { name, uri } = request.body;
+      const { name, uri, savePassword } = request.body;
 
       try {
         const updates: Partial<Omit<StoredConnection, 'id' | 'createdAt'>> = {};
@@ -150,17 +153,31 @@ export async function connectionRoutes(
           updates.name = name;
         }
 
+        if (savePassword !== undefined) {
+          updates.savePassword = savePassword;
+        }
+
+        // Determine effective savePassword: use request value, fall back to stored value
+        let effectiveSavePassword = savePassword;
+        if (effectiveSavePassword === undefined) {
+          const existing = await storage.get(request.params.id);
+          effectiveSavePassword = existing?.savePassword ?? true;
+        }
+
         if (uri !== undefined) {
           const { strippedUri, username, password } = stripCredentials(uri);
           updates.uri = strippedUri;
           updates.username = username || undefined;
 
-          if (password) {
+          if (password && effectiveSavePassword) {
             await passwords.set(request.params.id, password);
           } else {
-            // No password in new URI — clear stored password
+            // No password, or savePassword is false — clear stored password
             await passwords.delete(request.params.id);
           }
+        } else if (savePassword === false) {
+          // URI not changed but savePassword flipped to false — clear keyring
+          await passwords.delete(request.params.id);
         }
 
         const conn = await storage.update(request.params.id, updates);
@@ -240,105 +257,119 @@ export async function connectionRoutes(
   });
 
   // Test saved connection by ID
-  fastify.post<{ Params: { id: string } }>('/:id/test', async (request, reply) => {
-    const conn = await storage.get(request.params.id);
-    if (!conn) {
-      return reply.status(404).send({
-        error: 'NotFound',
-        message: `Connection '${request.params.id}' not found`,
-        statusCode: 404,
+  fastify.post<{ Params: { id: string }; Body: { password?: string } }>(
+    '/:id/test',
+    async (request, reply) => {
+      const conn = await storage.get(request.params.id);
+      if (!conn) {
+        return reply.status(404).send({
+          error: 'NotFound',
+          message: `Connection '${request.params.id}' not found`,
+          statusCode: 404,
+        });
+      }
+
+      if (conn.error) {
+        return reply.status(400).send({
+          error: 'BadRequest',
+          message: conn.error,
+          statusCode: 400,
+        });
+      }
+
+      const bodyPassword = (request.body as { password?: string } | undefined)?.password;
+      const password = bodyPassword ?? (await passwords.get(conn.id));
+      const uri = conn.username
+        ? injectCredentials(conn.uri, conn.username, password ?? '')
+        : conn.uri;
+
+      const startTime = Date.now();
+      const client = new MongoClient(uri, {
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000,
       });
+
+      try {
+        await client.connect();
+        await client.db('admin').command({ ping: 1 });
+        const latencyMs = Date.now() - startTime;
+
+        const response: TestConnectionResponse = {
+          success: true,
+          message: 'Connection successful',
+          latencyMs,
+        };
+        return reply.send(response);
+      } catch (e) {
+        const error = e as Error;
+        const response: TestConnectionResponse = {
+          success: false,
+          message: error.message,
+        };
+        return reply.send(response);
+      } finally {
+        await client.close();
+      }
     }
-
-    if (conn.error) {
-      return reply.status(400).send({
-        error: 'BadRequest',
-        message: conn.error,
-        statusCode: 400,
-      });
-    }
-
-    const password = await passwords.get(conn.id);
-    const uri = conn.username
-      ? injectCredentials(conn.uri, conn.username, password ?? '')
-      : conn.uri;
-
-    const startTime = Date.now();
-    const client = new MongoClient(uri, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 5000,
-    });
-
-    try {
-      await client.connect();
-      await client.db('admin').command({ ping: 1 });
-      const latencyMs = Date.now() - startTime;
-
-      const response: TestConnectionResponse = {
-        success: true,
-        message: 'Connection successful',
-        latencyMs,
-      };
-      return reply.send(response);
-    } catch (e) {
-      const error = e as Error;
-      const response: TestConnectionResponse = {
-        success: false,
-        message: error.message,
-      };
-      return reply.send(response);
-    } finally {
-      await client.close();
-    }
-  });
+  );
 
   // Connect
-  fastify.post<{ Params: { id: string } }>('/:id/connect', async (request, reply) => {
-    const id = request.params.id;
+  fastify.post<{ Params: { id: string }; Body: ConnectRequest }>(
+    '/:id/connect',
+    async (request, reply) => {
+      const id = request.params.id;
+      const body = (request.body ?? {}) as ConnectRequest;
 
-    if (pool.isConnected(id)) {
-      return reply.status(400).send({
-        error: 'BadRequest',
-        message: 'Connection already active',
-        statusCode: 400,
-      });
+      if (pool.isConnected(id)) {
+        return reply.status(400).send({
+          error: 'BadRequest',
+          message: 'Connection already active',
+          statusCode: 400,
+        });
+      }
+
+      let conn = await storage.get(id);
+      if (!conn) {
+        return reply.status(404).send({
+          error: 'NotFound',
+          message: `Connection '${id}' not found`,
+          statusCode: 404,
+        });
+      }
+
+      if (conn.error) {
+        return reply.status(400).send({
+          error: 'BadRequest',
+          message: conn.error,
+          statusCode: 400,
+        });
+      }
+
+      // "Remember password" flow: persist password to keyring and update connection
+      if (body.savePassword && body.password) {
+        await passwords.set(id, body.password);
+        conn = await storage.update(id, { savePassword: true });
+      }
+
+      const password = body.password ?? (await passwords.get(conn.id));
+      const uri = conn.username
+        ? injectCredentials(conn.uri, conn.username, password ?? '')
+        : conn.uri;
+      const database = getDatabaseFromUri(conn.uri);
+
+      try {
+        await pool.connect(id, { uri, database });
+        return reply.send(toConnectionResponse(conn, true));
+      } catch (e) {
+        const error = e as Error;
+        return reply.status(500).send({
+          error: 'ConnectionFailed',
+          message: error.message,
+          statusCode: 500,
+        });
+      }
     }
-
-    const conn = await storage.get(id);
-    if (!conn) {
-      return reply.status(404).send({
-        error: 'NotFound',
-        message: `Connection '${id}' not found`,
-        statusCode: 404,
-      });
-    }
-
-    if (conn.error) {
-      return reply.status(400).send({
-        error: 'BadRequest',
-        message: conn.error,
-        statusCode: 400,
-      });
-    }
-
-    const password = await passwords.get(conn.id);
-    const uri = conn.username
-      ? injectCredentials(conn.uri, conn.username, password ?? '')
-      : conn.uri;
-    const database = getDatabaseFromUri(conn.uri);
-
-    try {
-      await pool.connect(id, { uri, database });
-      return reply.send(toConnectionResponse(conn, true));
-    } catch (e) {
-      const error = e as Error;
-      return reply.status(500).send({
-        error: 'ConnectionFailed',
-        message: error.message,
-        statusCode: 500,
-      });
-    }
-  });
+  );
 
   // Disconnect
   fastify.post<{ Params: { id: string } }>('/:id/disconnect', async (request, reply) => {

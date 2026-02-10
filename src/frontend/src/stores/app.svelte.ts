@@ -134,10 +134,14 @@ class AppStore {
     }
   }
 
-  async connect(id: string): Promise<void> {
+  async connect(id: string, password?: string, savePassword?: boolean): Promise<void> {
     this.isConnecting = true;
     try {
-      const connection = await api.connectToConnection(id);
+      const connectData =
+        password !== undefined || savePassword !== undefined
+          ? { password, savePassword }
+          : undefined;
+      const connection = await api.connectToConnection(id, connectData);
       this.connections = this.connections.map((c) => (c.id === id ? connection : c));
       this.activeConnectionId = id;
       this.notify('success', `Connected to "${connection.name}"`);

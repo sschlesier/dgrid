@@ -7,6 +7,7 @@ export interface StoredConnection {
   name: string;
   uri: string; // credential-stripped MongoDB URI
   username?: string; // stored separately for credential reconstruction
+  savePassword: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -17,6 +18,7 @@ interface RawStoredConnection {
   name: string;
   uri?: string;
   username?: string;
+  savePassword?: boolean;
   // Old-format fields (v1)
   host?: string;
   port?: number;
@@ -39,6 +41,7 @@ function toStoredConnection(raw: RawStoredConnection): StoredConnection & { erro
       name: raw.name,
       uri: '', // empty — old format
       username: raw.username,
+      savePassword: raw.savePassword ?? true,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt,
       error: 'This connection uses an old format. Please delete and re-create it.',
@@ -49,6 +52,7 @@ function toStoredConnection(raw: RawStoredConnection): StoredConnection & { erro
     name: raw.name,
     uri: raw.uri!,
     username: raw.username,
+    savePassword: raw.savePassword ?? true,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };
@@ -156,6 +160,7 @@ export function createConnectionStorage(dataDir: string): ConnectionStorage {
         name: updates.name ?? raw.name,
         uri: updates.uri ?? raw.uri,
         username: updates.username !== undefined ? updates.username : raw.username,
+        savePassword: updates.savePassword !== undefined ? updates.savePassword : raw.savePassword,
         createdAt: raw.createdAt,
         updatedAt: new Date().toISOString(),
       };
@@ -168,6 +173,7 @@ export function createConnectionStorage(dataDir: string): ConnectionStorage {
         name: updated.name,
         uri: updated.uri ?? '',
         username: updated.username,
+        savePassword: updated.savePassword ?? true,
         createdAt: updated.createdAt,
         updatedAt: updated.updatedAt,
       };

@@ -4,11 +4,13 @@
 export interface CreateConnectionRequest {
   name: string;
   uri: string; // full URI (may contain credentials — backend strips them)
+  savePassword?: boolean; // default true — when false, password is not stored in keyring
 }
 
 export interface UpdateConnectionRequest {
   name?: string;
   uri?: string; // full URI (may contain credentials — backend strips them)
+  savePassword?: boolean;
 }
 
 export interface ConnectionResponse {
@@ -16,10 +18,16 @@ export interface ConnectionResponse {
   name: string;
   uri: string; // credential-stripped URI
   username?: string;
+  savePassword: boolean;
   isConnected: boolean;
   createdAt: string;
   updatedAt: string;
   error?: string; // set when connection uses old format
+}
+
+export interface ConnectRequest {
+  password?: string; // supplied at runtime when savePassword=false
+  savePassword?: boolean; // if true + password provided, persist to keyring ("Remember" flow)
 }
 
 export interface TestConnectionRequest {

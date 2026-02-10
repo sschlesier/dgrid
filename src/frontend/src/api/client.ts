@@ -6,6 +6,7 @@ import type {
   UpdateConnectionRequest,
   TestConnectionRequest,
   TestConnectionResponse,
+  ConnectRequest,
   DatabaseInfo,
   CollectionInfo,
   CollectionSchemaResponse,
@@ -121,9 +122,13 @@ export async function testConnection(data: TestConnectionRequest): Promise<TestC
   });
 }
 
-export async function connectToConnection(id: string): Promise<ConnectionResponse> {
+export async function connectToConnection(
+  id: string,
+  data?: ConnectRequest
+): Promise<ConnectionResponse> {
   return request<ConnectionResponse>(`/connections/${id}/connect`, {
     method: 'POST',
+    ...(data ? { body: JSON.stringify(data) } : {}),
   });
 }
 

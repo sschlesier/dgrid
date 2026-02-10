@@ -139,6 +139,80 @@ test.describe('Connection Management', () => {
     await expect(s.connectionDialog.hostInput()).toHaveValue(mongoInfo.host);
   });
 
+  test('save password checkbox is visible and checked by default', async ({ page, s }) => {
+    await page.goto('/');
+
+    await s.header.newConnectionButton().click();
+    await expect(s.connectionDialog.overlay()).toBeVisible();
+
+    // Should be checked by default on Form tab
+    await expect(s.connectionDialog.savePasswordCheckbox()).toBeChecked();
+
+    // Switch to URI tab — should also be checked
+    await s.connectionDialog.uriTab().click();
+    await expect(s.connectionDialog.savePasswordCheckbox()).toBeChecked();
+  });
+
+  test('save password checkbox state persists when switching tabs', async ({ page, s }) => {
+    await page.goto('/');
+
+    await s.header.newConnectionButton().click();
+    await expect(s.connectionDialog.overlay()).toBeVisible();
+
+    // Uncheck on Form tab
+    await s.connectionDialog.savePasswordCheckbox().uncheck();
+    await expect(s.connectionDialog.savePasswordCheckbox()).not.toBeChecked();
+
+    // Switch to URI → should still be unchecked
+    await s.connectionDialog.uriTab().click();
+    await expect(s.connectionDialog.savePasswordCheckbox()).not.toBeChecked();
+
+    // Switch back to Form → still unchecked
+    await s.connectionDialog.formTab().click();
+    await expect(s.connectionDialog.savePasswordCheckbox()).not.toBeChecked();
+  });
+
+  test('uncheck save password → connect → password prompt appears', async ({
+    page,
+    s,
+    mongoInfo,
+  }) => {
+    await page.goto('/');
+
+    // Create connection with credentials and savePassword=false via URI tab
+    await s.header.newConnectionButton().click();
+    await expect(s.connectionDialog.overlay()).toBeVisible();
+
+    await s.connectionDialog.nameInput().clear();
+    await s.connectionDialog.nameInput().fill('Auth Test');
+
+    // Switch to URI tab to enter credentials
+    await s.connectionDialog.uriTab().click();
+    await s.connectionDialog
+      .uriInput()
+      .fill(`mongodb://testuser:testpass@${mongoInfo.host}:${mongoInfo.port}`);
+
+    // Uncheck save password
+    await s.connectionDialog.savePasswordCheckbox().uncheck();
+
+    // Handle confirmation dialog about not saving password
+    page.on('dialog', (dialog) => dialog.accept());
+
+    await s.connectionDialog.saveButton().click();
+    await expect(s.connectionDialog.overlay()).not.toBeVisible();
+
+    // Click the connection in sidebar — should show password prompt
+    await s.sidebar.treeItem('Auth Test').click();
+    await expect(s.passwordPrompt.overlay()).toBeVisible({ timeout: 5000 });
+
+    // Enter password and connect
+    await s.passwordPrompt.input().fill('testpass');
+    await s.passwordPrompt.connectButton().click();
+
+    // Password prompt should close
+    await expect(s.passwordPrompt.overlay()).not.toBeVisible();
+  });
+
   test('SRV toggle hides port field and auto-checks TLS', async ({ page, s }) => {
     await page.goto('/');
 

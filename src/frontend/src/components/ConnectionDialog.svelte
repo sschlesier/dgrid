@@ -27,6 +27,9 @@
   // URI tab state
   let uriInput = $state('');
 
+  // Save password preference
+  let savePassword = $state(true);
+
   // UI state
   let isLoading = $state(false);
   let isTesting = $state(false);
@@ -99,6 +102,7 @@
       const connection = appStore.connections.find((c) => c.id === connectionId);
       if (connection) {
         name = connection.name;
+        savePassword = connection.savePassword ?? true;
         // Parse the stored URI into form fields
         if (connection.uri) {
           const parsed = parseMongoUri(connection.uri);
@@ -183,21 +187,34 @@
   async function handleSave() {
     if (!isValid()) return;
 
+    const uri = getFinalUri();
+
+    // Warn if URI has a password but savePassword is unchecked
+    if (!savePassword) {
+      const parsed = parseMongoUri(uri);
+      if (parsed.password) {
+        const confirmed = confirm(
+          'The password will not be saved. You\u2019ll be prompted each time you connect. Continue?'
+        );
+        if (!confirmed) return;
+      }
+    }
+
     isLoading = true;
     error = null;
 
     try {
-      const uri = getFinalUri();
-
       if (connectionId) {
         await appStore.updateConnection(connectionId, {
           name: name.trim(),
           uri,
+          savePassword,
         });
       } else {
         await appStore.createConnection({
           name: name.trim(),
           uri,
+          savePassword,
         });
       }
 
@@ -379,6 +396,17 @@
           </div>
         </div>
 
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              bind:checked={savePassword}
+              data-testid="save-password-checkbox"
+            />
+            Save password
+          </label>
+        </div>
+
         {#if username}
           <div class="form-group">
             <label for="authSource">Auth Source</label>
@@ -403,6 +431,17 @@
             placeholder="mongodb+srv://user:password@cluster0.example.net/mydb"
             data-testid="uri-input"
           />
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              bind:checked={savePassword}
+              data-testid="save-password-checkbox"
+            />
+            Save password
+          </label>
         </div>
       {/if}
 

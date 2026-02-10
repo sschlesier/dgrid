@@ -39,6 +39,15 @@ export function selectors(page: Page) {
       uriPreview: () => page.getByTestId('uri-preview'),
       srvToggle: () => page.getByTestId('srv-toggle'),
       tlsCheckbox: () => page.getByTestId('tls-checkbox'),
+      savePasswordCheckbox: () => page.getByTestId('save-password-checkbox'),
+    },
+
+    passwordPrompt: {
+      overlay: () => page.getByTestId('password-prompt-overlay'),
+      input: () => page.getByTestId('password-prompt-input'),
+      rememberCheckbox: () => page.getByTestId('password-prompt-remember'),
+      connectButton: () => page.getByTestId('password-prompt-connect'),
+      cancelButton: () => page.getByTestId('password-prompt-cancel'),
     },
 
     tabs: {

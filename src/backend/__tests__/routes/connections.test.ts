@@ -129,6 +129,39 @@ describe('Connection Routes', () => {
       // Password should be in keyring
       expect(passwordStore.get(conn.id)).toBe('secret123');
     });
+
+    it('includes savePassword in response (defaults to true)', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/',
+        payload: {
+          name: 'Default Save',
+          uri: 'mongodb://localhost:27017',
+        },
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json().savePassword).toBe(true);
+    });
+
+    it('does not store password when savePassword is false', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/',
+        payload: {
+          name: 'No Save',
+          uri: 'mongodb://user:secret@localhost:27017',
+          savePassword: false,
+        },
+      });
+
+      expect(response.statusCode).toBe(201);
+      const conn = response.json();
+      expect(conn.savePassword).toBe(false);
+      expect(conn.username).toBe('user');
+      // Password should NOT be in keyring
+      expect(passwordStore.has(conn.id)).toBe(false);
+    });
   });
 
   describe('GET /:id', () => {
@@ -193,6 +226,26 @@ describe('Connection Routes', () => {
       });
 
       expect(passwordStore.get(created.id)).toBe('newpassword');
+    });
+
+    it('deletes keyring entry when savePassword toggled to false', async () => {
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/',
+        payload: { name: 'Test', uri: 'mongodb://user:pass@localhost:27017' },
+      });
+      const created = createRes.json();
+      expect(passwordStore.has(created.id)).toBe(true);
+
+      const response = await app.inject({
+        method: 'PUT',
+        url: `/${created.id}`,
+        payload: { savePassword: false },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().savePassword).toBe(false);
+      expect(passwordStore.has(created.id)).toBe(false);
     });
 
     it('returns 404 for non-existent connection', async () => {
@@ -348,6 +401,51 @@ describe('Connection Routes', () => {
 
       expect(disconnectRes.statusCode).toBe(200);
       expect(disconnectRes.json().isConnected).toBe(false);
+    });
+
+    it('connects with password in body', async () => {
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/',
+        payload: { name: 'Auth Conn', uri: mongoUri },
+      });
+      const created = createRes.json();
+
+      const connectRes = await app.inject({
+        method: 'POST',
+        url: `/${created.id}/connect`,
+        payload: { password: 'test' },
+      });
+
+      expect(connectRes.statusCode).toBe(200);
+      expect(connectRes.json().isConnected).toBe(true);
+    });
+
+    it('stores password in keyring when savePassword is true in connect body (remember flow)', async () => {
+      // Create a connection without saving password
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/',
+        payload: {
+          name: 'Remember Conn',
+          uri: mongoUri,
+          savePassword: false,
+        },
+      });
+      const created = createRes.json();
+      expect(passwordStore.has(created.id)).toBe(false);
+      expect(created.savePassword).toBe(false);
+
+      // Connect with password + savePassword=true (the "Remember" flow)
+      const connectRes = await app.inject({
+        method: 'POST',
+        url: `/${created.id}/connect`,
+        payload: { password: 'remembered', savePassword: true },
+      });
+
+      expect(connectRes.statusCode).toBe(200);
+      // Password should now be in keyring
+      expect(passwordStore.get(created.id)).toBe('remembered');
     });
 
     it('returns error when already connected', async () => {

@@ -5,16 +5,17 @@
 
   interface Props {
     onEditConnection: (_id: string) => void;
+    onConnect: (_id: string) => Promise<void>;
   }
 
-  let { onEditConnection }: Props = $props();
+  let { onEditConnection, onConnect }: Props = $props();
 
   async function handleNodeClick(node: TreeNodeData) {
     switch (node.type) {
       case 'connection': {
         const connection = appStore.connections.find((c) => c.id === node.connectionId);
         if (connection && !connection.isConnected) {
-          await appStore.connect(node.connectionId!);
+          await onConnect(node.connectionId!);
           appStore.toggleTreeNode(node.id);
         }
         break;
