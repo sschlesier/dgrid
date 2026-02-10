@@ -139,18 +139,18 @@ test.describe('Connection Management', () => {
     await expect(s.connectionDialog.hostInput()).toHaveValue(mongoInfo.host);
   });
 
-  test('save password checkbox is visible and checked by default', async ({ page, s }) => {
+  test('save password checkbox is visible and unchecked by default', async ({ page, s }) => {
     await page.goto('/');
 
     await s.header.newConnectionButton().click();
     await expect(s.connectionDialog.overlay()).toBeVisible();
 
-    // Should be checked by default on Form tab
-    await expect(s.connectionDialog.savePasswordCheckbox()).toBeChecked();
+    // Should be unchecked by default on Form tab
+    await expect(s.connectionDialog.savePasswordCheckbox()).not.toBeChecked();
 
-    // Switch to URI tab — should also be checked
+    // Switch to URI tab — should also be unchecked
     await s.connectionDialog.uriTab().click();
-    await expect(s.connectionDialog.savePasswordCheckbox()).toBeChecked();
+    await expect(s.connectionDialog.savePasswordCheckbox()).not.toBeChecked();
   });
 
   test('save password checkbox state persists when switching tabs', async ({ page, s }) => {
@@ -159,27 +159,27 @@ test.describe('Connection Management', () => {
     await s.header.newConnectionButton().click();
     await expect(s.connectionDialog.overlay()).toBeVisible();
 
-    // Uncheck on Form tab
-    await s.connectionDialog.savePasswordCheckbox().uncheck();
-    await expect(s.connectionDialog.savePasswordCheckbox()).not.toBeChecked();
+    // Check on Form tab
+    await s.connectionDialog.savePasswordCheckbox().check();
+    await expect(s.connectionDialog.savePasswordCheckbox()).toBeChecked();
 
-    // Switch to URI → should still be unchecked
+    // Switch to URI → should still be checked
     await s.connectionDialog.uriTab().click();
-    await expect(s.connectionDialog.savePasswordCheckbox()).not.toBeChecked();
+    await expect(s.connectionDialog.savePasswordCheckbox()).toBeChecked();
 
-    // Switch back to Form → still unchecked
+    // Switch back to Form → still checked
     await s.connectionDialog.formTab().click();
-    await expect(s.connectionDialog.savePasswordCheckbox()).not.toBeChecked();
+    await expect(s.connectionDialog.savePasswordCheckbox()).toBeChecked();
   });
 
-  test('uncheck save password → connect → password prompt appears', async ({
+  test('save password unchecked → connect → password prompt appears', async ({
     page,
     s,
     mongoInfo,
   }) => {
     await page.goto('/');
 
-    // Create connection with credentials and savePassword=false via URI tab
+    // Create connection with credentials and savePassword=false (default) via URI tab
     await s.header.newConnectionButton().click();
     await expect(s.connectionDialog.overlay()).toBeVisible();
 
@@ -192,10 +192,7 @@ test.describe('Connection Management', () => {
       .uriInput()
       .fill(`mongodb://testuser:testpass@${mongoInfo.host}:${mongoInfo.port}`);
 
-    // Uncheck save password
-    await s.connectionDialog.savePasswordCheckbox().uncheck();
-
-    // Handle confirmation dialog about not saving password
+    // savePassword is unchecked by default — handle confirmation dialog
     page.on('dialog', (dialog) => dialog.accept());
 
     await s.connectionDialog.saveButton().click();

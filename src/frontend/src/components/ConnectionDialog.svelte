@@ -28,7 +28,7 @@
   let uriInput = $state('');
 
   // Save password preference
-  let savePassword = $state(true);
+  let savePassword = $state(false);
   let hasSavedPassword = $state(false);
 
   // UI state
