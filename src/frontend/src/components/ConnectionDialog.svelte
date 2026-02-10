@@ -49,15 +49,16 @@
   } {
     try {
       const parsed = new URL(uri);
+      const parsedIsSrv = parsed.protocol === 'mongodb+srv:';
       return {
-        isSrv: parsed.protocol === 'mongodb+srv:',
+        isSrv: parsedIsSrv,
         host: parsed.hostname,
         port: parsed.port ? parseInt(parsed.port) : 27017,
         database: parsed.pathname.slice(1) || '',
         username: decodeURIComponent(parsed.username),
         password: decodeURIComponent(parsed.password),
         authSource: parsed.searchParams.get('authSource') || '',
-        tls: parsed.searchParams.get('tls') === 'true',
+        tls: parsedIsSrv || parsed.searchParams.get('tls') === 'true',
       };
     } catch {
       return {
