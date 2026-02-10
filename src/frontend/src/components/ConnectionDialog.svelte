@@ -636,34 +636,29 @@
     display: flex;
     gap: 0;
     margin-bottom: var(--space-md);
-    border: 1px solid var(--color-border-medium);
-    border-radius: var(--radius-md);
-    overflow: hidden;
+    border-bottom: 1px solid var(--color-border-light);
   }
 
   .tab-btn {
-    flex: 1;
     padding: var(--space-xs) var(--space-md);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-medium);
     color: var(--color-text-secondary);
     background-color: transparent;
     border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
     cursor: pointer;
     transition: all var(--transition-fast);
   }
 
-  .tab-btn:not(:last-child) {
-    border-right: 1px solid var(--color-border-medium);
-  }
-
   .tab-btn.active {
-    background-color: var(--color-primary);
-    color: var(--color-primary-text);
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
   }
 
   .tab-btn:hover:not(.active) {
-    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
   }
 
   /* Toggle group (Standard / SRV) */
