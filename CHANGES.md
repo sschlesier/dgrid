@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- Fix crash on startup in SEA build due to keyring module loading
+
 ## 0.3.1
 
 - Fix app not quitting properly when exiting from system tray

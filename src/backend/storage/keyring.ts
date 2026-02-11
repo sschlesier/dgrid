@@ -3,7 +3,9 @@ import { existsSync, readdirSync } from 'fs';
 import { createRequire } from 'module';
 import { isSeaRuntime } from '../static.js';
 
-const require = createRequire(import.meta.url);
+// Use __filename for CJS compatibility when bundled by esbuild for SEA
+// (import.meta.url becomes undefined in esbuild's CJS output)
+const require = createRequire(typeof __filename !== 'undefined' ? __filename : import.meta.url);
 
 export interface PasswordStorage {
   get(connectionId: string): Promise<string | undefined>;
