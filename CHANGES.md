@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+
+- Add resizable editor/results splitter
+- Improve sidebar tree expansion: collapse all on connect, auto-expand Collections group
+
 ## 0.3.2
 
 - Fix crash on startup in SEA build due to keyring module loading
