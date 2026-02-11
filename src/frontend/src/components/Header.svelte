@@ -47,6 +47,17 @@
   </div>
 
   <div class="header-right">
+    {#if appStore.updateAvailable}
+      <a
+        class="update-badge"
+        href={appStore.updateAvailable.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="A new version is available — click to view release"
+      >
+        Update v{appStore.updateAvailable.version}
+      </a>
+    {/if}
     <button class="help-btn" onclick={toggleShortcuts} title="Keyboard Shortcuts (?)">
       <svg
         width="18"
@@ -146,6 +157,26 @@
 
   .header-btn.primary:hover:not(:disabled) {
     background-color: var(--color-primary-hover);
+  }
+
+  .update-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px var(--space-sm);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-primary);
+    background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+    border-radius: var(--radius-full, 9999px);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: all var(--transition-fast);
+  }
+
+  .update-badge:hover {
+    background-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+    border-color: var(--color-primary);
   }
 
   .help-btn {

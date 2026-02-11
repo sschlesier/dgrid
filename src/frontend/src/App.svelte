@@ -83,6 +83,9 @@
     // Load connections
     appStore.loadConnections();
 
+    // Check for updates (fire and forget)
+    appStore.checkForUpdates();
+
     return () => {
       mediaQuery.removeEventListener('change', handleChange);
     };

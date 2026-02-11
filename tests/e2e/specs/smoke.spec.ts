@@ -55,6 +55,12 @@ test.describe('Smoke Tests', () => {
     await expect(s.shortcutsModal.modal()).not.toBeVisible();
   });
 
+  test('update badge is not shown in dev mode', async ({ page, s }) => {
+    await page.goto('/');
+    await expect(s.header.root()).toBeVisible();
+    await expect(s.header.updateBadge()).not.toBeVisible();
+  });
+
   test('? shortcut opens keyboard shortcuts modal', async ({ page, s }) => {
     await page.goto('/');
 

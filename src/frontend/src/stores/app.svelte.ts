@@ -53,6 +53,7 @@ class AppStore {
   activeTabId = $state<string | null>(null);
   ui = $state<UIState>(loadUIState());
   notifications = $state<Notification[]>([]);
+  updateAvailable = $state<{ version: string; url: string } | null>(null);
 
   // Loading states
   isLoadingConnections = $state(false);
@@ -507,6 +508,18 @@ class AppStore {
           : undefined,
       };
     });
+  }
+
+  // Update check
+  async checkForUpdates(): Promise<void> {
+    try {
+      const data = await api.getVersion();
+      if (data.update) {
+        this.updateAvailable = data.update;
+      }
+    } catch {
+      // Silently ignore — update check is non-critical
+    }
   }
 
   // Notification actions

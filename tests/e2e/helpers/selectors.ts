@@ -8,6 +8,7 @@ export function selectors(page: Page) {
       newConnectionButton: () => page.getByTitle('Add new connection'),
       helpButton: () => page.getByTitle('Keyboard Shortcuts (?)'),
       title: () => page.locator('.app-title'),
+      updateBadge: () => page.locator('.update-badge'),
     },
 
     sidebar: {

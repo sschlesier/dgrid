@@ -100,6 +100,12 @@ export interface CollectionSchemaResponse {
   sampleSize: number;
 }
 
+// Version / Update Check
+export interface VersionResponse {
+  version: string;
+  update?: { version: string; url: string };
+}
+
 // Error Response
 export interface ErrorResponse {
   error: string;

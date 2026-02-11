@@ -5,6 +5,7 @@ import { queryRoutes } from './query.js';
 import { documentRoutes } from './documents.js';
 import { fileRoutes } from './files.js';
 import { exportRoutes } from './export.js';
+import { versionRoutes } from './version.js';
 import { ConnectionStorage } from '../storage/connections.js';
 import { PasswordStorage } from '../storage/keyring.js';
 import { ConnectionPool } from '../db/mongodb.js';
@@ -49,5 +50,10 @@ export async function apiRoutes(fastify: FastifyInstance, opts: ApiRoutesOptions
   // Register export routes
   await fastify.register(exportRoutes, {
     pool,
+  });
+
+  // Register version routes
+  await fastify.register(versionRoutes, {
+    prefix: '/version',
   });
 }

@@ -15,6 +15,7 @@ import type {
   ExportCsvRequest,
   UpdateFieldRequest,
   UpdateFieldResponse,
+  VersionResponse,
   ErrorResponse,
 } from '../../../shared/contracts';
 
@@ -92,6 +93,12 @@ export class QueryCancelledError extends Error {
     super('Query was cancelled');
     this.name = 'QueryCancelledError';
   }
+}
+
+// Version endpoint
+
+export async function getVersion(): Promise<VersionResponse> {
+  return request<VersionResponse>('/version');
 }
 
 // Connection endpoints
