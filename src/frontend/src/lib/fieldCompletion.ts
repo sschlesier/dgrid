@@ -3,6 +3,7 @@ import {
   startCompletion,
   acceptCompletion,
   closeCompletion,
+  moveCompletionSelection,
   type CompletionContext,
   type CompletionResult,
   type CompletionSource,
@@ -49,6 +50,22 @@ export function fieldCompletionExtension(getFields: () => string[]): Extension {
         startCompletion(view);
         return true;
       },
+    },
+    {
+      key: 'ArrowDown',
+      run: moveCompletionSelection(true),
+    },
+    {
+      key: 'ArrowUp',
+      run: moveCompletionSelection(false),
+    },
+    {
+      key: 'Ctrl-j',
+      run: moveCompletionSelection(true),
+    },
+    {
+      key: 'Ctrl-k',
+      run: moveCompletionSelection(false),
     },
     {
       key: 'Enter',
