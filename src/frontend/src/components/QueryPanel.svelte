@@ -29,7 +29,7 @@
   // Extract collection name from query text (e.g., "db.users.find()")
   const collectionName = $derived.by(() => {
     const text = queryStore.getQueryText(tab.id);
-    const match = text.match(/db\.(\w+)\./);
+    const match = text.match(/db\.([^.]+)\./);
     return match ? match[1] : '';
   });
 
@@ -48,6 +48,35 @@
   // UI state
   let showHistory = $state(false);
   let editorRef: Editor | null = $state(null);
+
+  // Resizable splitter state
+  let editorHeight = $state(200);
+  let isDragging = $state(false);
+  let panelEl: HTMLDivElement | undefined = $state();
+
+  function onSplitterMouseDown(e: MouseEvent) {
+    e.preventDefault();
+    isDragging = true;
+    const startY = e.clientY;
+    const startHeight = editorHeight;
+
+    function onMouseMove(e: MouseEvent) {
+      if (!panelEl) return;
+      const panelRect = panelEl.getBoundingClientRect();
+      const maxHeight = panelRect.height - 100; // leave 100px min for results
+      const newHeight = startHeight + (e.clientY - startY);
+      editorHeight = Math.max(80, Math.min(maxHeight, newHeight));
+    }
+
+    function onMouseUp() {
+      isDragging = false;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    }
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }
   let fileDialogMode = $state<'save' | 'load' | null>(null);
   let currentFilePath = $state<string | null>(null);
   let fileHandle = $state<FileSystemFileHandle | null>(null);
@@ -352,8 +381,8 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="query-panel">
-  <div class="editor-section">
+<div class="query-panel" class:is-dragging={isDragging} bind:this={panelEl}>
+  <div class="editor-section" style="height: {editorHeight}px">
     <div class="toolbar">
       {#if isExecuting}
         <button class="cancel-btn" onclick={handleCancel}> Cancel </button>
@@ -448,6 +477,9 @@
     />
   </div>
 
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="splitter" onmousedown={onSplitterMouseDown}></div>
+
   <div class="results-section">
     {#if error}
       {@const errorInfo = categorizeError(error)}
@@ -534,12 +566,29 @@
     overflow: hidden;
   }
 
+  .query-panel.is-dragging {
+    cursor: row-resize;
+    user-select: none;
+  }
+
   .editor-section {
     display: flex;
     flex-direction: column;
-    height: 200px;
-    min-height: 100px;
-    border-bottom: 1px solid var(--color-border-light);
+    min-height: 80px;
+    flex-shrink: 0;
+  }
+
+  .splitter {
+    height: 5px;
+    cursor: row-resize;
+    background-color: var(--color-border-light);
+    flex-shrink: 0;
+    transition: background-color var(--transition-fast);
+  }
+
+  .splitter:hover,
+  .is-dragging .splitter {
+    background-color: var(--color-primary);
   }
 
   .toolbar {

@@ -326,6 +326,15 @@ describe('Query Parser', () => {
       }
     });
 
+    it('handles collection names with hyphens', () => {
+      const result = parseQuery('db.payment-sessions.find({})');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.collection).toBe('payment-sessions');
+      }
+    });
+
     it('handles whitespace variations', () => {
       const result = parseQuery(`db.users.find(
         { name: "John" }

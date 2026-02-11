@@ -363,8 +363,8 @@ export function parseDbCommand(queryText: string): Result<ParsedDbCommand, Parse
 export function parseCollectionQuery(queryText: string): Result<ParsedCollectionQuery, ParseError> {
   const text = queryText.trim();
 
-  // Match db.collection.operation(...)
-  const basePattern = /^db\.([a-zA-Z_$][a-zA-Z0-9_$]*)\.(\w+)\s*\(/;
+  // Match db.collection.operation(...) — collection name is any non-dot chars; MongoDB validates the name
+  const basePattern = /^db\.([^.]+)\.(\w+)\s*\(/;
   const baseMatch = text.match(basePattern);
 
   if (!baseMatch) {
