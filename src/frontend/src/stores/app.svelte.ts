@@ -144,6 +144,7 @@ class AppStore {
       const connection = await api.connectToConnection(id, connectData);
       this.connections = this.connections.map((c) => (c.id === id ? connection : c));
       this.activeConnectionId = id;
+      this.collapseConnectionTree(id);
       this.notify('success', `Connected to "${connection.name}"`);
       // Load databases after connecting
       await this.loadDatabases(id);
@@ -338,6 +339,29 @@ class AppStore {
     newExpanded[nodeId] = !newExpanded[nodeId];
     this.ui = { ...this.ui, treeExpanded: newExpanded };
     saveUIState(this.ui);
+  }
+
+  setTreeNodeExpanded(nodeId: string, expanded: boolean): void {
+    if (this.ui.treeExpanded[nodeId] === expanded) return;
+    const newExpanded = { ...this.ui.treeExpanded };
+    newExpanded[nodeId] = expanded;
+    this.ui = { ...this.ui, treeExpanded: newExpanded };
+    saveUIState(this.ui);
+  }
+
+  collapseConnectionTree(connectionId: string): void {
+    const newExpanded = { ...this.ui.treeExpanded };
+    let changed = false;
+    for (const key of Object.keys(newExpanded)) {
+      if (key.includes(connectionId)) {
+        delete newExpanded[key];
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.ui = { ...this.ui, treeExpanded: newExpanded };
+      saveUIState(this.ui);
+    }
   }
 
   selectTreeNode(nodeId: string | null): void {

@@ -38,6 +38,9 @@
           if (!collections) {
             await appStore.loadCollections(node.connectionId, node.databaseName);
           }
+          // Auto-expand the "Collections" group when expanding a database
+          const collGroupId = `coll-group:${node.connectionId}:${node.databaseName}`;
+          appStore.setTreeNodeExpanded(collGroupId, true);
         }
         break;
       }
