@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- Fix app not quitting properly when exiting from system tray
+
 ## 0.3.0
 
 - Support MongoDB URI and SRV connections
