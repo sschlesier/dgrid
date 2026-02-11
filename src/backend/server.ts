@@ -108,13 +108,31 @@ async function main(): Promise<void> {
   const shutdown = async (): Promise<void> => {
     app.log.info('Shutting down...');
 
-    // Cleanup tray if active
-    if (trayContext) {
-      cleanupTray(trayContext);
+    // Force exit if graceful shutdown hangs
+    const forceExitTimer = setTimeout(() => {
+      app.log.error('Graceful shutdown timed out, forcing exit');
+      process.exit(1);
+    }, 5000);
+    forceExitTimer.unref();
+
+    try {
+      if (trayContext) cleanupTray(trayContext);
+    } catch (e) {
+      app.log.error(e, 'Error cleaning up tray');
     }
 
-    await pool.disconnectAll();
-    await app.close();
+    try {
+      await pool.disconnectAll();
+    } catch (e) {
+      app.log.error(e, 'Error disconnecting MongoDB');
+    }
+
+    try {
+      await app.close();
+    } catch (e) {
+      app.log.error(e, 'Error closing server');
+    }
+
     process.exit(0);
   };
 
