@@ -8,6 +8,7 @@ export interface MongoConnectionOptions {
 export interface ConnectionPool {
   connect(id: string, options: MongoConnectionOptions): Promise<void>;
   disconnect(id: string): Promise<void>;
+  forceDisconnect(id: string): Promise<void>;
   getClient(id: string): MongoClient | undefined;
   getDb(id: string, dbName?: string): Db | undefined;
   isConnected(id: string): boolean;
@@ -18,6 +19,17 @@ export interface ConnectionPool {
 interface PooledConnection {
   client: MongoClient;
   options: MongoConnectionOptions;
+}
+
+export function isConnectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const name = error.name;
+  return (
+    name === 'MongoNetworkError' ||
+    name === 'MongoNetworkTimeoutError' ||
+    name === 'MongoServerSelectionError' ||
+    name === 'MongoNotConnectedError'
+  );
 }
 
 export function createConnectionPool(): ConnectionPool {
@@ -43,6 +55,17 @@ export function createConnectionPool(): ConnectionPool {
 
       await connection.client.close();
       connections.delete(id);
+    },
+
+    async forceDisconnect(id: string): Promise<void> {
+      const connection = connections.get(id);
+      if (!connection) return;
+      connections.delete(id);
+      try {
+        await connection.client.close();
+      } catch {
+        /* ignore — connection is already broken */
+      }
     },
 
     getClient(id: string): MongoClient | undefined {

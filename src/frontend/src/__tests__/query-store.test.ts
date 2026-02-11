@@ -9,6 +9,18 @@ vi.mock('../api/client', () => ({
       this.name = 'QueryCancelledError';
     }
   },
+  ApiError: class extends Error {
+    isConnected?: boolean;
+    constructor(
+      public statusCode: number,
+      public errorType: string,
+      message: string,
+      public details?: Record<string, unknown>
+    ) {
+      super(message);
+      this.name = 'ApiError';
+    }
+  },
 }));
 
 // Import after mocking

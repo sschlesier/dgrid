@@ -3,7 +3,7 @@
 import type { ExecuteQueryResponse } from '../../../shared/contracts';
 import type { QueryHistoryItem } from '../types';
 import * as api from '../api/client';
-import { QueryCancelledError } from '../api/client';
+import { ApiError, QueryCancelledError } from '../api/client';
 
 // localStorage keys
 const HISTORY_KEY = 'dgrid-query-history';
@@ -136,6 +136,13 @@ class QueryStore {
       // Don't store error for cancelled queries
       if (error instanceof QueryCancelledError) {
         return null;
+      }
+
+      // Notify about connection loss via custom event (avoids circular import with appStore)
+      if (error instanceof ApiError && error.isConnected === false) {
+        window.dispatchEvent(
+          new CustomEvent('dgrid:connection-lost', { detail: { connectionId } })
+        );
       }
 
       // Store error

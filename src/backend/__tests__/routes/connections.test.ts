@@ -448,7 +448,7 @@ describe('Connection Routes', () => {
       expect(passwordStore.get(created.id)).toBe('remembered');
     });
 
-    it('returns error when already connected', async () => {
+    it('reconnects when already connected (idempotent)', async () => {
       const createRes = await app.inject({
         method: 'POST',
         url: '/',
@@ -462,17 +462,17 @@ describe('Connection Routes', () => {
         url: `/${created.id}/connect`,
       });
 
-      // Try to connect again
+      // Connect again — should succeed (force-reconnect)
       const response = await app.inject({
         method: 'POST',
         url: `/${created.id}/connect`,
       });
 
-      expect(response.statusCode).toBe(400);
-      expect(response.json().message).toContain('already active');
+      expect(response.statusCode).toBe(200);
+      expect(response.json().isConnected).toBe(true);
     });
 
-    it('returns error when not connected', async () => {
+    it('succeeds when disconnecting an already-disconnected connection', async () => {
       const createRes = await app.inject({
         method: 'POST',
         url: '/',
@@ -485,8 +485,8 @@ describe('Connection Routes', () => {
         url: `/${created.id}/disconnect`,
       });
 
-      expect(response.statusCode).toBe(400);
-      expect(response.json().message).toContain('not active');
+      expect(response.statusCode).toBe(200);
+      expect(response.json().isConnected).toBe(false);
     });
   });
 });

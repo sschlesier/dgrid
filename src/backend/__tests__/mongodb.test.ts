@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { createConnectionPool } from '../db/mongodb.js';
+import { createConnectionPool, isConnectionError } from '../db/mongodb.js';
 
 describe('MongoDB Connection Pool', () => {
   let mongod: MongoMemoryServer;
@@ -179,6 +179,36 @@ describe('MongoDB Connection Pool', () => {
     });
   });
 
+  describe('forceDisconnect', () => {
+    it('removes an active connection from the pool', async () => {
+      const pool = createConnectionPool();
+
+      await pool.connect('test', { uri: mongoUri });
+      expect(pool.isConnected('test')).toBe(true);
+
+      await pool.forceDisconnect('test');
+      expect(pool.isConnected('test')).toBe(false);
+    });
+
+    it('is a no-op for non-existent connection', async () => {
+      const pool = createConnectionPool();
+
+      await expect(pool.forceDisconnect('nonexistent')).resolves.toBeUndefined();
+    });
+
+    it('does not throw when client.close() fails', async () => {
+      const pool = createConnectionPool();
+
+      await pool.connect('test', { uri: mongoUri });
+      // Close the client first to make the second close potentially error
+      const client = pool.getClient('test')!;
+      await client.close();
+
+      await expect(pool.forceDisconnect('test')).resolves.toBeUndefined();
+      expect(pool.isConnected('test')).toBe(false);
+    });
+  });
+
   describe('database operations', () => {
     let pool: ReturnType<typeof createConnectionPool>;
 
@@ -216,5 +246,47 @@ describe('MongoDB Connection Pool', () => {
       const deletedUser = await collection.findOne({ _id: insertResult.insertedId });
       expect(deletedUser).toBeNull();
     });
+  });
+});
+
+describe('isConnectionError', () => {
+  it('returns true for MongoNetworkError', () => {
+    const error = new Error('network error');
+    error.name = 'MongoNetworkError';
+    expect(isConnectionError(error)).toBe(true);
+  });
+
+  it('returns true for MongoNetworkTimeoutError', () => {
+    const error = new Error('timeout');
+    error.name = 'MongoNetworkTimeoutError';
+    expect(isConnectionError(error)).toBe(true);
+  });
+
+  it('returns true for MongoServerSelectionError', () => {
+    const error = new Error('server selection');
+    error.name = 'MongoServerSelectionError';
+    expect(isConnectionError(error)).toBe(true);
+  });
+
+  it('returns true for MongoNotConnectedError', () => {
+    const error = new Error('not connected');
+    error.name = 'MongoNotConnectedError';
+    expect(isConnectionError(error)).toBe(true);
+  });
+
+  it('returns false for generic Error', () => {
+    expect(isConnectionError(new Error('generic error'))).toBe(false);
+  });
+
+  it('returns false for non-Error values', () => {
+    expect(isConnectionError('string error')).toBe(false);
+    expect(isConnectionError(null)).toBe(false);
+    expect(isConnectionError(undefined)).toBe(false);
+  });
+
+  it('returns false for query-level mongo errors', () => {
+    const error = new Error('bad query');
+    error.name = 'MongoServerError';
+    expect(isConnectionError(error)).toBe(false);
   });
 });

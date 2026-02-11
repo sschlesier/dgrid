@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { Document, Sort } from 'mongodb';
-import { ConnectionPool } from '../db/mongodb.js';
+import { ConnectionPool, isConnectionError } from '../db/mongodb.js';
 import { parseQuery, ParsedCollectionQuery } from '../db/queries.js';
 import { collectColumns, buildCsvRow, escapeCsvField } from '../db/csv.js';
 import { ExportCsvRequest } from '../../shared/contracts.js';
@@ -170,6 +170,9 @@ export async function exportRoutes(
         raw.end();
         await cursor.close();
       } catch (err) {
+        if (isConnectionError(err)) {
+          await pool.forceDisconnect(id);
+        }
         // If we haven't hijacked yet, send a normal error response
         if (!reply.sent) {
           const error = err as Error;
@@ -177,6 +180,7 @@ export async function exportRoutes(
             error: 'ExportError',
             message: error.message ?? 'Export failed',
             statusCode: 500,
+            ...(isConnectionError(err) ? { isConnected: false } : {}),
           });
         }
         // If already streaming, just close the connection

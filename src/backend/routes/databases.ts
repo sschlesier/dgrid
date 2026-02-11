@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { Db } from 'mongodb';
-import { ConnectionPool } from '../db/mongodb.js';
+import { ConnectionPool, isConnectionError } from '../db/mongodb.js';
 import { DatabaseInfo, CollectionInfo, CollectionSchemaResponse } from '../../shared/contracts.js';
 import { collectColumns } from '../db/csv.js';
 
@@ -83,6 +83,15 @@ export async function databaseRoutes(
 
       return reply.send(databases);
     } catch (e) {
+      if (isConnectionError(e)) {
+        await pool.forceDisconnect(id);
+        return reply.status(500).send({
+          error: 'DatabaseError',
+          message: (e as Error).message,
+          statusCode: 500,
+          isConnected: false,
+        });
+      }
       const error = e as Error;
       return reply.status(500).send({
         error: 'DatabaseError',
@@ -138,6 +147,15 @@ export async function databaseRoutes(
         collectionInfos.sort((a, b) => a.name.localeCompare(b.name));
         return reply.send(collectionInfos);
       } catch (e) {
+        if (isConnectionError(e)) {
+          await pool.forceDisconnect(id);
+          return reply.status(500).send({
+            error: 'DatabaseError',
+            message: (e as Error).message,
+            statusCode: 500,
+            isConnected: false,
+          });
+        }
         const error = e as Error;
         return reply.status(500).send({
           error: 'DatabaseError',
@@ -189,6 +207,15 @@ export async function databaseRoutes(
 
         return reply.send(info);
       } catch (e) {
+        if (isConnectionError(e)) {
+          await pool.forceDisconnect(id);
+          return reply.status(500).send({
+            error: 'DatabaseError',
+            message: (e as Error).message,
+            statusCode: 500,
+            isConnected: false,
+          });
+        }
         const error = e as Error;
         return reply.status(500).send({
           error: 'DatabaseError',
@@ -238,6 +265,15 @@ export async function databaseRoutes(
 
         return reply.send(result);
       } catch (e) {
+        if (isConnectionError(e)) {
+          await pool.forceDisconnect(id);
+          return reply.status(500).send({
+            error: 'DatabaseError',
+            message: (e as Error).message,
+            statusCode: 500,
+            isConnected: false,
+          });
+        }
         const error = e as Error;
         return reply.status(500).send({
           error: 'DatabaseError',

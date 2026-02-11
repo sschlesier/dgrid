@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { ConnectionPool } from '../db/mongodb.js';
+import { ConnectionPool, isConnectionError } from '../db/mongodb.js';
 import { parseQuery, executeQuery } from '../db/queries.js';
 import { serializeDocument } from '../db/bson.js';
 import { ExecuteQueryRequest, ExecuteQueryResponse } from '../../shared/contracts.js';
@@ -58,6 +58,17 @@ export async function queryRoutes(
       });
 
       if (!execResult.ok) {
+        // Auto-disconnect on connection-level errors
+        if (isConnectionError(execResult.error.cause)) {
+          await pool.forceDisconnect(id);
+          return reply.status(500).send({
+            error: execResult.error.code ?? 'QueryError',
+            message: execResult.error.message,
+            statusCode: 500,
+            isConnected: false,
+          });
+        }
+
         const statusCode = execResult.error.code === 'TIMEOUT' ? 504 : 500;
         return reply.status(statusCode).send({
           error: execResult.error.code ?? 'QueryError',

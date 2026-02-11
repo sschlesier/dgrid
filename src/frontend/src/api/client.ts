@@ -24,6 +24,8 @@ const API_BASE = '/api';
  * Custom API error with typed properties
  */
 export class ApiError extends Error {
+  public isConnected?: boolean;
+
   constructor(
     public statusCode: number,
     public errorType: string,
@@ -46,7 +48,17 @@ async function handleResponse<T>(response: Response): Promise<T> {
     } catch {
       throw new ApiError(response.status, 'UnknownError', response.statusText);
     }
-    throw new ApiError(errorData.statusCode, errorData.error, errorData.message, errorData.details);
+    const apiError = new ApiError(
+      errorData.statusCode,
+      errorData.error,
+      errorData.message,
+      errorData.details
+    );
+    // Propagate backend disconnection signal
+    if ('isConnected' in errorData && errorData.isConnected === false) {
+      apiError.isConnected = false;
+    }
+    throw apiError;
   }
   if (response.status === 204) {
     return undefined as T;
@@ -224,7 +236,16 @@ export async function exportCsv(
     } catch {
       throw new ApiError(response.status, 'UnknownError', response.statusText);
     }
-    throw new ApiError(errorData.statusCode, errorData.error, errorData.message, errorData.details);
+    const apiError = new ApiError(
+      errorData.statusCode,
+      errorData.error,
+      errorData.message,
+      errorData.details
+    );
+    if ('isConnected' in errorData && errorData.isConnected === false) {
+      apiError.isConnected = false;
+    }
+    throw apiError;
   }
 
   return response;

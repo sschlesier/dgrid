@@ -3,6 +3,7 @@
 import type { ConnectionResponse, DatabaseInfo, CollectionInfo } from '../../../shared/contracts';
 import type { Tab, Notification, UIState, Theme, TreeNodeData } from '../types';
 import * as api from '../api/client';
+import { ApiError } from '../api/client';
 import { queryStore } from './query.svelte';
 import { schemaStore } from './schema.svelte';
 
@@ -57,6 +58,19 @@ class AppStore {
   isLoadingConnections = $state(false);
   isLoadingDatabases = $state(false);
   isConnecting = $state(false);
+
+  constructor() {
+    // Listen for connection-lost events dispatched by the query store (avoids circular import)
+    window.addEventListener('dgrid:connection-lost', ((
+      e: CustomEvent<{ connectionId: string }>
+    ) => {
+      const conn = this.connections.find((c) => c.id === e.detail.connectionId);
+      if (conn?.isConnected) {
+        this.markDisconnected(e.detail.connectionId);
+        this.notify('warning', 'Connection lost — the server may be unreachable');
+      }
+    }) as EventListener);
+  }
 
   // Derived state
   get activeConnection(): ConnectionResponse | undefined {
@@ -184,7 +198,32 @@ class AppStore {
     return `Failed to connect: ${errorMessage}`;
   }
 
+  /** Handle backend signalling that a connection has dropped. */
+  markDisconnected(id: string): void {
+    this.connections = this.connections.map((c) =>
+      c.id === id ? { ...c, isConnected: false } : c
+    );
+    if (this.activeConnectionId === id) {
+      this.activeConnectionId = null;
+      this.databases = [];
+      this.collections = new Map();
+    }
+    schemaStore.clearConnection(id);
+  }
+
+  /** Check an error for backend disconnection signal and update state if needed. */
+  private handlePossibleDisconnect(error: unknown, connectionId: string): void {
+    if (error instanceof ApiError && error.isConnected === false) {
+      const conn = this.connections.find((c) => c.id === connectionId);
+      if (conn?.isConnected) {
+        this.markDisconnected(connectionId);
+        this.notify('warning', 'Connection lost — the server may be unreachable');
+      }
+    }
+  }
+
   async disconnect(id: string): Promise<void> {
+    const connName = this.connections.find((c) => c.id === id)?.name ?? id;
     try {
       const connection = await api.disconnectFromConnection(id);
       this.connections = this.connections.map((c) => (c.id === id ? connection : c));
@@ -196,6 +235,12 @@ class AppStore {
       schemaStore.clearConnection(id);
       this.notify('info', `Disconnected from "${connection.name}"`);
     } catch (error) {
+      // If backend says "not active", treat as success — already disconnected
+      if (error instanceof ApiError && error.statusCode === 400) {
+        this.markDisconnected(id);
+        this.notify('info', `Disconnected from "${connName}"`);
+        return;
+      }
       this.notify('error', `Failed to disconnect: ${(error as Error).message}`);
       throw error;
     }
@@ -217,7 +262,10 @@ class AppStore {
     try {
       this.databases = await api.getDatabases(connectionId);
     } catch (error) {
-      this.notify('error', `Failed to load databases: ${(error as Error).message}`);
+      this.handlePossibleDisconnect(error, connectionId);
+      if (!(error instanceof ApiError && error.isConnected === false)) {
+        this.notify('error', `Failed to load databases: ${(error as Error).message}`);
+      }
       throw error;
     } finally {
       this.isLoadingDatabases = false;
@@ -231,7 +279,10 @@ class AppStore {
       newMap.set(database, collections);
       this.collections = newMap;
     } catch (error) {
-      this.notify('error', `Failed to load collections: ${(error as Error).message}`);
+      this.handlePossibleDisconnect(error, connectionId);
+      if (!(error instanceof ApiError && error.isConnected === false)) {
+        this.notify('error', `Failed to load collections: ${(error as Error).message}`);
+      }
       throw error;
     }
   }

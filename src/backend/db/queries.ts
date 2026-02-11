@@ -570,6 +570,7 @@ export interface QueryResult {
 export interface QueryError {
   message: string;
   code?: string;
+  cause?: unknown;
 }
 
 export interface QueryOptions {
@@ -722,6 +723,7 @@ export async function executeDbCommand(
       error: {
         message: error.message ?? 'Command execution failed',
         code: error.codeName,
+        cause: e,
       },
     };
   }
@@ -879,6 +881,7 @@ export async function executeCollectionQuery(
       error: {
         message: error.message ?? 'Query execution failed',
         code: error.codeName,
+        cause: e,
       },
     };
   }

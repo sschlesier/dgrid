@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { ConnectionPool } from '../db/mongodb.js';
+import { ConnectionPool, isConnectionError } from '../db/mongodb.js';
 import { deserializeValue } from '../db/bson.js';
 import { UpdateFieldRequest, UpdateFieldResponse } from '../../shared/contracts.js';
 
@@ -51,17 +51,30 @@ export async function documentRoutes(
       // Deserialize the new value
       const deserializedValue = deserializeValue(value);
 
-      const col = db.collection(collection);
-      const result = await col.updateOne({ _id: deserializedId } as Record<string, unknown>, {
-        $set: { [fieldPath]: deserializedValue },
-      });
+      try {
+        const col = db.collection(collection);
+        const result = await col.updateOne({ _id: deserializedId } as Record<string, unknown>, {
+          $set: { [fieldPath]: deserializedValue },
+        });
 
-      const response: UpdateFieldResponse = {
-        success: result.modifiedCount > 0 || result.matchedCount > 0,
-        modifiedCount: result.modifiedCount,
-      };
+        const response: UpdateFieldResponse = {
+          success: result.modifiedCount > 0 || result.matchedCount > 0,
+          modifiedCount: result.modifiedCount,
+        };
 
-      return reply.send(response);
+        return reply.send(response);
+      } catch (e) {
+        if (isConnectionError(e)) {
+          await pool.forceDisconnect(id);
+          return reply.status(500).send({
+            error: 'DatabaseError',
+            message: (e as Error).message,
+            statusCode: 500,
+            isConnected: false,
+          });
+        }
+        throw e;
+      }
     }
   );
 }

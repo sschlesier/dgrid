@@ -320,12 +320,9 @@ export async function connectionRoutes(
       const id = request.params.id;
       const body = (request.body ?? {}) as ConnectRequest;
 
+      // Force-disconnect stale entry so reconnect always works
       if (pool.isConnected(id)) {
-        return reply.status(400).send({
-          error: 'BadRequest',
-          message: 'Connection already active',
-          statusCode: 400,
-        });
+        await pool.forceDisconnect(id);
       }
 
       let conn = await storage.get(id);
@@ -375,14 +372,6 @@ export async function connectionRoutes(
   fastify.post<{ Params: { id: string } }>('/:id/disconnect', async (request, reply) => {
     const id = request.params.id;
 
-    if (!pool.isConnected(id)) {
-      return reply.status(400).send({
-        error: 'BadRequest',
-        message: 'Connection not active',
-        statusCode: 400,
-      });
-    }
-
     const conn = await storage.get(id);
     if (!conn) {
       return reply.status(404).send({
@@ -392,7 +381,8 @@ export async function connectionRoutes(
       });
     }
 
-    await pool.disconnect(id);
+    // Use forceDisconnect to handle both active and stale connections
+    await pool.forceDisconnect(id);
     return reply.send(toConnectionResponse(conn, false));
   });
 }
