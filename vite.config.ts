@@ -11,10 +11,10 @@ export default defineConfig({
     DGRID_VERSION: JSON.stringify(pkg.version),
   },
   server: {
-    port: 5173,
+    port: parseInt(process.env.DGRID_FRONTEND_PORT || '5173', 10),
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3001',
+        target: `http://127.0.0.1:${process.env.DGRID_PORT || '3001'}`,
         changeOrigin: true,
       },
     },

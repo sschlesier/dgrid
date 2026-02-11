@@ -15,7 +15,7 @@ import { initTray, cleanupTray, type TrayContext } from './tray/index.js';
 import { openBrowser } from './tray/browser.js';
 
 const HOST = '127.0.0.1';
-const PORT = 3001;
+const PORT = parseInt(process.env.DGRID_PORT || '3001', 10);
 const DATA_DIR = process.env.DGRID_DATA_DIR ?? join(homedir(), '.dgrid');
 
 // Parse command line arguments

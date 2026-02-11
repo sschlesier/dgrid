@@ -117,7 +117,7 @@ test.describe('Field Autocomplete', () => {
 
   test('arrow keys navigate the completion list', async ({ page, s, mongoInfo }) => {
     await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
-      { name: 'Alice', age: 30, email: 'alice@example.com' },
+      { name: 'Alice', nickname: 'Ally', notes: 'hello' },
     ]);
 
     await page.goto('/');
@@ -133,9 +133,9 @@ test.describe('Field Autocomplete', () => {
     const editor = s.query.editorContent();
     await editor.click();
     await page.keyboard.press('Meta+A');
-    await page.keyboard.type(`db.${TEST_COLLECTION}.find({ `);
+    await page.keyboard.type(`db.${TEST_COLLECTION}.find({ n`);
 
-    // Open autocomplete
+    // Open autocomplete — should show name, nickname, notes
     await page.keyboard.press('Tab');
     await expect(s.query.autocomplete()).toBeVisible({ timeout: 5_000 });
 
@@ -155,7 +155,7 @@ test.describe('Field Autocomplete', () => {
 
   test('Ctrl+J/K navigate the completion list', async ({ page, s, mongoInfo }) => {
     await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
-      { name: 'Alice', age: 30, email: 'alice@example.com' },
+      { name: 'Alice', nickname: 'Ally', notes: 'hello' },
     ]);
 
     await page.goto('/');
@@ -171,9 +171,9 @@ test.describe('Field Autocomplete', () => {
     const editor = s.query.editorContent();
     await editor.click();
     await page.keyboard.press('Meta+A');
-    await page.keyboard.type(`db.${TEST_COLLECTION}.find({ `);
+    await page.keyboard.type(`db.${TEST_COLLECTION}.find({ n`);
 
-    // Open autocomplete
+    // Open autocomplete — should show name, nickname, notes
     await page.keyboard.press('Tab');
     await expect(s.query.autocomplete()).toBeVisible({ timeout: 5_000 });
 

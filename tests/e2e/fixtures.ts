@@ -7,7 +7,7 @@ import { selectors, type Selectors } from './helpers/selectors';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const API_BASE = 'http://127.0.0.1:3001/api';
+const API_BASE = `http://127.0.0.1:${process.env.DGRID_PORT || '3001'}/api`;
 
 interface MongoInfo {
   host: string;
