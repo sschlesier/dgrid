@@ -70,6 +70,8 @@ export function selectors(page: Page) {
       autocomplete: () => page.locator('.cm-tooltip-autocomplete'),
       autocompleteOption: (label: string) =>
         page.locator('.cm-tooltip-autocomplete .cm-completionLabel', { hasText: label }),
+      autocompleteSelectedOption: () =>
+        page.locator('.cm-tooltip-autocomplete [aria-selected="true"] .cm-completionLabel'),
     },
 
     results: {

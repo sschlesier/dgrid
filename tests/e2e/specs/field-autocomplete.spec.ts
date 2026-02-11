@@ -115,6 +115,118 @@ test.describe('Field Autocomplete', () => {
     await expect(s.query.autocompleteOption('address.zip')).toBeVisible();
   });
 
+  test('arrow keys navigate the completion list', async ({ page, s, mongoInfo }) => {
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
+      { name: 'Alice', age: 30, email: 'alice@example.com' },
+    ]);
+
+    await page.goto('/');
+    await createConnection(page, { name: 'AutoTest', host: mongoInfo.host, port: mongoInfo.port });
+    await connectToServer(page, 'AutoTest');
+
+    await expandTreeNode(page, TEST_DB);
+    await expect(s.sidebar.treeItem('Collections')).toBeVisible({ timeout: 10_000 });
+    await expandTreeNode(page, 'Collections');
+    await expect(s.sidebar.treeItem(TEST_COLLECTION)).toBeVisible({ timeout: 10_000 });
+    await s.sidebar.treeItem(TEST_COLLECTION).click();
+
+    const editor = s.query.editorContent();
+    await editor.click();
+    await page.keyboard.press('Meta+A');
+    await page.keyboard.type(`db.${TEST_COLLECTION}.find({ `);
+
+    // Open autocomplete
+    await page.keyboard.press('Tab');
+    await expect(s.query.autocomplete()).toBeVisible({ timeout: 5_000 });
+
+    // Note the initially selected option
+    const initialSelected = await s.query.autocompleteSelectedOption().textContent();
+
+    // Press ArrowDown to move to next option
+    await page.keyboard.press('ArrowDown');
+    const afterDown = await s.query.autocompleteSelectedOption().textContent();
+    expect(afterDown).not.toBe(initialSelected);
+
+    // Press ArrowUp to move back
+    await page.keyboard.press('ArrowUp');
+    const afterUp = await s.query.autocompleteSelectedOption().textContent();
+    expect(afterUp).toBe(initialSelected);
+  });
+
+  test('Ctrl+J/K navigate the completion list', async ({ page, s, mongoInfo }) => {
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
+      { name: 'Alice', age: 30, email: 'alice@example.com' },
+    ]);
+
+    await page.goto('/');
+    await createConnection(page, { name: 'AutoTest', host: mongoInfo.host, port: mongoInfo.port });
+    await connectToServer(page, 'AutoTest');
+
+    await expandTreeNode(page, TEST_DB);
+    await expect(s.sidebar.treeItem('Collections')).toBeVisible({ timeout: 10_000 });
+    await expandTreeNode(page, 'Collections');
+    await expect(s.sidebar.treeItem(TEST_COLLECTION)).toBeVisible({ timeout: 10_000 });
+    await s.sidebar.treeItem(TEST_COLLECTION).click();
+
+    const editor = s.query.editorContent();
+    await editor.click();
+    await page.keyboard.press('Meta+A');
+    await page.keyboard.type(`db.${TEST_COLLECTION}.find({ `);
+
+    // Open autocomplete
+    await page.keyboard.press('Tab');
+    await expect(s.query.autocomplete()).toBeVisible({ timeout: 5_000 });
+
+    const initialSelected = await s.query.autocompleteSelectedOption().textContent();
+
+    // Ctrl+J moves down
+    await page.keyboard.press('Control+j');
+    const afterJ = await s.query.autocompleteSelectedOption().textContent();
+    expect(afterJ).not.toBe(initialSelected);
+
+    // Ctrl+K moves back up
+    await page.keyboard.press('Control+k');
+    const afterK = await s.query.autocompleteSelectedOption().textContent();
+    expect(afterK).toBe(initialSelected);
+  });
+
+  test('typing refines completion matches', async ({ page, s, mongoInfo }) => {
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
+      { name: 'Alice', age: 30, email: 'alice@example.com' },
+    ]);
+
+    await page.goto('/');
+    await createConnection(page, { name: 'AutoTest', host: mongoInfo.host, port: mongoInfo.port });
+    await connectToServer(page, 'AutoTest');
+
+    await expandTreeNode(page, TEST_DB);
+    await expect(s.sidebar.treeItem('Collections')).toBeVisible({ timeout: 10_000 });
+    await expandTreeNode(page, 'Collections');
+    await expect(s.sidebar.treeItem(TEST_COLLECTION)).toBeVisible({ timeout: 10_000 });
+    await s.sidebar.treeItem(TEST_COLLECTION).click();
+
+    const editor = s.query.editorContent();
+    await editor.click();
+    await page.keyboard.press('Meta+A');
+    await page.keyboard.type(`db.${TEST_COLLECTION}.find({ a`);
+
+    // Open autocomplete — should show both 'age' and 'age'-matching fields
+    await page.keyboard.press('Tab');
+    await expect(s.query.autocomplete()).toBeVisible({ timeout: 5_000 });
+
+    // Multiple options visible (age, _id matches 'a' too, etc.)
+    const optionsBefore = await page
+      .locator('.cm-tooltip-autocomplete .cm-completionLabel')
+      .count();
+
+    // Type more to narrow down
+    await page.keyboard.type('ge');
+    await expect(s.query.autocompleteOption('age')).toBeVisible();
+
+    const optionsAfter = await page.locator('.cm-tooltip-autocomplete .cm-completionLabel').count();
+    expect(optionsAfter).toBeLessThanOrEqual(optionsBefore);
+  });
+
   test('query result enrichment adds new field names', async ({ page, s, mongoInfo }) => {
     // Seed with minimal fields
     await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'Alice', age: 30 }]);
