@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1
+
+- Add update-available indicator in header
+- Add keyboard navigation to autocomplete popup
+- Fix connection state sync when MongoDB server becomes unreachable
+- Add MIT license
+- Add usage instructions to README
+
 ## 0.4.0
 
 - Add resizable editor/results splitter
