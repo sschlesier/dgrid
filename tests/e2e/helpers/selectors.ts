@@ -129,7 +129,9 @@ export function selectors(page: Page) {
 
     contextMenu: {
       menu: () => page.locator('.context-menu'),
-      item: (label: string) => page.locator('.context-menu-item', { hasText: label }),
+      item: (label: string) =>
+        page.locator('.context-menu').getByRole('button', { name: label, exact: true }),
+      separator: () => page.locator('.context-menu-separator'),
     },
 
     history: {
