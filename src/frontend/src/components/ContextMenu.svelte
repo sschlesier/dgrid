@@ -5,6 +5,7 @@
     label: string;
     onclick: () => void;
     destructive?: boolean;
+    separator?: boolean;
   }
 
   interface Props {
@@ -53,6 +54,9 @@
     onclick={(e: MouseEvent) => e.stopPropagation()}
   >
     {#each items as item}
+      {#if item.separator}
+        <div class="context-menu-separator"></div>
+      {/if}
       <button
         class="context-menu-item"
         class:destructive={item.destructive}
@@ -105,5 +109,11 @@
 
   .context-menu-item.destructive:hover {
     background-color: var(--color-error-light);
+  }
+
+  .context-menu-separator {
+    height: 1px;
+    background-color: var(--color-border-light);
+    margin: var(--space-xs) 0;
   }
 </style>

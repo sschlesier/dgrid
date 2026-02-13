@@ -401,3 +401,73 @@ export function formatDocId(docId: unknown): string {
   const str = String(docId);
   return str.length > 12 ? str.slice(-12) : str;
 }
+
+// Format a cell value for clipboard copy.
+// Handles BSON types specially: ObjectId → hex string, Date → ISO string, etc.
+export function formatCellCopyValue(value: unknown): string {
+  if (value === null) return 'null';
+  if (value === undefined) return '';
+
+  if (isSerializedBson(value)) {
+    return value._value;
+  }
+
+  if (typeof value === 'object') {
+    return JSON.stringify(value, null, 2);
+  }
+
+  return String(value);
+}
+
+// Convert internal {_type, _value} BSON format to Extended JSON representation
+function toExtendedJSON(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+
+  if (isSerializedBson(value)) {
+    switch (value._type) {
+      case 'ObjectId':
+        return { $oid: value._value };
+      case 'Date':
+        return { $date: value._value };
+      case 'Long':
+        return { $numberLong: value._value };
+      case 'Decimal128':
+        return { $numberDecimal: value._value };
+      case 'Binary':
+        return { $binary: { base64: value._value, subType: '00' } };
+      case 'UUID':
+        return { $uuid: value._value };
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(toExtendedJSON);
+  }
+
+  if (typeof value === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (k === '_docId' || k === '_docIndex' || k === '_arrayIndex') continue;
+      result[k] = toExtendedJSON(v);
+    }
+    return result;
+  }
+
+  return value;
+}
+
+// Format a full document as pretty-printed Extended JSON for clipboard
+export function formatDocumentAsJSON(doc: Record<string, unknown>): string {
+  const ejson = toExtendedJSON(doc);
+  return JSON.stringify(ejson, null, 2);
+}
+
+// Format an _id value for clipboard copy
+export function formatIdCopyValue(id: unknown): string {
+  if (isSerializedBson(id)) {
+    return id._value;
+  }
+  if (typeof id === 'string') return id;
+  if (typeof id === 'number') return String(id);
+  return JSON.stringify(id);
+}

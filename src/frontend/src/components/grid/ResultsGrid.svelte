@@ -12,6 +12,9 @@
     getNestedValue,
     isSerializedBson,
     detectCellType,
+    formatCellCopyValue,
+    formatDocumentAsJSON,
+    formatIdCopyValue,
   } from './utils';
   import type { DrilldownDocument, GridColumn } from './types';
   import GridHeader from './GridHeader.svelte';
@@ -59,6 +62,8 @@
     x: number;
     y: number;
     doc: Record<string, unknown>;
+    fieldKey?: string;
+    value?: unknown;
   }
 
   let contextMenu = $state<ContextMenuState | null>(null);
@@ -266,7 +271,100 @@
   }
 
   function handleRowContextMenu(doc: Record<string, unknown>, event: MouseEvent) {
-    contextMenu = { x: event.clientX, y: event.clientY, doc };
+    // Extract cell context from the right-clicked element
+    const target = event.target as HTMLElement;
+    const cell = target.closest('[data-field-key]') as HTMLElement | null;
+    const fieldKey = cell?.dataset.fieldKey;
+
+    contextMenu = {
+      x: event.clientX,
+      y: event.clientY,
+      doc,
+      fieldKey,
+      value: fieldKey ? doc[fieldKey] : undefined,
+    };
+  }
+
+  interface ContextMenuItem {
+    label: string;
+    onclick: () => void;
+    destructive?: boolean;
+    separator?: boolean;
+  }
+
+  function buildContextMenuItems(ctx: ContextMenuState): ContextMenuItem[] {
+    const items: ContextMenuItem[] = [];
+    const hasCell = !!ctx.fieldKey;
+    const doc = ctx.doc;
+
+    if (hasCell) {
+      // Edit Field
+      items.push({
+        label: 'Edit Field',
+        onclick: () => {
+          const fieldKey = ctx.fieldKey!;
+          const value = ctx.value;
+          contextMenu = null;
+          handleEdit(doc, fieldKey, value);
+        },
+      });
+
+      // Copy Value
+      items.push({
+        label: 'Copy Value',
+        onclick: () => {
+          const value = ctx.value;
+          contextMenu = null;
+          navigator.clipboard.writeText(formatCellCopyValue(value));
+        },
+      });
+
+      // Copy Field Path
+      items.push({
+        label: 'Copy Field Path',
+        onclick: () => {
+          const fieldKey = ctx.fieldKey!;
+          const fullPath =
+            drilldownPath.length > 0 ? [...drilldownPath, fieldKey].join('.') : fieldKey;
+          contextMenu = null;
+          navigator.clipboard.writeText(fullPath);
+        },
+      });
+    }
+
+    // Copy Document as JSON (always available)
+    items.push({
+      label: 'Copy Document as JSON',
+      onclick: () => {
+        contextMenu = null;
+        navigator.clipboard.writeText(formatDocumentAsJSON(doc));
+      },
+    });
+
+    // Copy _id (when document has _id)
+    const docId = doc._docId ?? doc._id;
+    if (docId !== undefined && docId !== null) {
+      items.push({
+        label: 'Copy _id',
+        onclick: () => {
+          contextMenu = null;
+          navigator.clipboard.writeText(formatIdCopyValue(docId));
+        },
+      });
+    }
+
+    // Delete Document (always, with separator)
+    items.push({
+      label: 'Delete Document',
+      onclick: () => {
+        contextMenu = null;
+        handleDeleteDocument(doc);
+      },
+      destructive: true,
+      separator: true,
+    });
+
+    return items;
   }
 
   async function handleDeleteDocument(doc: Record<string, unknown>) {
@@ -350,17 +448,7 @@
   <ContextMenu
     x={contextMenu.x}
     y={contextMenu.y}
-    items={[
-      {
-        label: 'Delete Document',
-        onclick: () => {
-          const doc = contextMenu!.doc;
-          contextMenu = null;
-          handleDeleteDocument(doc);
-        },
-        destructive: true,
-      },
-    ]}
+    items={buildContextMenuItems(contextMenu)}
     onclose={() => (contextMenu = null)}
   />
 {/if}

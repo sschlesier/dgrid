@@ -1,6 +1,12 @@
 <script lang="ts">
   import type { CellType } from './types';
-  import { detectCellType, formatCellValue, getCellTypeClass, isDrillable } from './utils';
+  import {
+    detectCellType,
+    formatCellValue,
+    formatCellCopyValue,
+    getCellTypeClass,
+    isDrillable,
+  } from './utils';
   import { matchesShortcut } from '../../utils/keyboard';
 
   interface Props {
@@ -42,13 +48,7 @@
   async function handleCopy(event: MouseEvent) {
     event.stopPropagation();
     try {
-      // Copy raw value for complex types, formatted for display
-      const copyText =
-        typeof value === 'object' && value !== null
-          ? JSON.stringify(value, null, 2)
-          : String(value ?? '');
-
-      await navigator.clipboard.writeText(copyText);
+      await navigator.clipboard.writeText(formatCellCopyValue(value));
       copied = true;
       setTimeout(() => (copied = false), 1500);
     } catch {
@@ -62,6 +62,7 @@
   class="grid-cell {typeClass}"
   class:drillable={canDrill}
   style="width: {width}px; min-width: {width}px; max-width: {width}px;"
+  data-field-key={fieldKey}
   onclick={handleClick}
   onkeydown={handleKeydown}
   onmouseenter={() => (showCopyButton = true)}
