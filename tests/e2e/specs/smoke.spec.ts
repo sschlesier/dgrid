@@ -11,7 +11,8 @@ test.describe('Smoke Tests', () => {
   });
 
   test('backend health check returns ok', async ({ request }) => {
-    const response = await request.get('http://127.0.0.1:3001/health');
+    const port = process.env.DGRID_PORT || '3001';
+    const response = await request.get(`http://127.0.0.1:${port}/health`);
     expect(response.ok()).toBeTruthy();
 
     const body = await response.json();
