@@ -462,6 +462,11 @@ export function formatDocumentAsJSON(doc: Record<string, unknown>): string {
   return JSON.stringify(ejson, null, 2);
 }
 
+// Format a sub-document (object or array) as pretty-printed Extended JSON
+export function formatSubDocumentAsJSON(value: unknown): string {
+  return JSON.stringify(toExtendedJSON(value), null, 2);
+}
+
 // Format an _id value for clipboard copy
 export function formatIdCopyValue(id: unknown): string {
   if (isSerializedBson(id)) {

@@ -162,6 +162,37 @@ test.describe('Grid Context Menu', () => {
     expect(clipboardText).toMatch(/^[0-9a-f]{24}$/);
   });
 
+  test('Copy Sub-Document copies nested object as EJSON', async ({ page, s, mongoInfo }) => {
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
+      { name: 'Nested', address: { city: 'NYC', zip: '10001' } },
+    ]);
+    await setupQueryTab(page, s, mongoInfo);
+
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+
+    // The address cell should show a drillable indicator
+    const cell = s.results.gridCell().filter({ hasText: '2 fields' }).first();
+    await cell.click({ button: 'right' });
+    await expect(s.contextMenu.item('Copy Sub-Document')).toBeVisible();
+    await s.contextMenu.item('Copy Sub-Document').click();
+
+    const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+    const parsed = JSON.parse(clipboardText);
+    expect(parsed).toEqual({ city: 'NYC', zip: '10001' });
+  });
+
+  test('Copy Sub-Document is hidden for primitive cells', async ({ page, s, mongoInfo }) => {
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
+      { name: 'Primitive', value: 42 },
+    ]);
+    await setupQueryTab(page, s, mongoInfo);
+
+    const cell = s.results.gridCell().filter({ hasText: 'Primitive' }).first();
+    await cell.click({ button: 'right' });
+    await expect(s.contextMenu.menu()).toBeVisible();
+    await expect(s.contextMenu.item('Copy Sub-Document')).not.toBeVisible();
+  });
+
   test('cell-dependent items are hidden when right-clicking row gutter', async ({
     page,
     s,

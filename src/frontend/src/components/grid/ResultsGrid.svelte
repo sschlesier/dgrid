@@ -11,9 +11,11 @@
     sortDocuments,
     getNestedValue,
     isSerializedBson,
+    isDrillable,
     detectCellType,
     formatCellCopyValue,
     formatDocumentAsJSON,
+    formatSubDocumentAsJSON,
     formatIdCopyValue,
   } from './utils';
   import type { DrilldownDocument, GridColumn } from './types';
@@ -330,6 +332,17 @@
           navigator.clipboard.writeText(fullPath);
         },
       });
+
+      // Copy Sub-Document (only for objects/arrays)
+      if (isDrillable(ctx.value)) {
+        items.push({
+          label: 'Copy Sub-Document',
+          onclick: () => {
+            contextMenu = null;
+            navigator.clipboard.writeText(formatSubDocumentAsJSON(ctx.value));
+          },
+        });
+      }
     }
 
     // Copy Document as JSON (always available)
