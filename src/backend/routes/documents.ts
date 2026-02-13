@@ -7,6 +7,7 @@ import {
   DeleteDocumentRequest,
   DeleteDocumentResponse,
 } from '../../shared/contracts.js';
+import { requireConnection, requireDatabase, handleConnectionError } from './guards.js';
 
 export interface DocumentRoutesOptions {
   pool: ConnectionPool;
@@ -33,22 +34,9 @@ export async function documentRoutes(
         });
       }
 
-      if (!pool.isConnected(id)) {
-        return reply.status(400).send({
-          error: 'BadRequest',
-          message: 'Connection not active. Please connect first.',
-          statusCode: 400,
-        });
-      }
-
-      const db = pool.getDb(id, database);
-      if (!db) {
-        return reply.status(400).send({
-          error: 'BadRequest',
-          message: 'Database not found or not specified.',
-          statusCode: 400,
-        });
-      }
+      if (!requireConnection(pool, id, reply)) return;
+      const db = requireDatabase(pool, id, database, reply);
+      if (!db) return;
 
       // Deserialize the document ID (may be ObjectId, etc.)
       const deserializedId = deserializeValue(documentId);
@@ -70,13 +58,8 @@ export async function documentRoutes(
         return reply.send(response);
       } catch (e) {
         if (isConnectionError(e)) {
-          await pool.forceDisconnect(id);
-          return reply.status(500).send({
-            error: 'DatabaseError',
-            message: (e as Error).message,
-            statusCode: 500,
-            isConnected: false,
-          });
+          await handleConnectionError(pool, id, reply, e, 'DatabaseError');
+          return;
         }
         throw e;
       }
@@ -98,22 +81,9 @@ export async function documentRoutes(
         });
       }
 
-      if (!pool.isConnected(id)) {
-        return reply.status(400).send({
-          error: 'BadRequest',
-          message: 'Connection not active. Please connect first.',
-          statusCode: 400,
-        });
-      }
-
-      const db = pool.getDb(id, database);
-      if (!db) {
-        return reply.status(400).send({
-          error: 'BadRequest',
-          message: 'Database not found or not specified.',
-          statusCode: 400,
-        });
-      }
+      if (!requireConnection(pool, id, reply)) return;
+      const db = requireDatabase(pool, id, database, reply);
+      if (!db) return;
 
       const deserializedId = deserializeValue(documentId);
 
@@ -129,13 +99,8 @@ export async function documentRoutes(
         return reply.send(response);
       } catch (e) {
         if (isConnectionError(e)) {
-          await pool.forceDisconnect(id);
-          return reply.status(500).send({
-            error: 'DatabaseError',
-            message: (e as Error).message,
-            statusCode: 500,
-            isConnected: false,
-          });
+          await handleConnectionError(pool, id, reply, e, 'DatabaseError');
+          return;
         }
         throw e;
       }

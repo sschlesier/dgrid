@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { readFile, access, constants } from 'fs/promises';
 import { watch, FSWatcher } from 'chokidar';
-import { extname, resolve, isAbsolute } from 'path';
+import { isPathSafe, isAllowedExtension, ALLOWED_EXTENSIONS } from '../validation/file-validation.js';
 
 interface WatchMessage {
   type: 'watch';
@@ -38,51 +38,6 @@ interface ErrorMessage {
 }
 
 type ServerMessage = FileChangedMessage | WatchAckMessage | UnwatchAckMessage | ErrorMessage;
-
-const ALLOWED_EXTENSIONS = ['.js', '.mongodb', '.json'];
-
-function isPathSafe(filePath: string): boolean {
-  if (!isAbsolute(filePath)) {
-    return false;
-  }
-
-  const resolved = resolve(filePath);
-  if (resolved !== filePath) {
-    return false;
-  }
-
-  // Allow temp directories
-  if (filePath.startsWith('/var/folders/') || filePath.startsWith('/tmp/')) {
-    return true;
-  }
-
-  // Block sensitive paths
-  const blockedPatterns = [
-    '/etc/',
-    '/var/',
-    '/usr/',
-    '/bin/',
-    '/sbin/',
-    '/System/',
-    '/Library/',
-    'node_modules',
-    '.git',
-    '.env',
-  ];
-
-  for (const pattern of blockedPatterns) {
-    if (filePath.includes(pattern)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function isAllowedExtension(filePath: string): boolean {
-  const ext = extname(filePath).toLowerCase();
-  return ALLOWED_EXTENSIONS.includes(ext);
-}
 
 export async function websocketRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get('/ws', { websocket: true }, (socket) => {

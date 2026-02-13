@@ -41,27 +41,34 @@ export class ApiError extends Error {
 }
 
 /**
+ * Parse an error response from the API into an ApiError
+ */
+async function parseApiError(response: Response): Promise<ApiError> {
+  let errorData: ErrorResponse;
+  try {
+    errorData = await response.json();
+  } catch {
+    return new ApiError(response.status, 'UnknownError', response.statusText);
+  }
+  const apiError = new ApiError(
+    errorData.statusCode,
+    errorData.error,
+    errorData.message,
+    errorData.details
+  );
+  // Propagate backend disconnection signal
+  if ('isConnected' in errorData && errorData.isConnected === false) {
+    apiError.isConnected = false;
+  }
+  return apiError;
+}
+
+/**
  * Transform a fetch response error into an ApiError
  */
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    let errorData: ErrorResponse;
-    try {
-      errorData = await response.json();
-    } catch {
-      throw new ApiError(response.status, 'UnknownError', response.statusText);
-    }
-    const apiError = new ApiError(
-      errorData.statusCode,
-      errorData.error,
-      errorData.message,
-      errorData.details
-    );
-    // Propagate backend disconnection signal
-    if ('isConnected' in errorData && errorData.isConnected === false) {
-      apiError.isConnected = false;
-    }
-    throw apiError;
+    throw await parseApiError(response);
   }
   if (response.status === 204) {
     return undefined as T;
@@ -239,22 +246,7 @@ export async function exportCsv(
   });
 
   if (!response.ok) {
-    let errorData: ErrorResponse;
-    try {
-      errorData = await response.json();
-    } catch {
-      throw new ApiError(response.status, 'UnknownError', response.statusText);
-    }
-    const apiError = new ApiError(
-      errorData.statusCode,
-      errorData.error,
-      errorData.message,
-      errorData.details
-    );
-    if ('isConnected' in errorData && errorData.isConnected === false) {
-      apiError.isConnected = false;
-    }
-    throw apiError;
+    throw await parseApiError(response);
   }
 
   return response;

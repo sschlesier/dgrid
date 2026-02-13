@@ -3,6 +3,7 @@ import { ConnectionPool, isConnectionError } from '../db/mongodb.js';
 import { parseQuery, executeQuery } from '../db/queries.js';
 import { serializeDocument } from '../db/bson.js';
 import { ExecuteQueryRequest, ExecuteQueryResponse } from '../../shared/contracts.js';
+import { requireConnection, requireDatabase } from './guards.js';
 
 export interface QueryRoutesOptions {
   pool: ConnectionPool;
@@ -21,22 +22,9 @@ export async function queryRoutes(
       const { id } = request.params;
       const { query, database, page = 1, pageSize = 50 } = request.body;
 
-      if (!pool.isConnected(id)) {
-        return reply.status(400).send({
-          error: 'BadRequest',
-          message: 'Connection not active. Please connect first.',
-          statusCode: 400,
-        });
-      }
-
-      const db = pool.getDb(id, database);
-      if (!db) {
-        return reply.status(400).send({
-          error: 'BadRequest',
-          message: 'Database not found or not specified.',
-          statusCode: 400,
-        });
-      }
+      if (!requireConnection(pool, id, reply)) return;
+      const db = requireDatabase(pool, id, database, reply);
+      if (!db) return;
 
       // Parse the query
       const parseResult = parseQuery(query);

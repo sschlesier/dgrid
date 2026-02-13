@@ -202,5 +202,19 @@ describe('File Routes', () => {
 
       expect(response.statusCode).toBe(404);
     });
+
+    it('returns 400 for disallowed extension', async () => {
+      const filePath = join(tempDir, 'watch.txt');
+      await writeFile(filePath, 'content');
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/watch',
+        payload: { path: filePath },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().message).toContain('File type not allowed');
+    });
   });
 });

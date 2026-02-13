@@ -1,8 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { Db } from 'mongodb';
-import { ConnectionPool, isConnectionError } from '../db/mongodb.js';
+import { ConnectionPool } from '../db/mongodb.js';
 import { DatabaseInfo, CollectionInfo, CollectionSchemaResponse } from '../../shared/contracts.js';
 import { collectColumns } from '../db/csv.js';
+import { requireConnection, requireClient, handleConnectionError } from './guards.js';
 
 export interface DatabaseRoutesOptions {
   pool: ConnectionPool;
@@ -52,22 +53,9 @@ export async function databaseRoutes(
   fastify.get<{ Params: { id: string } }>('/connections/:id/databases', async (request, reply) => {
     const { id } = request.params;
 
-    if (!pool.isConnected(id)) {
-      return reply.status(400).send({
-        error: 'BadRequest',
-        message: 'Connection not active. Please connect first.',
-        statusCode: 400,
-      });
-    }
-
-    const client = pool.getClient(id);
-    if (!client) {
-      return reply.status(500).send({
-        error: 'InternalError',
-        message: 'Failed to get database client',
-        statusCode: 500,
-      });
-    }
+    if (!requireConnection(pool, id, reply)) return;
+    const client = requireClient(pool, id, reply);
+    if (!client) return;
 
     try {
       const adminDb = client.db('admin');
@@ -83,21 +71,7 @@ export async function databaseRoutes(
 
       return reply.send(databases);
     } catch (e) {
-      if (isConnectionError(e)) {
-        await pool.forceDisconnect(id);
-        return reply.status(500).send({
-          error: 'DatabaseError',
-          message: (e as Error).message,
-          statusCode: 500,
-          isConnected: false,
-        });
-      }
-      const error = e as Error;
-      return reply.status(500).send({
-        error: 'DatabaseError',
-        message: error.message,
-        statusCode: 500,
-      });
+      await handleConnectionError(pool, id, reply, e, 'DatabaseError');
     }
   });
 
@@ -107,22 +81,9 @@ export async function databaseRoutes(
     async (request, reply) => {
       const { id, db: dbName } = request.params;
 
-      if (!pool.isConnected(id)) {
-        return reply.status(400).send({
-          error: 'BadRequest',
-          message: 'Connection not active. Please connect first.',
-          statusCode: 400,
-        });
-      }
-
-      const client = pool.getClient(id);
-      if (!client) {
-        return reply.status(500).send({
-          error: 'InternalError',
-          message: 'Failed to get database client',
-          statusCode: 500,
-        });
-      }
+      if (!requireConnection(pool, id, reply)) return;
+      const client = requireClient(pool, id, reply);
+      if (!client) return;
 
       try {
         const db = client.db(dbName);
@@ -147,21 +108,7 @@ export async function databaseRoutes(
         collectionInfos.sort((a, b) => a.name.localeCompare(b.name));
         return reply.send(collectionInfos);
       } catch (e) {
-        if (isConnectionError(e)) {
-          await pool.forceDisconnect(id);
-          return reply.status(500).send({
-            error: 'DatabaseError',
-            message: (e as Error).message,
-            statusCode: 500,
-            isConnected: false,
-          });
-        }
-        const error = e as Error;
-        return reply.status(500).send({
-          error: 'DatabaseError',
-          message: error.message,
-          statusCode: 500,
-        });
+        await handleConnectionError(pool, id, reply, e, 'DatabaseError');
       }
     }
   );
@@ -172,22 +119,9 @@ export async function databaseRoutes(
     async (request, reply) => {
       const { id, db: dbName, coll: collName } = request.params;
 
-      if (!pool.isConnected(id)) {
-        return reply.status(400).send({
-          error: 'BadRequest',
-          message: 'Connection not active. Please connect first.',
-          statusCode: 400,
-        });
-      }
-
-      const client = pool.getClient(id);
-      if (!client) {
-        return reply.status(500).send({
-          error: 'InternalError',
-          message: 'Failed to get database client',
-          statusCode: 500,
-        });
-      }
+      if (!requireConnection(pool, id, reply)) return;
+      const client = requireClient(pool, id, reply);
+      if (!client) return;
 
       try {
         const db = client.db(dbName);
@@ -207,21 +141,7 @@ export async function databaseRoutes(
 
         return reply.send(info);
       } catch (e) {
-        if (isConnectionError(e)) {
-          await pool.forceDisconnect(id);
-          return reply.status(500).send({
-            error: 'DatabaseError',
-            message: (e as Error).message,
-            statusCode: 500,
-            isConnected: false,
-          });
-        }
-        const error = e as Error;
-        return reply.status(500).send({
-          error: 'DatabaseError',
-          message: error.message,
-          statusCode: 500,
-        });
+        await handleConnectionError(pool, id, reply, e, 'DatabaseError');
       }
     }
   );
@@ -232,22 +152,9 @@ export async function databaseRoutes(
     async (request, reply) => {
       const { id, db: dbName, coll: collName } = request.params;
 
-      if (!pool.isConnected(id)) {
-        return reply.status(400).send({
-          error: 'BadRequest',
-          message: 'Connection not active. Please connect first.',
-          statusCode: 400,
-        });
-      }
-
-      const client = pool.getClient(id);
-      if (!client) {
-        return reply.status(500).send({
-          error: 'InternalError',
-          message: 'Failed to get database client',
-          statusCode: 500,
-        });
-      }
+      if (!requireConnection(pool, id, reply)) return;
+      const client = requireClient(pool, id, reply);
+      if (!client) return;
 
       try {
         const db = client.db(dbName);
@@ -265,21 +172,7 @@ export async function databaseRoutes(
 
         return reply.send(result);
       } catch (e) {
-        if (isConnectionError(e)) {
-          await pool.forceDisconnect(id);
-          return reply.status(500).send({
-            error: 'DatabaseError',
-            message: (e as Error).message,
-            statusCode: 500,
-            isConnected: false,
-          });
-        }
-        const error = e as Error;
-        return reply.status(500).send({
-          error: 'DatabaseError',
-          message: error.message,
-          statusCode: 500,
-        });
+        await handleConnectionError(pool, id, reply, e, 'DatabaseError');
       }
     }
   );
