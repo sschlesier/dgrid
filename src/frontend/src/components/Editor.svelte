@@ -14,6 +14,7 @@
   import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
   import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
   import { bracketMatching } from '@codemirror/language';
+  import { editorHighlighting } from '../lib/editorHighlighting';
   import { fieldCompletionExtension } from '../lib/fieldCompletion';
 
   interface Props {
@@ -159,6 +160,7 @@
       closeBrackets(),
       highlightSelectionMatches(),
       javascript(),
+      editorHighlighting,
       theme,
       updateListener,
       createExecuteKeymap(),
