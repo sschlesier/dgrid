@@ -71,10 +71,21 @@ pnpm build            # Build both backend and frontend
 
 ## Workflow
 
-1. Implement changes with tests (unit/integration AND E2E — see below)
-2. Run `pnpm verify` to validate (types, lint, tests, build, **E2E**)
-3. Commit to git after successful verification
-4. Only push to remote when explicitly requested
+**IMPORTANT: All changes must be made in a git worktree.**
+
+Every task that modifies code must be done in its own worktree branched from `main`. This enables concurrent work on multiple tasks without conflicts. Never make changes directly in the main working directory.
+
+Steps:
+
+1. Create a feature branch and worktree: `git worktree add ../dgrid-<short-name> -b <branch-name> main`
+2. Install dependencies in the worktree: `cd ../dgrid-<short-name> && pnpm install`
+3. Implement changes with tests (unit/integration AND E2E — see below)
+4. Run `pnpm verify` to validate (types, lint, tests, build, **E2E**)
+5. Commit to git after successful verification
+6. Only push to remote when explicitly requested
+7. When done, return to the main working directory
+
+Worktree naming: use `dgrid-<short-name>` (e.g., `dgrid-dark-mode`, `dgrid-fix-pagination`). Branch naming: use conventional prefixes (e.g., `feat/dark-mode`, `fix/pagination`).
 
 ## E2E Coverage Requirement
 
