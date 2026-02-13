@@ -1,6 +1,7 @@
 <script lang="ts">
   import { appStore } from '../stores/app.svelte';
   import TreeNode from './TreeNode.svelte';
+  import ContextMenu from './ContextMenu.svelte';
   import type { TreeNodeData } from '../types';
 
   interface Props {
@@ -76,6 +77,138 @@
         break;
     }
   }
+
+  // --- Context menu ---
+
+  interface ContextMenuState {
+    x: number;
+    y: number;
+    node: TreeNodeData;
+  }
+
+  let contextMenu = $state<ContextMenuState | null>(null);
+
+  function handleNodeContextMenu(node: TreeNodeData, event: MouseEvent) {
+    contextMenu = { x: event.clientX, y: event.clientY, node };
+  }
+
+  function getContextMenuItems(node: TreeNodeData) {
+    const items: { label: string; onclick: () => void; destructive?: boolean; separator?: boolean }[] = [];
+
+    switch (node.type) {
+      case 'connection': {
+        const connection = appStore.connections.find((c) => c.id === node.connectionId);
+        if (connection?.isConnected) {
+          items.push({
+            label: 'Refresh',
+            onclick: () => {
+              contextMenu = null;
+              appStore.refreshDatabases(node.connectionId!);
+            },
+          });
+          items.push({
+            label: 'Edit Connection',
+            onclick: () => {
+              contextMenu = null;
+              onEditConnection(node.connectionId!);
+            },
+          });
+          items.push({
+            label: 'Disconnect',
+            onclick: () => {
+              contextMenu = null;
+              appStore.disconnect(node.connectionId!);
+            },
+          });
+          items.push({
+            label: 'Delete Connection',
+            separator: true,
+            destructive: true,
+            onclick: () => {
+              contextMenu = null;
+              handleDeleteConnection(node.connectionId!, true);
+            },
+          });
+        } else {
+          items.push({
+            label: 'Connect',
+            onclick: async () => {
+              contextMenu = null;
+              await onConnect(node.connectionId!);
+              appStore.toggleTreeNode(node.id);
+            },
+          });
+          items.push({
+            label: 'Edit Connection',
+            onclick: () => {
+              contextMenu = null;
+              onEditConnection(node.connectionId!);
+            },
+          });
+          items.push({
+            label: 'Delete Connection',
+            destructive: true,
+            onclick: () => {
+              contextMenu = null;
+              handleDeleteConnection(node.connectionId!, false);
+            },
+          });
+        }
+        break;
+      }
+
+      case 'database':
+        items.push({
+          label: 'Refresh Collections',
+          onclick: () => {
+            contextMenu = null;
+            if (node.connectionId && node.databaseName) {
+              appStore.refreshCollections(node.connectionId, node.databaseName);
+            }
+          },
+        });
+        break;
+
+      case 'collection':
+      case 'view':
+        items.push({
+          label: 'Open in New Tab',
+          onclick: () => {
+            contextMenu = null;
+            if (node.connectionId && node.databaseName && node.collectionName) {
+              appStore.createTab(node.connectionId, node.databaseName, node.collectionName);
+            }
+          },
+        });
+        items.push({
+          label: 'Copy Collection Name',
+          onclick: () => {
+            contextMenu = null;
+            if (node.collectionName) {
+              navigator.clipboard.writeText(node.collectionName);
+            }
+          },
+        });
+        break;
+    }
+
+    return items;
+  }
+
+  async function handleDeleteConnection(connectionId: string, isConnected: boolean) {
+    const message = isConnected
+      ? 'Disconnect and delete this connection?'
+      : 'Are you sure you want to delete this connection?';
+
+    if (!confirm(message)) return;
+
+    if (isConnected) {
+      await appStore.disconnect(connectionId);
+    }
+    await appStore.deleteConnection(connectionId);
+  }
+
+  const contextMenuItems = $derived(contextMenu ? getContextMenuItems(contextMenu.node) : []);
 </script>
 
 <aside class="sidebar">
@@ -102,6 +235,7 @@
             onNodeClick={handleNodeClick}
             onNodeExpand={handleNodeExpand}
             onRefresh={handleNodeRefresh}
+            onNodeContextMenu={handleNodeContextMenu}
           />
           <!-- Action buttons overlay for connections -->
           {#if node.type === 'connection'}
@@ -159,6 +293,15 @@
     v{typeof DGRID_VERSION !== 'undefined' ? DGRID_VERSION : 'dev'}
   </div>
 </aside>
+
+{#if contextMenu && contextMenuItems.length > 0}
+  <ContextMenu
+    x={contextMenu.x}
+    y={contextMenu.y}
+    items={contextMenuItems}
+    onclose={() => (contextMenu = null)}
+  />
+{/if}
 
 <style>
   .sidebar {

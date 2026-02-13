@@ -129,7 +129,9 @@ export function selectors(page: Page) {
 
     contextMenu: {
       menu: () => page.locator('.context-menu'),
-      item: (label: string) => page.locator('.context-menu-item', { hasText: label }),
+<<<<<<< HEAD
+      item: (label: string) =>
+        page.locator('.context-menu').getByRole('button', { name: label, exact: true }), 5d60ade (feat: add right-click context menus to sidebar tree nodes)
       separator: () => page.locator('.context-menu-separator'),
     },
 

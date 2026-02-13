@@ -10,9 +10,11 @@
     onNodeClick?: (_node: TreeNodeData) => void;
     onNodeExpand?: (_node: TreeNodeData) => void;
     onRefresh?: (_node: TreeNodeData) => void;
+    onNodeContextMenu?: (_node: TreeNodeData, _event: MouseEvent) => void;
   }
 
-  let { node, depth = 0, onNodeClick, onNodeExpand, onRefresh }: Props = $props();
+  let { node, depth = 0, onNodeClick, onNodeExpand, onRefresh, onNodeContextMenu }: Props =
+    $props();
 
   // Node types that support refresh action
   const supportsRefresh = $derived(node.type === 'database' || node.type === 'collection-group');
@@ -83,6 +85,12 @@
     onRefresh?.(node);
   }
 
+  function handleContextMenu(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    onNodeContextMenu?.(node, event);
+  }
+
   const nodeIcon = $derived(getIconForType(node.type));
   const chevronIcon = $derived(isExpanded ? treeIcons.chevronDown : treeIcons.chevronRight);
   const indentStyle = $derived(`padding-left: ${depth * 16 + 4}px`);
@@ -100,6 +108,7 @@
       style={indentStyle}
       onclick={handleClick}
       onkeydown={handleKeyDown}
+      oncontextmenu={handleContextMenu}
       role="treeitem"
       tabindex="0"
       aria-expanded={hasChildren ? isExpanded : undefined}
@@ -154,7 +163,14 @@
   {#if hasChildren && isExpanded}
     <div class="tree-children" role="group">
       {#each node.children as child (child.id)}
-        <TreeNode node={child} depth={depth + 1} {onNodeClick} {onNodeExpand} {onRefresh} />
+        <TreeNode
+          node={child}
+          depth={depth + 1}
+          {onNodeClick}
+          {onNodeExpand}
+          {onRefresh}
+          {onNodeContextMenu}
+        />
       {/each}
     </div>
   {/if}
