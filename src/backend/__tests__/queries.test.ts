@@ -354,6 +354,28 @@ describe('Query Parser', () => {
         expect(result.value.filter).toEqual({});
       }
     });
+
+    it('handles leading line comments before query', () => {
+      const result = parseQuery(
+        `// cafe ventura
+db.location-config.findOneAndUpdate({locationId: '606361ebc9e7fd407a23935d'}, {$set: {iqEntityId: 809029}})`
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.collection).toBe('location-config');
+        expect(result.value.operation).toBe('findOneAndUpdate');
+      }
+    });
+
+    it('handles leading block comments before query', () => {
+      const result = parseQuery('/* header comment */ db.users.find({ active: true })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.filter).toEqual({ active: true });
+      }
+    });
   });
 
   describe('database commands', () => {

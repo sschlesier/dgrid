@@ -90,9 +90,37 @@ export interface ParseError {
 
 export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
 
+function stripLeadingComments(query: string): string {
+  let text = query;
+
+  while (true) {
+    text = text.trimStart();
+
+    if (text.startsWith('//')) {
+      const newlineIndex = text.indexOf('\n');
+      if (newlineIndex === -1) {
+        return '';
+      }
+      text = text.slice(newlineIndex + 1);
+      continue;
+    }
+
+    if (text.startsWith('/*')) {
+      const commentEnd = text.indexOf('*/', 2);
+      if (commentEnd === -1) {
+        return '';
+      }
+      text = text.slice(commentEnd + 2);
+      continue;
+    }
+
+    return text;
+  }
+}
+
 // Detect if query is a db command or collection query
 export function detectQueryType(query: string): 'db-command' | 'collection' {
-  const trimmed = query.trim();
+  const trimmed = stripLeadingComments(query).trim();
 
   // Match db.methodName( pattern
   const dbMethodMatch = trimmed.match(/^db\.([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
@@ -281,7 +309,7 @@ function parseChainedMethods(
 
 // Parse a database-level command (db.method())
 export function parseDbCommand(queryText: string): Result<ParsedDbCommand, ParseError> {
-  const text = queryText.trim();
+  const text = stripLeadingComments(queryText).trim();
 
   // Match db.method(...)
   const dbMethodPattern = /^db\.([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/;
@@ -388,7 +416,7 @@ export function parseDbCommand(queryText: string): Result<ParsedDbCommand, Parse
 
 // Parse a collection-level query (db.collection.method())
 export function parseCollectionQuery(queryText: string): Result<ParsedCollectionQuery, ParseError> {
-  const text = queryText.trim();
+  const text = stripLeadingComments(queryText).trim();
 
   // Match db.collection.operation(...) — collection name is any non-dot chars; MongoDB validates the name
   const basePattern = /^db\.([^.]+)\.(\w+)\s*\(/;
