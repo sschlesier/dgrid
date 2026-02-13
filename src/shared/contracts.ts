@@ -94,6 +94,18 @@ export interface UpdateFieldResponse {
   modifiedCount: number;
 }
 
+// Document Deletion
+export interface DeleteDocumentRequest {
+  database: string;
+  collection: string;
+  documentId: unknown;
+}
+
+export interface DeleteDocumentResponse {
+  success: boolean;
+  deletedCount: number;
+}
+
 // Schema Sampling
 export interface CollectionSchemaResponse {
   fields: string[];

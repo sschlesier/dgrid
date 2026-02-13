@@ -15,6 +15,8 @@ import type {
   ExportCsvRequest,
   UpdateFieldRequest,
   UpdateFieldResponse,
+  DeleteDocumentRequest,
+  DeleteDocumentResponse,
   VersionResponse,
   ErrorResponse,
 } from '../../../shared/contracts';
@@ -266,6 +268,16 @@ export async function updateField(
 ): Promise<UpdateFieldResponse> {
   return request<UpdateFieldResponse>(`/connections/${connectionId}/documents/field`, {
     method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteDocument(
+  connectionId: string,
+  data: DeleteDocumentRequest
+): Promise<DeleteDocumentResponse> {
+  return request<DeleteDocumentResponse>(`/connections/${connectionId}/documents`, {
+    method: 'DELETE',
     body: JSON.stringify(data),
   });
 }

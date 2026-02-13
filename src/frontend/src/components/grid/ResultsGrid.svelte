@@ -19,6 +19,9 @@
   import GridBreadcrumb from './GridBreadcrumb.svelte';
   import GridPagination from './GridPagination.svelte';
   import EditFieldDialog from '../EditFieldDialog.svelte';
+  import ContextMenu from '../ContextMenu.svelte';
+  import { deleteDocument } from '../../api/client';
+  import { appStore } from '../../stores/app.svelte';
 
   interface Props {
     tabId: string;
@@ -50,6 +53,15 @@
   }
 
   let editingField = $state<EditingField | null>(null);
+
+  // Context menu state
+  interface ContextMenuState {
+    x: number;
+    y: number;
+    doc: Record<string, unknown>;
+  }
+
+  let contextMenu = $state<ContextMenuState | null>(null);
 
   // Virtual scroll constants
   const ROW_HEIGHT = 32;
@@ -252,6 +264,28 @@
       onpagesizechange(size);
     }
   }
+
+  function handleRowContextMenu(doc: Record<string, unknown>, event: MouseEvent) {
+    contextMenu = { x: event.clientX, y: event.clientY, doc };
+  }
+
+  async function handleDeleteDocument(doc: Record<string, unknown>) {
+    const confirmed = window.confirm('Delete this document? This cannot be undone.');
+    if (!confirmed) return;
+
+    const docId = doc._docId ?? doc._id;
+
+    try {
+      await deleteDocument(connectionId, { database, collection, documentId: docId });
+      appStore.notify('success', 'Document deleted');
+      // Re-execute query to refresh results
+      const query = queryStore.getQueryText(tabId);
+      const pageSize = gridStore.getPageSize(tabId);
+      await queryStore.loadPage(tabId, connectionId, database, query, results.page, pageSize);
+    } catch (e) {
+      appStore.notify('error', `Failed to delete document: ${(e as Error).message}`);
+    }
+  }
 </script>
 
 <div class="results-grid">
@@ -294,6 +328,7 @@
               rowIndex={visibleStart + i}
               ondrill={handleDrill}
               onedit={(fieldKey, value) => handleEdit(doc, fieldKey, value)}
+              onrowcontextmenu={(event) => handleRowContextMenu(doc, event)}
             />
           {/each}
         </div>
@@ -310,6 +345,25 @@
     onpagesizechange={handlePageSizeChange}
   />
 </div>
+
+{#if contextMenu}
+  <ContextMenu
+    x={contextMenu.x}
+    y={contextMenu.y}
+    items={[
+      {
+        label: 'Delete Document',
+        onclick: () => {
+          const doc = contextMenu!.doc;
+          contextMenu = null;
+          handleDeleteDocument(doc);
+        },
+        destructive: true,
+      },
+    ]}
+    onclose={() => (contextMenu = null)}
+  />
+{/if}
 
 {#if editingField}
   <EditFieldDialog
