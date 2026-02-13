@@ -3,6 +3,7 @@
   import { EditorView, lineNumbers } from '@codemirror/view';
   import { EditorState } from '@codemirror/state';
   import { json } from '@codemirror/lang-json';
+  import { editorHighlighting } from '../../../lib/editorHighlighting';
 
   interface Props {
     content: string;
@@ -56,6 +57,7 @@
       extensions: [
         lineNumbers(),
         json(),
+        editorHighlighting,
         theme,
         EditorState.readOnly.of(true),
         EditorView.editable.of(false),

@@ -4,6 +4,7 @@
   import { EditorState } from '@codemirror/state';
   import { json } from '@codemirror/lang-json';
   import { foldGutter, foldKeymap, foldAll, unfoldAll } from '@codemirror/language';
+  import { editorHighlighting } from '../../../lib/editorHighlighting';
   import type { ExecuteQueryResponse } from '../../../../../shared/contracts';
   import type { JsonFormat } from './formatters';
   import { formatDocuments, loadJsonFormat, saveJsonFormat } from './formatters';
@@ -81,6 +82,7 @@
         foldGutter(),
         keymap.of(foldKeymap),
         json(),
+        editorHighlighting,
         theme,
         EditorState.readOnly.of(true),
         EditorView.editable.of(false),
