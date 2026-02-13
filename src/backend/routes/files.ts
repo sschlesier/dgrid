@@ -1,66 +1,24 @@
 import { FastifyInstance } from 'fastify';
 import { readFile, writeFile, mkdir, access, constants } from 'fs/promises';
-import { basename, dirname, extname, resolve, isAbsolute } from 'path';
+import { basename, dirname } from 'path';
 import { watch, FSWatcher } from 'chokidar';
+import { isPathSafe, isAllowedExtension, ALLOWED_EXTENSIONS } from '../validation/file-validation.js';
 
 export interface FileRoutesOptions {
   allowedExtensions?: string[];
   maxFileSize?: number;
 }
 
-const DEFAULT_ALLOWED_EXTENSIONS = ['.js', '.mongodb', '.json'];
 const DEFAULT_MAX_FILE_SIZE = 1024 * 1024; // 1MB
 
 // Track active file watchers
 const fileWatchers = new Map<string, FSWatcher>();
 
-function isPathSafe(filePath: string): boolean {
-  // Must be absolute path
-  if (!isAbsolute(filePath)) {
-    return false;
-  }
-
-  // Prevent directory traversal
-  const resolved = resolve(filePath);
-  if (resolved !== filePath) {
-    return false;
-  }
-
-  // Allow temp directories (for testing and temporary files)
-  if (filePath.startsWith('/var/folders/') || filePath.startsWith('/tmp/')) {
-    return true;
-  }
-
-  // Block sensitive paths
-  const blockedPatterns = [
-    '/etc/',
-    '/var/log/',
-    '/var/run/',
-    '/var/lib/',
-    '/usr/',
-    '/bin/',
-    '/sbin/',
-    '/System/',
-    '/Library/',
-    'node_modules',
-    '.git',
-    '.env',
-  ];
-
-  for (const pattern of blockedPatterns) {
-    if (filePath.includes(pattern)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 export async function fileRoutes(
   fastify: FastifyInstance,
   opts: FileRoutesOptions = {}
 ): Promise<void> {
-  const allowedExtensions = opts.allowedExtensions ?? DEFAULT_ALLOWED_EXTENSIONS;
+  const allowedExtensions = opts.allowedExtensions ?? ALLOWED_EXTENSIONS;
   const maxFileSize = opts.maxFileSize ?? DEFAULT_MAX_FILE_SIZE;
 
   // Read file contents
@@ -83,8 +41,7 @@ export async function fileRoutes(
       });
     }
 
-    const ext = extname(filePath).toLowerCase();
-    if (!allowedExtensions.includes(ext)) {
+    if (!isAllowedExtension(filePath, allowedExtensions)) {
       return reply.status(400).send({
         error: 'BadRequest',
         message: `File type not allowed. Allowed: ${allowedExtensions.join(', ')}`,
@@ -149,8 +106,7 @@ export async function fileRoutes(
       });
     }
 
-    const ext = extname(filePath).toLowerCase();
-    if (!allowedExtensions.includes(ext)) {
+    if (!isAllowedExtension(filePath, allowedExtensions)) {
       return reply.status(400).send({
         error: 'BadRequest',
         message: `File type not allowed. Allowed: ${allowedExtensions.join(', ')}`,
@@ -211,6 +167,14 @@ export async function fileRoutes(
         error: 'Forbidden',
         message: 'Access to this path is not allowed',
         statusCode: 403,
+      });
+    }
+
+    if (!isAllowedExtension(filePath, allowedExtensions)) {
+      return reply.status(400).send({
+        error: 'BadRequest',
+        message: `File type not allowed. Allowed: ${allowedExtensions.join(', ')}`,
+        statusCode: 400,
       });
     }
 

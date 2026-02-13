@@ -12,6 +12,7 @@ import {
   getDatabases,
   getCollections,
   executeQuery,
+  exportCsv,
   readFile,
   writeFile,
 } from '../api/client';
@@ -79,6 +80,101 @@ describe('API client', () => {
       });
 
       await expect(getConnections()).rejects.toThrow('Internal Server Error');
+    });
+
+    it('propagates isConnected: false from error response', async () => {
+      mockResponse(
+        {
+          error: 'DatabaseError',
+          message: 'Connection lost',
+          statusCode: 500,
+          isConnected: false,
+        },
+        500
+      );
+
+      try {
+        await getConnections();
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).isConnected).toBe(false);
+      }
+    });
+
+    it('does not set isConnected when not present in error response', async () => {
+      mockResponse(
+        {
+          error: 'DatabaseError',
+          message: 'Generic error',
+          statusCode: 500,
+        },
+        500
+      );
+
+      try {
+        await getConnections();
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).isConnected).toBeUndefined();
+      }
+    });
+  });
+
+  describe('exportCsv error handling', () => {
+    it('throws ApiError on export failure', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Error',
+        json: () =>
+          Promise.resolve({
+            error: 'ExportError',
+            message: 'Export failed',
+            statusCode: 500,
+          }),
+      });
+
+      await expect(
+        exportCsv('1', { query: 'db.users.find({})', database: 'test' })
+      ).rejects.toThrow(ApiError);
+    });
+
+    it('propagates isConnected: false from export error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Error',
+        json: () =>
+          Promise.resolve({
+            error: 'ExportError',
+            message: 'Connection lost',
+            statusCode: 500,
+            isConnected: false,
+          }),
+      });
+
+      try {
+        await exportCsv('1', { query: 'db.users.find({})', database: 'test' });
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).isConnected).toBe(false);
+      }
+    });
+
+    it('handles non-JSON export error response', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: () => Promise.reject(new Error('Invalid JSON')),
+      });
+
+      await expect(
+        exportCsv('1', { query: 'db.users.find({})', database: 'test' })
+      ).rejects.toThrow('Internal Server Error');
     });
   });
 
