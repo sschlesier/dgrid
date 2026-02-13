@@ -280,6 +280,414 @@ describe('Query Executor', () => {
     });
   });
 
+  describe('findOne queries', () => {
+    beforeEach(async () => {
+      await db.collection('users').insertMany([
+        { name: 'Alice', age: 30 },
+        { name: 'Bob', age: 25 },
+      ]);
+    });
+
+    it('returns a single document', async () => {
+      const parsed = parseQuery('db.users.findOne({ name: "Alice" })');
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents).toHaveLength(1);
+        expect(result.value.documents[0].name).toBe('Alice');
+        expect(result.value.totalCount).toBe(1);
+        expect(result.value.hasMore).toBe(false);
+      }
+    });
+
+    it('returns empty array when no match', async () => {
+      const parsed = parseQuery('db.users.findOne({ name: "NonExistent" })');
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents).toHaveLength(0);
+        expect(result.value.totalCount).toBe(0);
+      }
+    });
+
+    it('respects projection', async () => {
+      const parsed = parseQuery('db.users.findOne({ name: "Alice" }, { name: 1, _id: 0 })');
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0]).toEqual({ name: 'Alice' });
+      }
+    });
+  });
+
+  describe('insertOne', () => {
+    it('inserts a document and returns result', async () => {
+      const parsed = parseQuery('db.items.insertOne({ name: "Widget", price: 9.99 })');
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].acknowledged).toBe(true);
+        expect(result.value.documents[0].insertedId).toBeDefined();
+        expect(result.value.hasMore).toBe(false);
+      }
+
+      // Verify the document was actually inserted
+      const doc = await db.collection('items').findOne({ name: 'Widget' });
+      expect(doc).not.toBeNull();
+      expect(doc?.price).toBe(9.99);
+    });
+  });
+
+  describe('insertMany', () => {
+    it('inserts multiple documents and returns result', async () => {
+      const parsed = parseQuery(
+        'db.items.insertMany([{ name: "A" }, { name: "B" }, { name: "C" }])'
+      );
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].acknowledged).toBe(true);
+        expect(result.value.documents[0].insertedCount).toBe(3);
+      }
+
+      const count = await db.collection('items').countDocuments();
+      expect(count).toBe(3);
+    });
+  });
+
+  describe('updateOne', () => {
+    beforeEach(async () => {
+      await db.collection('users').insertMany([
+        { name: 'Alice', age: 30 },
+        { name: 'Bob', age: 25 },
+      ]);
+    });
+
+    it('updates a single document', async () => {
+      const parsed = parseQuery('db.users.updateOne({ name: "Alice" }, { $set: { age: 31 } })');
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].acknowledged).toBe(true);
+        expect(result.value.documents[0].matchedCount).toBe(1);
+        expect(result.value.documents[0].modifiedCount).toBe(1);
+      }
+
+      const doc = await db.collection('users').findOne({ name: 'Alice' });
+      expect(doc?.age).toBe(31);
+    });
+
+    it('supports upsert option', async () => {
+      const parsed = parseQuery(
+        'db.users.updateOne({ name: "Charlie" }, { $set: { age: 40 } }, { upsert: true })'
+      );
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].upsertedCount).toBe(1);
+        expect(result.value.documents[0].upsertedId).toBeDefined();
+      }
+    });
+  });
+
+  describe('updateMany', () => {
+    beforeEach(async () => {
+      await db.collection('users').insertMany([
+        { name: 'Alice', active: true },
+        { name: 'Bob', active: true },
+        { name: 'Charlie', active: false },
+      ]);
+    });
+
+    it('updates multiple documents', async () => {
+      const parsed = parseQuery(
+        'db.users.updateMany({ active: true }, { $set: { verified: true } })'
+      );
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].matchedCount).toBe(2);
+        expect(result.value.documents[0].modifiedCount).toBe(2);
+      }
+    });
+  });
+
+  describe('replaceOne', () => {
+    beforeEach(async () => {
+      await db.collection('users').insertMany([{ name: 'Alice', age: 30, role: 'user' }]);
+    });
+
+    it('replaces a document', async () => {
+      const parsed = parseQuery(
+        'db.users.replaceOne({ name: "Alice" }, { name: "Alice", age: 31, role: "admin" })'
+      );
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].acknowledged).toBe(true);
+        expect(result.value.documents[0].matchedCount).toBe(1);
+        expect(result.value.documents[0].modifiedCount).toBe(1);
+      }
+
+      const doc = await db.collection('users').findOne({ name: 'Alice' });
+      expect(doc?.role).toBe('admin');
+      expect(doc?.age).toBe(31);
+    });
+  });
+
+  describe('deleteOne', () => {
+    beforeEach(async () => {
+      await db.collection('users').insertMany([{ name: 'Alice' }, { name: 'Bob' }]);
+    });
+
+    it('deletes a single document', async () => {
+      const parsed = parseQuery('db.users.deleteOne({ name: "Alice" })');
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].acknowledged).toBe(true);
+        expect(result.value.documents[0].deletedCount).toBe(1);
+      }
+
+      const count = await db.collection('users').countDocuments();
+      expect(count).toBe(1);
+    });
+  });
+
+  describe('deleteMany', () => {
+    beforeEach(async () => {
+      await db.collection('users').insertMany([
+        { name: 'Alice', active: false },
+        { name: 'Bob', active: false },
+        { name: 'Charlie', active: true },
+      ]);
+    });
+
+    it('deletes multiple documents', async () => {
+      const parsed = parseQuery('db.users.deleteMany({ active: false })');
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].acknowledged).toBe(true);
+        expect(result.value.documents[0].deletedCount).toBe(2);
+      }
+
+      const count = await db.collection('users').countDocuments();
+      expect(count).toBe(1);
+    });
+  });
+
+  describe('findOneAndUpdate', () => {
+    beforeEach(async () => {
+      await db.collection('users').insertMany([{ name: 'Alice', age: 30 }]);
+    });
+
+    it('returns the original document by default', async () => {
+      const parsed = parseQuery(
+        'db.users.findOneAndUpdate({ name: "Alice" }, { $set: { age: 31 } })'
+      );
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].name).toBe('Alice');
+        expect(result.value.documents[0].age).toBe(30); // before update
+      }
+    });
+
+    it('returns {value: null} when no match', async () => {
+      const parsed = parseQuery(
+        'db.users.findOneAndUpdate({ name: "NonExistent" }, { $set: { age: 99 } })'
+      );
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0]).toEqual({ value: null });
+      }
+    });
+  });
+
+  describe('findOneAndReplace', () => {
+    beforeEach(async () => {
+      await db.collection('users').insertMany([{ name: 'Alice', age: 30 }]);
+    });
+
+    it('replaces and returns document', async () => {
+      const parsed = parseQuery(
+        'db.users.findOneAndReplace({ name: "Alice" }, { name: "Alice", age: 31 })'
+      );
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].name).toBe('Alice');
+        expect(result.value.documents[0].age).toBe(30); // before replace
+      }
+
+      const doc = await db.collection('users').findOne({ name: 'Alice' });
+      expect(doc?.age).toBe(31);
+    });
+  });
+
+  describe('findOneAndDelete', () => {
+    beforeEach(async () => {
+      await db.collection('users').insertMany([
+        { name: 'Alice', age: 30 },
+        { name: 'Bob', age: 25 },
+      ]);
+    });
+
+    it('deletes and returns the document', async () => {
+      const parsed = parseQuery('db.users.findOneAndDelete({ name: "Alice" })');
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].name).toBe('Alice');
+        expect(result.value.documents[0].age).toBe(30);
+      }
+
+      const count = await db.collection('users').countDocuments();
+      expect(count).toBe(1);
+    });
+  });
+
+  describe('index operations', () => {
+    it('creates and lists indexes', async () => {
+      // Ensure collection exists
+      await db.collection('indextest').insertOne({ email: 'test@example.com' });
+
+      const createParsed = parseQuery('db.indextest.createIndex({ email: 1 }, { unique: true })');
+      expect(createParsed.ok).toBe(true);
+      if (!createParsed.ok) return;
+
+      const createResult = await executeQuery(db, createParsed.value);
+
+      expect(createResult.ok).toBe(true);
+      if (createResult.ok) {
+        expect(createResult.value.documents[0].indexName).toBe('email_1');
+      }
+
+      // List indexes
+      const listParsed = parseQuery('db.indextest.getIndexes()');
+      expect(listParsed.ok).toBe(true);
+      if (!listParsed.ok) return;
+
+      const listResult = await executeQuery(db, listParsed.value);
+
+      expect(listResult.ok).toBe(true);
+      if (listResult.ok) {
+        expect(listResult.value.documents.length).toBeGreaterThanOrEqual(2); // _id + email
+        const emailIndex = listResult.value.documents.find((d) => d.name === 'email_1');
+        expect(emailIndex).toBeDefined();
+      }
+    });
+
+    it('drops an index', async () => {
+      await db.collection('droptest').insertOne({ field: 'value' });
+      await db.collection('droptest').createIndex({ field: 1 });
+
+      const parsed = parseQuery('db.droptest.dropIndex("field_1")');
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].ok).toBe(1);
+      }
+
+      const indexes = await db.collection('droptest').indexes();
+      const fieldIndex = indexes.find((i) => i.name === 'field_1');
+      expect(fieldIndex).toBeUndefined();
+    });
+  });
+
+  describe('bulkWrite', () => {
+    it('executes bulk operations', async () => {
+      await db.collection('bulk').insertMany([{ name: 'Alice' }, { name: 'Bob' }]);
+
+      const parsed = parseQuery(
+        'db.bulk.bulkWrite([{ insertOne: { document: { name: "Charlie" } } }, { deleteOne: { filter: { name: "Bob" } } }])'
+      );
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+
+      const result = await executeQuery(db, parsed.value);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.documents[0].insertedCount).toBe(1);
+        expect(result.value.documents[0].deletedCount).toBe(1);
+      }
+
+      const docs = await db.collection('bulk').find({}).toArray();
+      expect(docs).toHaveLength(2);
+      const names = docs.map((d) => d.name);
+      expect(names).toContain('Alice');
+      expect(names).toContain('Charlie');
+      expect(names).not.toContain('Bob');
+    });
+  });
+
   describe('error handling', () => {
     it('returns error for invalid collection operation', async () => {
       const result = await executeQuery(db, {

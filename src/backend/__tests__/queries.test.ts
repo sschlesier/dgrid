@@ -201,7 +201,7 @@ describe('Query Parser', () => {
     });
 
     it('returns error for unsupported operation', () => {
-      const result = parseQuery('db.users.insertOne({})');
+      const result = parseQuery('db.users.mapReduce({})');
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -536,6 +536,370 @@ describe('Query Parser', () => {
         expect(DB_COMMAND_SIGNATURES).toHaveProperty('dropCollection');
         expect(DB_COMMAND_SIGNATURES).toHaveProperty('runCommand');
       });
+    });
+  });
+
+  describe('findOne queries', () => {
+    it('parses findOne with filter', () => {
+      const result = parseQuery('db.users.findOne({ name: "Alice" })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.collection).toBe('users');
+        expect(result.value.operation).toBe('findOne');
+        expect(result.value.filter).toEqual({ name: 'Alice' });
+      }
+    });
+
+    it('parses findOne with filter and projection', () => {
+      const result = parseQuery('db.users.findOne({ name: "Alice" }, { name: 1, age: 1 })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.filter).toEqual({ name: 'Alice' });
+        expect(result.value.projection).toEqual({ name: 1, age: 1 });
+      }
+    });
+
+    it('parses findOne with empty filter', () => {
+      const result = parseQuery('db.users.findOne({})');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('findOne');
+        expect(result.value.filter).toEqual({});
+      }
+    });
+  });
+
+  describe('insert operations', () => {
+    it('parses insertOne with document', () => {
+      const result = parseQuery('db.users.insertOne({ name: "Alice", age: 30 })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.collection).toBe('users');
+        expect(result.value.operation).toBe('insertOne');
+        expect(result.value.document).toEqual({ name: 'Alice', age: 30 });
+      }
+    });
+
+    it('returns error for insertOne without arguments', () => {
+      const result = parseQuery('db.users.insertOne()');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('insertOne requires a document');
+      }
+    });
+
+    it('parses insertMany with array of documents', () => {
+      const result = parseQuery('db.users.insertMany([{ name: "Alice" }, { name: "Bob" }])');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('insertMany');
+        expect(result.value.documents).toEqual([{ name: 'Alice' }, { name: 'Bob' }]);
+      }
+    });
+
+    it('returns error for insertMany without arguments', () => {
+      const result = parseQuery('db.users.insertMany()');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('insertMany requires an array');
+      }
+    });
+  });
+
+  describe('update operations', () => {
+    it('parses updateOne with filter and update', () => {
+      const result = parseQuery('db.users.updateOne({ name: "Alice" }, { $set: { age: 31 } })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('updateOne');
+        expect(result.value.filter).toEqual({ name: 'Alice' });
+        expect(result.value.update).toEqual({ $set: { age: 31 } });
+      }
+    });
+
+    it('parses updateOne with options', () => {
+      const result = parseQuery(
+        'db.users.updateOne({ name: "Alice" }, { $set: { age: 31 } }, { upsert: true })'
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.options).toEqual({ upsert: true });
+      }
+    });
+
+    it('parses updateMany with filter and update', () => {
+      const result = parseQuery(
+        'db.users.updateMany({ active: false }, { $set: { archived: true } })'
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('updateMany');
+        expect(result.value.filter).toEqual({ active: false });
+        expect(result.value.update).toEqual({ $set: { archived: true } });
+      }
+    });
+
+    it('returns error for updateOne with fewer than 2 args', () => {
+      const result = parseQuery('db.users.updateOne({ name: "Alice" })');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('requires at least 2 arguments');
+      }
+    });
+
+    it('returns error for updateMany with fewer than 2 args', () => {
+      const result = parseQuery('db.users.updateMany({ active: false })');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('requires at least 2 arguments');
+      }
+    });
+  });
+
+  describe('replaceOne', () => {
+    it('parses replaceOne with filter and replacement', () => {
+      const result = parseQuery(
+        'db.users.replaceOne({ name: "Alice" }, { name: "Alice", age: 31, role: "admin" })'
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('replaceOne');
+        expect(result.value.filter).toEqual({ name: 'Alice' });
+        expect(result.value.replacement).toEqual({ name: 'Alice', age: 31, role: 'admin' });
+      }
+    });
+
+    it('parses replaceOne with options', () => {
+      const result = parseQuery(
+        'db.users.replaceOne({ name: "Alice" }, { name: "Alice" }, { upsert: true })'
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.options).toEqual({ upsert: true });
+      }
+    });
+
+    it('returns error for replaceOne with fewer than 2 args', () => {
+      const result = parseQuery('db.users.replaceOne({ name: "Alice" })');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('requires at least 2 arguments');
+      }
+    });
+  });
+
+  describe('delete operations', () => {
+    it('parses deleteOne with filter', () => {
+      const result = parseQuery('db.users.deleteOne({ name: "Alice" })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('deleteOne');
+        expect(result.value.filter).toEqual({ name: 'Alice' });
+      }
+    });
+
+    it('parses deleteMany with filter', () => {
+      const result = parseQuery('db.users.deleteMany({ active: false })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('deleteMany');
+        expect(result.value.filter).toEqual({ active: false });
+      }
+    });
+
+    it('parses deleteMany with empty filter', () => {
+      const result = parseQuery('db.users.deleteMany({})');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.filter).toEqual({});
+      }
+    });
+  });
+
+  describe('findOneAnd* operations', () => {
+    it('parses findOneAndUpdate', () => {
+      const result = parseQuery(
+        'db.users.findOneAndUpdate({ name: "Alice" }, { $set: { age: 31 } })'
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('findOneAndUpdate');
+        expect(result.value.filter).toEqual({ name: 'Alice' });
+        expect(result.value.update).toEqual({ $set: { age: 31 } });
+      }
+    });
+
+    it('parses findOneAndUpdate with options', () => {
+      const result = parseQuery(
+        'db.users.findOneAndUpdate({ name: "Alice" }, { $set: { age: 31 } }, { returnDocument: "after" })'
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.options).toEqual({ returnDocument: 'after' });
+      }
+    });
+
+    it('returns error for findOneAndUpdate with fewer than 2 args', () => {
+      const result = parseQuery('db.users.findOneAndUpdate({ name: "Alice" })');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('requires at least 2 arguments');
+      }
+    });
+
+    it('parses findOneAndReplace', () => {
+      const result = parseQuery(
+        'db.users.findOneAndReplace({ name: "Alice" }, { name: "Alice", age: 31 })'
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('findOneAndReplace');
+        expect(result.value.filter).toEqual({ name: 'Alice' });
+        expect(result.value.replacement).toEqual({ name: 'Alice', age: 31 });
+      }
+    });
+
+    it('returns error for findOneAndReplace with fewer than 2 args', () => {
+      const result = parseQuery('db.users.findOneAndReplace({ name: "Alice" })');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('requires at least 2 arguments');
+      }
+    });
+
+    it('parses findOneAndDelete', () => {
+      const result = parseQuery('db.users.findOneAndDelete({ name: "Alice" })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('findOneAndDelete');
+        expect(result.value.filter).toEqual({ name: 'Alice' });
+      }
+    });
+
+    it('parses findOneAndDelete with options', () => {
+      const result = parseQuery(
+        'db.users.findOneAndDelete({ name: "Alice" }, { projection: { name: 1 } })'
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.options).toEqual({ projection: { name: 1 } });
+      }
+    });
+  });
+
+  describe('index operations', () => {
+    it('parses createIndex with spec', () => {
+      const result = parseQuery('db.users.createIndex({ email: 1 })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('createIndex');
+        expect(result.value.indexSpec).toEqual({ email: 1 });
+      }
+    });
+
+    it('parses createIndex with spec and options', () => {
+      const result = parseQuery('db.users.createIndex({ email: 1 }, { unique: true })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.indexSpec).toEqual({ email: 1 });
+        expect(result.value.options).toEqual({ unique: true });
+      }
+    });
+
+    it('returns error for createIndex without arguments', () => {
+      const result = parseQuery('db.users.createIndex()');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('createIndex requires at least 1 argument');
+      }
+    });
+
+    it('parses dropIndex with name', () => {
+      const result = parseQuery('db.users.dropIndex("email_1")');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('dropIndex');
+        expect(result.value.indexName).toBe('email_1');
+      }
+    });
+
+    it('returns error for dropIndex without arguments', () => {
+      const result = parseQuery('db.users.dropIndex()');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('dropIndex requires an index name');
+      }
+    });
+
+    it('parses getIndexes', () => {
+      const result = parseQuery('db.users.getIndexes()');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('getIndexes');
+      }
+    });
+
+    it('parses indexes as alias for getIndexes', () => {
+      const result = parseQuery('db.users.indexes()');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('getIndexes');
+      }
+    });
+  });
+
+  describe('bulkWrite', () => {
+    it('parses bulkWrite with operations array', () => {
+      const result = parseQuery(
+        'db.users.bulkWrite([{ insertOne: { document: { name: "Alice" } } }, { deleteOne: { filter: { name: "Bob" } } }])'
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('bulkWrite');
+        expect(result.value.operations).toHaveLength(2);
+      }
+    });
+
+    it('returns error for bulkWrite without arguments', () => {
+      const result = parseQuery('db.users.bulkWrite()');
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('bulkWrite requires an array');
+      }
     });
   });
 });

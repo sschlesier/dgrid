@@ -1,10 +1,29 @@
-import { Document, Db } from 'mongodb';
+import { Document, Db, type AnyBulkWriteOperation } from 'mongodb';
 
 // Collection-level query (db.collection.method())
 export interface ParsedCollectionQuery {
   type: 'collection';
   collection: string;
-  operation: 'find' | 'aggregate' | 'count' | 'distinct';
+  operation:
+    | 'find'
+    | 'findOne'
+    | 'aggregate'
+    | 'count'
+    | 'distinct'
+    | 'insertOne'
+    | 'insertMany'
+    | 'updateOne'
+    | 'updateMany'
+    | 'replaceOne'
+    | 'deleteOne'
+    | 'deleteMany'
+    | 'findOneAndUpdate'
+    | 'findOneAndReplace'
+    | 'findOneAndDelete'
+    | 'createIndex'
+    | 'dropIndex'
+    | 'getIndexes'
+    | 'bulkWrite';
   filter?: Document;
   projection?: Document;
   sort?: Document;
@@ -12,6 +31,14 @@ export interface ParsedCollectionQuery {
   skip?: number;
   pipeline?: Document[];
   field?: string; // For distinct
+  document?: Document; // For insertOne
+  documents?: Document[]; // For insertMany
+  update?: Document; // For updateOne, updateMany, findOneAndUpdate
+  replacement?: Document; // For replaceOne, findOneAndReplace
+  options?: Document; // For operations with options (upsert, returnDocument, etc.)
+  indexSpec?: Document; // For createIndex keys
+  indexName?: string; // For dropIndex
+  operations?: Document[]; // For bulkWrite
 }
 
 // Database-level command (db.method())
@@ -470,11 +497,267 @@ export function parseCollectionQuery(queryText: string): Result<ParsedCollection
         };
       }
 
+      case 'findOne': {
+        const parsed = parseFindArgs(argsStr);
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation: 'findOne',
+            ...parsed,
+          },
+        };
+      }
+
+      case 'insertOne': {
+        if (!argsStr) {
+          return {
+            ok: false,
+            error: { message: 'insertOne requires a document argument' },
+          };
+        }
+        const document = parseJavaScriptObject(argsStr);
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation: 'insertOne',
+            document,
+          },
+        };
+      }
+
+      case 'insertMany': {
+        if (!argsStr) {
+          return {
+            ok: false,
+            error: { message: 'insertMany requires an array of documents' },
+          };
+        }
+        const parsed = parseJavaScriptObject(`[${argsStr}]`.replace('[[', '[').replace(']]', ']'));
+        const documents = Array.isArray(parsed) ? (parsed as Document[]) : [parsed];
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation: 'insertMany',
+            documents,
+          },
+        };
+      }
+
+      case 'updateOne':
+      case 'updateMany': {
+        const parts = splitArgs(argsStr);
+        if (parts.length < 2) {
+          return {
+            ok: false,
+            error: { message: `${operation} requires at least 2 arguments (filter, update)` },
+          };
+        }
+        const filter = parseJavaScriptObject(parts[0]);
+        const update = parseJavaScriptObject(parts[1]);
+        const options = parts[2] ? parseJavaScriptObject(parts[2]) : undefined;
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation,
+            filter,
+            update,
+            options,
+          },
+        };
+      }
+
+      case 'replaceOne': {
+        const parts = splitArgs(argsStr);
+        if (parts.length < 2) {
+          return {
+            ok: false,
+            error: { message: 'replaceOne requires at least 2 arguments (filter, replacement)' },
+          };
+        }
+        const filter = parseJavaScriptObject(parts[0]);
+        const replacement = parseJavaScriptObject(parts[1]);
+        const options = parts[2] ? parseJavaScriptObject(parts[2]) : undefined;
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation: 'replaceOne',
+            filter,
+            replacement,
+            options,
+          },
+        };
+      }
+
+      case 'deleteOne':
+      case 'deleteMany': {
+        const filter = argsStr ? parseJavaScriptObject(argsStr) : {};
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation,
+            filter,
+          },
+        };
+      }
+
+      case 'findOneAndUpdate': {
+        const parts = splitArgs(argsStr);
+        if (parts.length < 2) {
+          return {
+            ok: false,
+            error: {
+              message: 'findOneAndUpdate requires at least 2 arguments (filter, update)',
+            },
+          };
+        }
+        const filter = parseJavaScriptObject(parts[0]);
+        const update = parseJavaScriptObject(parts[1]);
+        const options = parts[2] ? parseJavaScriptObject(parts[2]) : undefined;
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation: 'findOneAndUpdate',
+            filter,
+            update,
+            options,
+          },
+        };
+      }
+
+      case 'findOneAndReplace': {
+        const parts = splitArgs(argsStr);
+        if (parts.length < 2) {
+          return {
+            ok: false,
+            error: {
+              message: 'findOneAndReplace requires at least 2 arguments (filter, replacement)',
+            },
+          };
+        }
+        const filter = parseJavaScriptObject(parts[0]);
+        const replacement = parseJavaScriptObject(parts[1]);
+        const options = parts[2] ? parseJavaScriptObject(parts[2]) : undefined;
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation: 'findOneAndReplace',
+            filter,
+            replacement,
+            options,
+          },
+        };
+      }
+
+      case 'findOneAndDelete': {
+        const parts = splitArgs(argsStr);
+        const filter = parts[0] ? parseJavaScriptObject(parts[0]) : {};
+        const options = parts[1] ? parseJavaScriptObject(parts[1]) : undefined;
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation: 'findOneAndDelete',
+            filter,
+            options,
+          },
+        };
+      }
+
+      case 'createIndex': {
+        const parts = splitArgs(argsStr);
+        if (parts.length < 1 || !argsStr) {
+          return {
+            ok: false,
+            error: { message: 'createIndex requires at least 1 argument (index specification)' },
+          };
+        }
+        const indexSpec = parseJavaScriptObject(parts[0]);
+        const options = parts[1] ? parseJavaScriptObject(parts[1]) : undefined;
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation: 'createIndex',
+            indexSpec,
+            options,
+          },
+        };
+      }
+
+      case 'dropIndex': {
+        if (!argsStr) {
+          return {
+            ok: false,
+            error: { message: 'dropIndex requires an index name argument' },
+          };
+        }
+        const indexName = argsStr.replace(/['"]/g, '').trim();
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation: 'dropIndex',
+            indexName,
+          },
+        };
+      }
+
+      case 'getIndexes':
+      case 'indexes': {
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation: 'getIndexes',
+          },
+        };
+      }
+
+      case 'bulkWrite': {
+        if (!argsStr) {
+          return {
+            ok: false,
+            error: { message: 'bulkWrite requires an array of operations' },
+          };
+        }
+        const parsed = parseJavaScriptObject(`[${argsStr}]`.replace('[[', '[').replace(']]', ']'));
+        const operations = Array.isArray(parsed) ? (parsed as Document[]) : [parsed];
+        return {
+          ok: true,
+          value: {
+            type: 'collection',
+            collection,
+            operation: 'bulkWrite',
+            operations,
+          },
+        };
+      }
+
       default:
         return {
           ok: false,
           error: {
-            message: `Unsupported operation: ${operation}. Supported: find, aggregate, count, distinct`,
+            message: `Unsupported operation: ${operation}. Supported: find, findOne, aggregate, count, distinct, insertOne, insertMany, updateOne, updateMany, replaceOne, deleteOne, deleteMany, findOneAndUpdate, findOneAndReplace, findOneAndDelete, createIndex, dropIndex, getIndexes, bulkWrite`,
           },
         };
     }
@@ -850,6 +1133,270 @@ export async function executeCollectionQuery(
           value: {
             documents,
             totalCount: values.length,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'findOne': {
+        const filter = query.filter ?? {};
+        const doc = await collection.findOne(filter, {
+          projection: query.projection,
+          maxTimeMS: timeoutMs,
+        });
+        const executionTimeMs = Date.now() - startTime;
+
+        return {
+          ok: true,
+          value: {
+            documents: doc ? [doc] : [],
+            totalCount: doc ? 1 : 0,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'insertOne': {
+        const result = await collection.insertOne(query.document ?? {});
+        const executionTimeMs = Date.now() - startTime;
+
+        return {
+          ok: true,
+          value: {
+            documents: [
+              {
+                acknowledged: result.acknowledged,
+                insertedId: result.insertedId,
+              },
+            ],
+            totalCount: 1,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'insertMany': {
+        const result = await collection.insertMany(query.documents ?? []);
+        const executionTimeMs = Date.now() - startTime;
+
+        return {
+          ok: true,
+          value: {
+            documents: [
+              {
+                acknowledged: result.acknowledged,
+                insertedCount: result.insertedCount,
+                insertedIds: result.insertedIds,
+              },
+            ],
+            totalCount: 1,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'updateOne':
+      case 'updateMany': {
+        const result = await collection[query.operation](
+          query.filter ?? {},
+          query.update ?? {},
+          query.options
+        );
+        const executionTimeMs = Date.now() - startTime;
+
+        return {
+          ok: true,
+          value: {
+            documents: [
+              {
+                acknowledged: result.acknowledged,
+                matchedCount: result.matchedCount,
+                modifiedCount: result.modifiedCount,
+                upsertedCount: result.upsertedCount,
+                upsertedId: result.upsertedId,
+              },
+            ],
+            totalCount: 1,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'replaceOne': {
+        const result = await collection.replaceOne(
+          query.filter ?? {},
+          query.replacement ?? {},
+          query.options
+        );
+        const executionTimeMs = Date.now() - startTime;
+
+        return {
+          ok: true,
+          value: {
+            documents: [
+              {
+                acknowledged: result.acknowledged,
+                matchedCount: result.matchedCount,
+                modifiedCount: result.modifiedCount,
+                upsertedCount: result.upsertedCount,
+                upsertedId: result.upsertedId,
+              },
+            ],
+            totalCount: 1,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'deleteOne':
+      case 'deleteMany': {
+        const result = await collection[query.operation](query.filter ?? {});
+        const executionTimeMs = Date.now() - startTime;
+
+        return {
+          ok: true,
+          value: {
+            documents: [
+              {
+                acknowledged: result.acknowledged,
+                deletedCount: result.deletedCount,
+              },
+            ],
+            totalCount: 1,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'findOneAndUpdate': {
+        const result = await collection.findOneAndUpdate(query.filter ?? {}, query.update ?? {}, {
+          ...query.options,
+          includeResultMetadata: true,
+        });
+        const executionTimeMs = Date.now() - startTime;
+        const doc = result.value;
+
+        return {
+          ok: true,
+          value: {
+            documents: doc ? [doc] : [{ value: null }],
+            totalCount: 1,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'findOneAndReplace': {
+        const result = await collection.findOneAndReplace(
+          query.filter ?? {},
+          query.replacement ?? {},
+          { ...query.options, includeResultMetadata: true }
+        );
+        const executionTimeMs = Date.now() - startTime;
+        const doc = result.value;
+
+        return {
+          ok: true,
+          value: {
+            documents: doc ? [doc] : [{ value: null }],
+            totalCount: 1,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'findOneAndDelete': {
+        const result = await collection.findOneAndDelete(query.filter ?? {}, {
+          ...query.options,
+          includeResultMetadata: true,
+        });
+        const executionTimeMs = Date.now() - startTime;
+        const doc = result.value;
+
+        return {
+          ok: true,
+          value: {
+            documents: doc ? [doc] : [{ value: null }],
+            totalCount: 1,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'createIndex': {
+        const indexName = await collection.createIndex(query.indexSpec ?? {}, query.options ?? {});
+        const executionTimeMs = Date.now() - startTime;
+
+        return {
+          ok: true,
+          value: {
+            documents: [{ indexName }],
+            totalCount: 1,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'dropIndex': {
+        await collection.dropIndex(query.indexName ?? '');
+        const executionTimeMs = Date.now() - startTime;
+
+        return {
+          ok: true,
+          value: {
+            documents: [{ ok: 1, message: `Index '${query.indexName}' dropped` }],
+            totalCount: 1,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'getIndexes': {
+        const indexes = await collection.indexes();
+        const executionTimeMs = Date.now() - startTime;
+
+        return {
+          ok: true,
+          value: {
+            documents: indexes,
+            totalCount: indexes.length,
+            executionTimeMs,
+            hasMore: false,
+          },
+        };
+      }
+
+      case 'bulkWrite': {
+        const result = await collection.bulkWrite(
+          (query.operations ?? []) as AnyBulkWriteOperation<Document>[]
+        );
+        const executionTimeMs = Date.now() - startTime;
+
+        return {
+          ok: true,
+          value: {
+            documents: [
+              {
+                insertedCount: result.insertedCount,
+                matchedCount: result.matchedCount,
+                modifiedCount: result.modifiedCount,
+                deletedCount: result.deletedCount,
+                upsertedCount: result.upsertedCount,
+              },
+            ],
+            totalCount: 1,
             executionTimeMs,
             hasMore: false,
           },
