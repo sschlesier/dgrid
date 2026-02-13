@@ -127,6 +127,11 @@ export function selectors(page: Page) {
       cancelButton: () => page.locator('.export-overlay .cancel-btn'),
     },
 
+    contextMenu: {
+      menu: () => page.locator('.context-menu'),
+      item: (label: string) => page.locator('.context-menu-item', { hasText: label }),
+    },
+
     history: {
       toolbarButton: () => page.locator('.toolbar-btn', { hasText: 'History' }),
       dropdown: () => page.locator('.history-dropdown'),

@@ -9,16 +9,26 @@
     rowIndex: number;
     ondrill?: (_field: string) => void;
     onedit?: (_fieldKey: string, _value: unknown) => void;
+    onrowcontextmenu?: (_event: MouseEvent) => void;
   }
 
-  let { doc, columns, offsetY, rowIndex, ondrill, onedit }: Props = $props();
+  let { doc, columns, offsetY, rowIndex, ondrill, onedit, onrowcontextmenu }: Props = $props();
+
+  function handleContextMenu(event: MouseEvent) {
+    if (onrowcontextmenu) {
+      event.preventDefault();
+      onrowcontextmenu(event);
+    }
+  }
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="grid-row"
   class:even={rowIndex % 2 === 0}
   style="transform: translateY({offsetY}px);"
   data-row-index={rowIndex}
+  oncontextmenu={handleContextMenu}
 >
   {#each columns as column (column.key)}
     <GridCell
