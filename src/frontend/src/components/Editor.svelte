@@ -2,9 +2,9 @@
   import { onMount, onDestroy } from 'svelte';
   import {
     EditorView,
+    drawSelection,
     keymap,
     lineNumbers,
-    highlightActiveLine,
     placeholder as placeholderExt,
   } from '@codemirror/view';
   import { EditorState, Compartment } from '@codemirror/state';
@@ -74,17 +74,11 @@
       padding: '0 var(--space-sm)',
       minWidth: '40px',
     },
-    '.cm-activeLine': {
-      backgroundColor: 'var(--color-bg-hover)',
-    },
-    '.cm-activeLineGutter': {
-      backgroundColor: 'var(--color-bg-tertiary)',
-    },
     '.cm-selectionBackground': {
-      backgroundColor: 'var(--color-primary-light) !important',
+      backgroundColor: 'var(--color-selection) !important',
     },
     '&.cm-focused .cm-selectionBackground': {
-      backgroundColor: 'var(--color-primary-light) !important',
+      backgroundColor: 'var(--color-selection) !important',
     },
     '.cm-matchingBracket': {
       backgroundColor: 'var(--color-bg-tertiary)',
@@ -154,7 +148,7 @@
   onMount(() => {
     const extensions = [
       lineNumbers(),
-      highlightActiveLine(),
+      drawSelection(),
       history(),
       bracketMatching(),
       closeBrackets(),

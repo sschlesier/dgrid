@@ -39,10 +39,10 @@
       minWidth: '32px',
     },
     '.cm-selectionBackground': {
-      backgroundColor: 'var(--color-primary-light) !important',
+      backgroundColor: 'var(--color-selection) !important',
     },
     '&.cm-focused .cm-selectionBackground': {
-      backgroundColor: 'var(--color-primary-light) !important',
+      backgroundColor: 'var(--color-selection) !important',
     },
   });
 
