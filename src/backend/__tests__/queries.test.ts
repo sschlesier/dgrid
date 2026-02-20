@@ -561,6 +561,227 @@ db.location-config.findOneAndUpdate({locationId: '606361ebc9e7fd407a23935d'}, {$
     });
   });
 
+  describe('bracket and getCollection syntax', () => {
+    describe('bracket notation', () => {
+      it('parses bracket notation with single quotes', () => {
+        const result = parseQuery("db['users'].find({})");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.type).toBe('collection');
+          expect(result.value.collection).toBe('users');
+          expect(result.value.operation).toBe('find');
+          expect(result.value.filter).toEqual({});
+        }
+      });
+
+      it('parses bracket notation with double quotes', () => {
+        const result = parseQuery('db["users"].find({})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('users');
+          expect(result.value.operation).toBe('find');
+        }
+      });
+
+      it('handles collection names with hyphens', () => {
+        const result = parseQuery("db['my-collection'].find({})");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('my-collection');
+        }
+      });
+
+      it('handles collection names with dots', () => {
+        const result = parseQuery("db['system.users'].find({})");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('system.users');
+        }
+      });
+
+      it('handles collection names with spaces', () => {
+        const result = parseQuery("db['my collection'].find({})");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('my collection');
+        }
+      });
+
+      it('supports chained methods', () => {
+        const result = parseQuery("db['users'].find({}).sort({ name: 1 }).limit(10)");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('users');
+          expect(result.value.sort).toEqual({ name: 1 });
+          expect(result.value.limit).toBe(10);
+        }
+      });
+
+      it('supports write operations', () => {
+        const result = parseQuery("db['my-data'].insertOne({ name: 'Alice' })");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('my-data');
+          expect(result.value.operation).toBe('insertOne');
+          expect(result.value.document).toEqual({ name: 'Alice' });
+        }
+      });
+
+      it('supports updateOne', () => {
+        const result = parseQuery(
+          "db['my-data'].updateOne({ name: 'Alice' }, { $set: { age: 31 } })"
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('my-data');
+          expect(result.value.operation).toBe('updateOne');
+        }
+      });
+    });
+
+    describe('getCollection syntax', () => {
+      it('parses getCollection with single quotes', () => {
+        const result = parseQuery("db.getCollection('users').find({})");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.type).toBe('collection');
+          expect(result.value.collection).toBe('users');
+          expect(result.value.operation).toBe('find');
+        }
+      });
+
+      it('parses getCollection with double quotes', () => {
+        const result = parseQuery('db.getCollection("users").find({})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('users');
+        }
+      });
+
+      it('handles whitespace inside parens', () => {
+        const result = parseQuery("db.getCollection( 'users' ).find({})");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('users');
+        }
+      });
+
+      it('handles collection names with special characters', () => {
+        const result = parseQuery("db.getCollection('my-special.collection').find({})");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('my-special.collection');
+        }
+      });
+
+      it('supports chained methods', () => {
+        const result = parseQuery("db.getCollection('users').find({}).sort({ age: -1 }).limit(5)");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('users');
+          expect(result.value.sort).toEqual({ age: -1 });
+          expect(result.value.limit).toBe(5);
+        }
+      });
+
+      it('supports write operations', () => {
+        const result = parseQuery(
+          "db.getCollection('my-data').insertOne({ name: 'Alice', age: 30 })"
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('my-data');
+          expect(result.value.operation).toBe('insertOne');
+        }
+      });
+
+      it('returns error when missing operation after getCollection', () => {
+        const result = parseQuery("db.getCollection('users')");
+
+        expect(result.ok).toBe(false);
+      });
+    });
+
+    describe('detectQueryType with new syntaxes', () => {
+      it('detects bracket notation as collection query', () => {
+        expect(detectQueryType("db['users'].find({})")).toBe('collection');
+      });
+
+      it('detects getCollection as collection query', () => {
+        expect(detectQueryType("db.getCollection('users').find({})")).toBe('collection');
+      });
+    });
+
+    describe('cross-syntax equivalence', () => {
+      it('all three syntaxes produce identical parsed output', () => {
+        const dot = parseQuery('db.users.find({ name: "Alice" })');
+        const bracket = parseQuery('db["users"].find({ name: "Alice" })');
+        const getColl = parseQuery('db.getCollection("users").find({ name: "Alice" })');
+
+        expect(dot.ok).toBe(true);
+        expect(bracket.ok).toBe(true);
+        expect(getColl.ok).toBe(true);
+
+        if (dot.ok && bracket.ok && getColl.ok) {
+          expect(dot.value).toEqual(bracket.value);
+          expect(dot.value).toEqual(getColl.value);
+        }
+      });
+    });
+
+    describe('leading comments with new syntaxes', () => {
+      it('handles leading comments with bracket notation', () => {
+        const result = parseQuery("// comment\ndb['users'].find({})");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('users');
+        }
+      });
+
+      it('handles leading comments with getCollection', () => {
+        const result = parseQuery("/* block */ db.getCollection('users').find({})");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.collection).toBe('users');
+        }
+      });
+    });
+
+    describe('error cases', () => {
+      it('returns error for empty bracket notation', () => {
+        const result = parseQuery("db[''].find({})");
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          // Empty string is technically valid — MongoDB will reject it at runtime
+          expect(result.value.collection).toBe('');
+        }
+      });
+
+      it('returns error for missing operation after bracket notation', () => {
+        const result = parseQuery("db['users']");
+
+        expect(result.ok).toBe(false);
+      });
+    });
+  });
+
   describe('findOne queries', () => {
     it('parses findOne with filter', () => {
       const result = parseQuery('db.users.findOne({ name: "Alice" })');

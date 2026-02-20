@@ -118,15 +118,45 @@ function stripLeadingComments(query: string): string {
   }
 }
 
+// Extract collection name and the index where the rest of the query begins,
+// supporting dot notation, bracket notation, and db.getCollection().
+interface CollectionAccess {
+  collection: string;
+  restIndex: number; // index in `text` where `.operation(` should begin
+}
+
+function extractCollectionAccess(text: string): CollectionAccess | null {
+  // 1. db.getCollection('name') / db.getCollection("name")
+  const getCollMatch = text.match(/^db\.getCollection\(\s*(['"])(.*?)\1\s*\)/);
+  if (getCollMatch) {
+    return { collection: getCollMatch[2], restIndex: getCollMatch[0].length };
+  }
+
+  // 2. db['name'] / db["name"]
+  const bracketMatch = text.match(/^db\[(['"])(.*?)\1\]/);
+  if (bracketMatch) {
+    return { collection: bracketMatch[2], restIndex: bracketMatch[0].length };
+  }
+
+  // 3. db.name (dot notation — collection name must not contain dots or brackets)
+  const dotMatch = text.match(/^db\.([^.[\]]+)/);
+  if (dotMatch) {
+    return { collection: dotMatch[1], restIndex: dotMatch[0].length };
+  }
+
+  return null;
+}
+
 // Detect if query is a db command or collection query
 export function detectQueryType(query: string): 'db-command' | 'collection' {
   const trimmed = stripLeadingComments(query).trim();
 
-  // Match db.methodName( pattern
+  // Match db.methodName( pattern — only dot-notation can be a db command
   const dbMethodMatch = trimmed.match(/^db\.([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
   if (dbMethodMatch) {
     const methodName = dbMethodMatch[1];
     // If it's a known db command, treat it as db-command
+    // (getCollection is NOT a db command — it accesses a collection)
     if (methodName in DB_COMMAND_SIGNATURES) {
       return 'db-command';
     }
@@ -418,25 +448,39 @@ export function parseDbCommand(queryText: string): Result<ParsedDbCommand, Parse
 export function parseCollectionQuery(queryText: string): Result<ParsedCollectionQuery, ParseError> {
   const text = stripLeadingComments(queryText).trim();
 
-  // Match db.collection.operation(...) — collection name is any non-dot chars; MongoDB validates the name
-  const basePattern = /^db\.([^.]+)\.(\w+)\s*\(/;
-  const baseMatch = text.match(basePattern);
-
-  if (!baseMatch) {
+  // Extract collection name using any supported syntax
+  const access = extractCollectionAccess(text);
+  if (!access) {
     return {
       ok: false,
       error: {
-        message: 'Query must start with db.<collection>.<operation>(',
+        message:
+          "Query must start with db.<collection>.<operation>(, db['<collection>'].<operation>(, or db.getCollection('<collection>').<operation>(",
         position: 0,
       },
     };
   }
 
-  const collection = baseMatch[1];
-  const operation = baseMatch[2];
+  const { collection } = access;
+
+  // Match .operation( from the rest of the text
+  const rest = text.slice(access.restIndex);
+  const opMatch = rest.match(/^\.(\w+)\s*\(/);
+  if (!opMatch) {
+    return {
+      ok: false,
+      error: {
+        message:
+          "Query must start with db.<collection>.<operation>(, db['<collection>'].<operation>(, or db.getCollection('<collection>').<operation>(",
+        position: 0,
+      },
+    };
+  }
+
+  const operation = opMatch[1];
 
   // Find the matching closing paren for the operation call
-  const openParenIndex = baseMatch[0].length - 1;
+  const openParenIndex = access.restIndex + opMatch[0].length - 1;
   const closeParenIndex = findMatchingBracket(text, openParenIndex);
 
   if (closeParenIndex === -1) {

@@ -318,7 +318,12 @@ class AppStore {
 
   // Tab actions
   createTab(connectionId: string, database: string, collection?: string): Tab {
-    const queryText = collection ? `db.${collection}.find({})` : '';
+    const needsBracket = collection && /[^a-zA-Z0-9_$]/.test(collection);
+    const queryText = collection
+      ? needsBracket
+        ? `db['${collection}'].find({})`
+        : `db.${collection}.find({})`
+      : '';
     const title = collection ? collection : 'New Query';
     const tab: Tab = {
       id: generateId(),

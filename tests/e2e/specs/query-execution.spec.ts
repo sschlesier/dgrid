@@ -247,6 +247,60 @@ test.describe('Query Execution', () => {
     await expect(s.results.gridViewport()).toContainText('1');
   });
 
+  test('bracket notation find query returns results', async ({ page, s, mongoInfo }) => {
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
+      { name: 'Alice', age: 30 },
+      { name: 'Bob', age: 25 },
+    ]);
+
+    await page.goto('/');
+    await createConnection(page, { name: 'QueryTest', host: mongoInfo.host, port: mongoInfo.port });
+    await connectToServer(page, 'QueryTest');
+
+    await expandTreeNode(page, TEST_DB);
+    await expect(s.sidebar.treeItem('Collections')).toBeVisible({ timeout: 10_000 });
+    await expandTreeNode(page, 'Collections');
+    await expect(s.sidebar.treeItem(TEST_COLLECTION)).toBeVisible({ timeout: 10_000 });
+    await s.sidebar.treeItem(TEST_COLLECTION).click();
+
+    const editor = s.query.editorContent();
+    await editor.click();
+    await page.keyboard.press('Meta+A');
+    await page.keyboard.type(`db['${TEST_COLLECTION}'].find({})`);
+    await s.query.executeButton().click();
+
+    await expect(s.results.gridViewport()).toBeVisible({ timeout: 10_000 });
+    await expect(s.results.gridViewport()).toContainText('Alice');
+    await expect(s.results.gridViewport()).toContainText('Bob');
+  });
+
+  test('getCollection find query returns results', async ({ page, s, mongoInfo }) => {
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
+      { name: 'Alice', age: 30 },
+      { name: 'Bob', age: 25 },
+    ]);
+
+    await page.goto('/');
+    await createConnection(page, { name: 'QueryTest', host: mongoInfo.host, port: mongoInfo.port });
+    await connectToServer(page, 'QueryTest');
+
+    await expandTreeNode(page, TEST_DB);
+    await expect(s.sidebar.treeItem('Collections')).toBeVisible({ timeout: 10_000 });
+    await expandTreeNode(page, 'Collections');
+    await expect(s.sidebar.treeItem(TEST_COLLECTION)).toBeVisible({ timeout: 10_000 });
+    await s.sidebar.treeItem(TEST_COLLECTION).click();
+
+    const editor = s.query.editorContent();
+    await editor.click();
+    await page.keyboard.press('Meta+A');
+    await page.keyboard.type(`db.getCollection('${TEST_COLLECTION}').find({})`);
+    await s.query.executeButton().click();
+
+    await expect(s.results.gridViewport()).toBeVisible({ timeout: 10_000 });
+    await expect(s.results.gridViewport()).toContainText('Alice');
+    await expect(s.results.gridViewport()).toContainText('Bob');
+  });
+
   test('findOne returns a single document', async ({ page, s, mongoInfo }) => {
     await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
       { name: 'Alice', age: 30 },

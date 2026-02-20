@@ -26,11 +26,18 @@
   let isExecuting = $derived(queryStore.getIsExecuting(tab.id));
   let error = $derived(queryStore.getError(tab.id));
 
-  // Extract collection name from query text (e.g., "db.users.find()")
+  // Extract collection name from query text (supports dot, bracket, and getCollection syntax)
   const collectionName = $derived.by(() => {
     const text = queryStore.getQueryText(tab.id);
-    const match = text.match(/db\.([^.]+)\./);
-    return match ? match[1] : '';
+    // db.getCollection('name') or db.getCollection("name")
+    const gcMatch = text.match(/db\.getCollection\(\s*['"]([^'"]*)['"]\s*\)/);
+    if (gcMatch) return gcMatch[1];
+    // db['name'] or db["name"]
+    const brMatch = text.match(/db\[['"]([^'"]*)['"]\]/);
+    if (brMatch) return brMatch[1];
+    // db.name. (dot notation)
+    const dotMatch = text.match(/db\.([^.[]+)\./);
+    return dotMatch ? dotMatch[1] : '';
   });
 
   // Fetch schema when collection changes
