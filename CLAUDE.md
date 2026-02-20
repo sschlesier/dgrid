@@ -76,16 +76,25 @@ pnpm build            # Build both backend and frontend
 3. Commit to git after successful verification
 4. Only push to remote when explicitly requested
 
-## E2E Coverage Requirement
+## Testing Strategy
 
-Every user-facing feature or behavior change **must** include E2E test coverage. This includes:
+Choose the right test level for what you're verifying:
 
-- New UI features (buttons, dialogs, views, interactions)
-- Changes to existing UI behavior
-- New or modified API endpoints that affect the frontend
-- Bug fixes for issues that a user could observe
+| Level                                   | Use for                                                             | Speed  |
+| --------------------------------------- | ------------------------------------------------------------------- | ------ |
+| **Unit/Integration** (Vitest)           | Pure logic, services, data transforms, API routes                   | Fast   |
+| **Component** (@testing-library/svelte) | UI widget behavior: toggles, form validation, conditional rendering | Medium |
+| **E2E** (Playwright)                    | Complete user journeys that cross frontend and backend              | Slow   |
 
-When adding a feature:
+### E2E tests should cover user journeys, not widget details
+
+A good E2E test: "User creates a connection, connects, navigates to a collection, and runs a query."
+
+A bad E2E test: "Password field disables when save-password checkbox is unchecked." (This is component-level behavior — test it with @testing-library/svelte.)
+
+**Rule of thumb**: If the test never touches the backend or navigates between pages, it probably belongs at the component level.
+
+### When adding a feature
 
 1. Add selectors to `tests/e2e/helpers/selectors.ts` for any new UI elements
 2. Add or extend a spec in `tests/e2e/specs/{feature}.spec.ts`

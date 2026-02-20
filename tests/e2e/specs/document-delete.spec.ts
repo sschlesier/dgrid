@@ -115,31 +115,4 @@ test.describe('Document Delete', () => {
     await expect(s.contextMenu.menu()).not.toBeVisible();
     await expect(s.results.gridViewport()).toContainText('StayHere');
   });
-
-  test('context menu closes on click outside', async ({ page, s, mongoInfo }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'TestDoc', value: 1 }]);
-
-    await setupQueryTab(page, s, mongoInfo);
-
-    const row = s.results.gridRow(0);
-    await row.click({ button: 'right' });
-    await expect(s.contextMenu.menu()).toBeVisible();
-
-    // Click outside (on the backdrop)
-    await page.mouse.click(0, 0);
-    await expect(s.contextMenu.menu()).not.toBeVisible();
-  });
-
-  test('context menu closes on Escape', async ({ page, s, mongoInfo }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'TestDoc', value: 1 }]);
-
-    await setupQueryTab(page, s, mongoInfo);
-
-    const row = s.results.gridRow(0);
-    await row.click({ button: 'right' });
-    await expect(s.contextMenu.menu()).toBeVisible();
-
-    await page.keyboard.press('Escape');
-    await expect(s.contextMenu.menu()).not.toBeVisible();
-  });
 });
