@@ -137,6 +137,74 @@ describe('ConnectionDialog', () => {
       expect(screen.getByTestId('uri-input')).toBeInTheDocument();
       expect(screen.queryByTestId('uri-preview')).not.toBeInTheDocument();
     });
+
+    it('URI preview updates when form fields change', async () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      const hostInput = screen.getByLabelText(/Host/);
+      await fireEvent.input(hostInput, { target: { value: 'myhost.example.com' } });
+
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('uri-preview')).toHaveTextContent('myhost.example.com');
+      });
+    });
+
+    it('syncs form fields to URI when switching to URI tab', async () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      const hostInput = screen.getByLabelText(/Host/);
+      await fireEvent.input(hostInput, { target: { value: 'dbserver.local' } });
+      const portInput = screen.getByLabelText(/Port/);
+      await fireEvent.input(portInput, { target: { value: '27018' } });
+
+      await fireEvent.click(screen.getByTestId('uri-tab'));
+
+      await vi.waitFor(() => {
+        const uriValue = (screen.getByTestId('uri-input') as HTMLTextAreaElement).value;
+        expect(uriValue).toContain('dbserver.local:27018');
+      });
+    });
+
+    it('syncs URI to form fields when switching to Form tab', async () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      await fireEvent.click(screen.getByTestId('uri-tab'));
+      const uriInput = screen.getByTestId('uri-input');
+      await fireEvent.input(uriInput, { target: { value: 'mongodb://custom.host:12345/mydb' } });
+
+      await fireEvent.click(screen.getByTestId('form-tab'));
+
+      await vi.waitFor(() => {
+        expect(screen.getByLabelText(/Host/)).toHaveValue('custom.host');
+        expect(screen.getByLabelText(/Port/)).toHaveValue(12345);
+        expect(screen.getByLabelText('Database')).toHaveValue('mydb');
+      });
+    });
+
+    it('prompts for password when testing in URI mode with username but no password', async () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      const nameInput = screen.getByLabelText(/Name/);
+      await fireEvent.input(nameInput, { target: { value: 'URI Test' } });
+
+      await fireEvent.click(screen.getByTestId('uri-tab'));
+      const uriInput = screen.getByTestId('uri-input');
+      await fireEvent.input(uriInput, { target: { value: 'mongodb://testuser@localhost:27017' } });
+
+      await fireEvent.click(screen.getByText('Test Connection'));
+
+      await vi.waitFor(() => {
+        expect(screen.getByText('Password Required')).toBeInTheDocument();
+      });
+    });
   });
 
   describe('form validation', () => {
@@ -428,6 +496,62 @@ describe('ConnectionDialog', () => {
       await vi.waitFor(() => {
         expect(api.testConnection).toHaveBeenCalled();
       });
+    });
+
+    it('save password state persists when switching tabs', async () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      const checkbox = screen.getByTestId('save-password-checkbox');
+      await fireEvent.click(checkbox);
+      expect(checkbox).toBeChecked();
+
+      await fireEvent.click(screen.getByTestId('uri-tab'));
+      expect(screen.getByTestId('save-password-checkbox')).toBeChecked();
+
+      await fireEvent.click(screen.getByTestId('form-tab'));
+      expect(screen.getByTestId('save-password-checkbox')).toBeChecked();
+    });
+
+    it('does not prompt for password when testing without username', async () => {
+      (api.testConnection as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        message: 'OK',
+      });
+
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      const nameInput = screen.getByLabelText(/Name/);
+      await fireEvent.input(nameInput, { target: { value: 'No User Test' } });
+
+      await fireEvent.click(screen.getByText('Test Connection'));
+
+      expect(screen.queryByText('Password Required')).not.toBeInTheDocument();
+      await vi.waitFor(() => {
+        expect(api.testConnection).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('SRV toggle', () => {
+    it('hides port field and auto-checks TLS when SRV is enabled', async () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      expect(screen.getByLabelText(/Port/)).toBeInTheDocument();
+      expect(screen.getByTestId('tls-checkbox')).not.toBeChecked();
+
+      await fireEvent.click(screen.getByRole('button', { name: 'SRV' }));
+
+      await vi.waitFor(() => {
+        expect(screen.queryByLabelText(/Port/)).not.toBeInTheDocument();
+      });
+      expect(screen.getByTestId('tls-checkbox')).toBeChecked();
+      expect(screen.getByTestId('tls-checkbox')).toBeDisabled();
     });
   });
 
