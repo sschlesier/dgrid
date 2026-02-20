@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+- Add write operations to query execution (insertOne, updateMany, deleteMany, etc.)
+- Add right-click context menus to sidebar tree nodes
+- Add context menu actions in results grid (copy, edit, delete document)
+- Add Copy Sub-Document context menu item
+- Add syntax highlighting to CodeMirror editors
+- Support bracket notation and db.getCollection() in query parser
+- Fix query parsing for queries with leading comments
+- Fix editor selection highlight visibility in vim visual mode
+
 ## 0.4.1
 
 - Add update-available indicator in header
