@@ -51,57 +51,36 @@ test.describe('Results View Modes', () => {
     await deleteAllConnections(request);
   });
 
-  test('default view is table', async ({ page, s, mongoInfo }) => {
+  test('view switching cycles through Table, JSON, Tree and back', async ({
+    page,
+    s,
+    mongoInfo,
+  }) => {
     await setupWithResults(page, s, mongoInfo);
 
-    // Table view should be active
+    // Default: Table view active, export button visible
     await expect(s.results.gridViewport()).toBeVisible();
     await expect(s.results.viewButton('Table')).toHaveClass(/active/);
-  });
+    await expect(s.results.exportButton()).toBeVisible();
+    await expect(s.results.exportButton()).toHaveText('Export CSV');
 
-  test('switch to JSON view', async ({ page, s, mongoInfo }) => {
-    await setupWithResults(page, s, mongoInfo);
-
-    // Click JSON view button
+    // Switch to JSON view
     await s.results.viewButton('JSON').click();
-
-    // JSON view should be visible, grid should not
     await expect(s.results.jsonView()).toBeVisible();
     await expect(s.results.gridViewport()).not.toBeVisible();
     await expect(s.results.viewButton('JSON')).toHaveClass(/active/);
-  });
 
-  test('switch to Tree view', async ({ page, s, mongoInfo }) => {
-    await setupWithResults(page, s, mongoInfo);
-
-    // Click Tree view button
+    // Switch to Tree view
     await s.results.viewButton('Tree').click();
-
-    // Tree view should be visible
     await expect(s.results.treeView()).toBeVisible();
     await expect(s.results.gridViewport()).not.toBeVisible();
     await expect(s.results.viewButton('Tree')).toHaveClass(/active/);
-  });
-
-  test('switch back to Table view from JSON', async ({ page, s, mongoInfo }) => {
-    await setupWithResults(page, s, mongoInfo);
-
-    // Switch to JSON
-    await s.results.viewButton('JSON').click();
-    await expect(s.results.jsonView()).toBeVisible();
 
     // Switch back to Table
     await s.results.viewButton('Table').click();
     await expect(s.results.gridViewport()).toBeVisible();
-    await expect(s.results.jsonView()).not.toBeVisible();
+    await expect(s.results.treeView()).not.toBeVisible();
     await expect(s.results.viewButton('Table')).toHaveClass(/active/);
-  });
-
-  test('export CSV button visible when results exist', async ({ page, s, mongoInfo }) => {
-    await setupWithResults(page, s, mongoInfo);
-
-    await expect(s.results.exportButton()).toBeVisible();
-    await expect(s.results.exportButton()).toHaveText('Export CSV');
   });
 
   test('export CSV button hidden when no results', async ({ page, s, mongoInfo }) => {

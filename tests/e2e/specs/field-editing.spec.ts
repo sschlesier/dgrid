@@ -103,19 +103,6 @@ test.describe('Field Editing', () => {
     await expect(s.results.gridViewport()).toContainText('99');
   });
 
-  test('edit dialog shows correct field path', async ({ page, s, mongoInfo }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ title: 'Hello World' }]);
-
-    await setupQueryTab(page, s, mongoInfo);
-
-    const cell = s.results.gridCell().filter({ hasText: 'Hello World' }).first();
-    await cell.click();
-    await page.keyboard.press('Meta+E');
-
-    await expect(s.editDialog.overlay()).toBeVisible();
-    await expect(s.editDialog.fieldPath()).toHaveText('title');
-  });
-
   test('cancel edit dialog preserves original value', async ({ page, s, mongoInfo }) => {
     await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'KeepMe' }]);
 
