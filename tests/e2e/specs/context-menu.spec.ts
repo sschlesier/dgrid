@@ -52,9 +52,7 @@ test.describe('Grid Context Menu', () => {
   });
 
   test('right-clicking a cell shows all context menu items', async ({ page, s, mongoInfo }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
-      { name: 'Alice', value: 42 },
-    ]);
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'Alice', value: 42 }]);
     await setupQueryTab(page, s, mongoInfo);
 
     // Right-click on a specific cell (the "name" cell)
@@ -76,9 +74,7 @@ test.describe('Grid Context Menu', () => {
     s,
     mongoInfo,
   }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
-      { name: 'EditMe', value: 99 },
-    ]);
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'EditMe', value: 99 }]);
     await setupQueryTab(page, s, mongoInfo);
 
     const cell = s.results.gridCell().filter({ hasText: 'EditMe' }).first();
@@ -93,9 +89,7 @@ test.describe('Grid Context Menu', () => {
   });
 
   test('Copy Value writes cell value to clipboard', async ({ page, s, mongoInfo }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
-      { name: 'CopyMe', value: 123 },
-    ]);
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'CopyMe', value: 123 }]);
     await setupQueryTab(page, s, mongoInfo);
 
     // Grant clipboard permissions
@@ -110,9 +104,7 @@ test.describe('Grid Context Menu', () => {
   });
 
   test('Copy Field Path writes field path to clipboard', async ({ page, s, mongoInfo }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
-      { name: 'PathTest', value: 1 },
-    ]);
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'PathTest', value: 1 }]);
     await setupQueryTab(page, s, mongoInfo);
 
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -126,9 +118,7 @@ test.describe('Grid Context Menu', () => {
   });
 
   test('Copy Document as JSON writes EJSON to clipboard', async ({ page, s, mongoInfo }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
-      { name: 'JSONTest', value: 42 },
-    ]);
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'JSONTest', value: 42 }]);
     await setupQueryTab(page, s, mongoInfo);
 
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -146,9 +136,7 @@ test.describe('Grid Context Menu', () => {
   });
 
   test('Copy _id writes the document id to clipboard', async ({ page, s, mongoInfo }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
-      { name: 'IdTest', value: 1 },
-    ]);
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'IdTest', value: 1 }]);
     await setupQueryTab(page, s, mongoInfo);
 
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -182,9 +170,7 @@ test.describe('Grid Context Menu', () => {
   });
 
   test('Copy Sub-Document is hidden for primitive cells', async ({ page, s, mongoInfo }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
-      { name: 'Primitive', value: 42 },
-    ]);
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'Primitive', value: 42 }]);
     await setupQueryTab(page, s, mongoInfo);
 
     const cell = s.results.gridCell().filter({ hasText: 'Primitive' }).first();
@@ -198,9 +184,7 @@ test.describe('Grid Context Menu', () => {
     s,
     mongoInfo,
   }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
-      { name: 'GutterTest', value: 1 },
-    ]);
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'GutterTest', value: 1 }]);
     await setupQueryTab(page, s, mongoInfo);
 
     // Right-click the row itself but outside any cell — use the row at the far right edge
@@ -218,5 +202,45 @@ test.describe('Grid Context Menu', () => {
     await expect(s.contextMenu.item('Copy Document as JSON')).toBeVisible();
     await expect(s.contextMenu.item('Copy _id')).toBeVisible();
     await expect(s.contextMenu.item('Delete Document')).toBeVisible();
+  });
+
+  test('Delete Document removes it from results', async ({ page, s, mongoInfo }) => {
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
+      { name: 'ToDelete', value: 1 },
+      { name: 'ToKeep', value: 2 },
+    ]);
+    await setupQueryTab(page, s, mongoInfo);
+
+    await expect(s.results.gridViewport()).toContainText('ToDelete');
+    await expect(s.results.gridViewport()).toContainText('ToKeep');
+
+    const cell = s.results.gridCell().filter({ hasText: 'ToDelete' }).first();
+    const row = page.locator('.grid-row').filter({ has: cell });
+
+    page.on('dialog', (dialog) => dialog.accept());
+
+    await row.click({ button: 'right' });
+    await expect(s.contextMenu.menu()).toBeVisible();
+    await s.contextMenu.item('Delete Document').click();
+
+    await expect(s.results.gridViewport()).not.toContainText('ToDelete');
+    await expect(s.results.gridViewport()).toContainText('ToKeep');
+  });
+
+  test('cancel Delete Document keeps document in results', async ({ page, s, mongoInfo }) => {
+    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'StayHere', value: 1 }]);
+    await setupQueryTab(page, s, mongoInfo);
+
+    await expect(s.results.gridViewport()).toContainText('StayHere');
+
+    page.on('dialog', (dialog) => dialog.dismiss());
+
+    const row = s.results.gridRow(0);
+    await row.click({ button: 'right' });
+    await expect(s.contextMenu.menu()).toBeVisible();
+    await s.contextMenu.item('Delete Document').click();
+
+    await expect(s.contextMenu.menu()).not.toBeVisible();
+    await expect(s.results.gridViewport()).toContainText('StayHere');
   });
 });

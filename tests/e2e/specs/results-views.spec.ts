@@ -96,4 +96,26 @@ test.describe('Results View Modes', () => {
     await expect(s.results.jsonView()).not.toBeVisible();
     await expect(s.results.viewButton('Table')).toHaveClass(/active/);
   });
+
+  test('export CSV button visible when results exist', async ({ page, s, mongoInfo }) => {
+    await setupWithResults(page, s, mongoInfo);
+
+    await expect(s.results.exportButton()).toBeVisible();
+    await expect(s.results.exportButton()).toHaveText('Export CSV');
+  });
+
+  test('export CSV button hidden when no results', async ({ page, s, mongoInfo }) => {
+    await page.goto('/');
+    await createConnection(page, { name: 'ViewsTest', host: mongoInfo.host, port: mongoInfo.port });
+    await connectToServer(page, 'ViewsTest');
+
+    await expandTreeNode(page, TEST_DB);
+    await expect(s.sidebar.treeItem('Collections')).toBeVisible({ timeout: 10_000 });
+    await expandTreeNode(page, 'Collections');
+    await expect(s.sidebar.treeItem(TEST_COLLECTION)).toBeVisible({ timeout: 10_000 });
+    await s.sidebar.treeItem(TEST_COLLECTION).click();
+
+    // Before executing a query, export button should not be visible
+    await expect(s.results.exportButton()).not.toBeVisible();
+  });
 });
