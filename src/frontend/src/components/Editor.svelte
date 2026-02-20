@@ -16,11 +16,12 @@
   import { bracketMatching } from '@codemirror/language';
   import { editorHighlighting } from '../lib/editorHighlighting';
   import { fieldCompletionExtension } from '../lib/fieldCompletion';
+  import type { ExecuteInfo, ExecuteMode } from '../types';
 
   interface Props {
     value?: string;
     onchange?: (_value: string) => void;
-    onexecute?: () => void;
+    onexecute?: (_info: ExecuteInfo) => void;
     vimMode?: boolean;
     readonly?: boolean;
     placeholder?: string;
@@ -124,13 +125,42 @@
     },
   });
 
-  // Execute keybinding (Cmd/Ctrl + Enter)
+  // Build ExecuteInfo from current editor state
+  function buildExecuteInfo(mode: ExecuteMode): ExecuteInfo {
+    const sel = view?.state.selection.main;
+    const offset = sel?.head ?? 0;
+    const from = sel?.from ?? 0;
+    const to = sel?.to ?? 0;
+    return {
+      mode,
+      cursorOffset: offset,
+      selectionFrom: from,
+      selectionTo: to,
+      hasSelection: from !== to,
+    };
+  }
+
+  // Execute keybindings
   function createExecuteKeymap() {
     return keymap.of([
       {
         key: 'Mod-Enter',
         run: () => {
-          onexecute?.();
+          onexecute?.(buildExecuteInfo('all'));
+          return true;
+        },
+      },
+      {
+        key: 'Mod-Shift-Enter',
+        run: () => {
+          onexecute?.(buildExecuteInfo('current'));
+          return true;
+        },
+      },
+      {
+        key: 'Mod-Alt-Enter',
+        run: () => {
+          onexecute?.(buildExecuteInfo('selected'));
           return true;
         },
       },
@@ -242,6 +272,24 @@
   // Public method to get current value
   export function getValue(): string {
     return view?.state.doc.toString() ?? '';
+  }
+
+  // Public method to get cursor/selection info for toolbar button clicks
+  export function getCursorInfo(): {
+    offset: number;
+    selectionFrom: number;
+    selectionTo: number;
+    hasSelection: boolean;
+  } {
+    const sel = view?.state.selection.main;
+    const from = sel?.from ?? 0;
+    const to = sel?.to ?? 0;
+    return {
+      offset: sel?.head ?? 0,
+      selectionFrom: from,
+      selectionTo: to,
+      hasSelection: from !== to,
+    };
   }
 </script>
 

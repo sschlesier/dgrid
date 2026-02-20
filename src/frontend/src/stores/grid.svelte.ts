@@ -49,27 +49,34 @@ function createInitialState(): GridState {
   };
 }
 
+// Compound key for multi-query sub-result grid state
+function gridKey(tabId: string, resultIndex = 0): string {
+  return resultIndex === 0 ? tabId : `${tabId}:${resultIndex}`;
+}
+
 class GridStore {
   // Per-tab state
   states = $state<Map<string, GridState>>(new Map());
 
-  // Get or create state for a tab
-  getState(tabId: string): GridState {
-    let state = this.states.get(tabId);
+  // Get or create state for a tab (with optional sub-result index)
+  getState(tabId: string, resultIndex = 0): GridState {
+    const key = gridKey(tabId, resultIndex);
+    let state = this.states.get(key);
     if (!state) {
       state = createInitialState();
       const newStates = new Map(this.states);
-      newStates.set(tabId, state);
+      newStates.set(key, state);
       this.states = newStates;
     }
     return state;
   }
 
   // Update state for a tab
-  private updateState(tabId: string, updates: Partial<GridState>): void {
-    const state = this.getState(tabId);
+  private updateState(tabId: string, updates: Partial<GridState>, resultIndex = 0): void {
+    const key = gridKey(tabId, resultIndex);
+    const state = this.getState(tabId, resultIndex);
     const newStates = new Map(this.states);
-    newStates.set(tabId, { ...state, ...updates });
+    newStates.set(key, { ...state, ...updates });
     this.states = newStates;
   }
 
@@ -257,27 +264,44 @@ class GridStore {
   }
 
   // Reset grid state for a tab (e.g., when running a new query)
-  resetState(tabId: string): void {
-    const state = this.getState(tabId);
-    this.updateState(tabId, {
-      columns: [],
-      sort: { column: null, direction: null },
-      drilldown: {
-        path: [],
-        history: [[]],
-        historyIndex: 0,
+  resetState(tabId: string, resultIndex = 0): void {
+    const state = this.getState(tabId, resultIndex);
+    this.updateState(
+      tabId,
+      {
+        columns: [],
+        sort: { column: null, direction: null },
+        drilldown: {
+          path: [],
+          history: [[]],
+          historyIndex: 0,
+        },
+        // Keep pageSize, columnWidths, and viewMode
+        pageSize: state.pageSize,
+        columnWidths: state.columnWidths,
+        viewMode: state.viewMode,
       },
-      // Keep pageSize, columnWidths, and viewMode
-      pageSize: state.pageSize,
-      columnWidths: state.columnWidths,
-      viewMode: state.viewMode,
-    });
+      resultIndex
+    );
+  }
+
+  // Reset grid state for all sub-results of a multi-query execution
+  resetAllSubResults(tabId: string, count: number): void {
+    for (let i = 0; i < count; i++) {
+      this.resetState(tabId, i);
+    }
   }
 
   // Clean up tab state when tab is closed
   cleanupTab(tabId: string): void {
     const newStates = new Map(this.states);
+    // Delete the primary key and any compound keys
     newStates.delete(tabId);
+    for (const key of newStates.keys()) {
+      if (key.startsWith(`${tabId}:`)) {
+        newStates.delete(key);
+      }
+    }
     this.states = newStates;
   }
 }

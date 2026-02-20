@@ -1,10 +1,16 @@
 <script lang="ts">
-  import type { Tab } from '../types';
+  import type { Tab, ExecuteInfo, ExecuteMode } from '../types';
   import { appStore } from '../stores/app.svelte';
   import { queryStore } from '../stores/query.svelte';
   import { editorStore } from '../stores/editor.svelte';
   import { gridStore } from '../stores/grid.svelte';
   import { schemaStore } from '../stores/schema.svelte';
+  import {
+    splitQueries,
+    findSliceAtOffset,
+    findSlicesInSelection,
+  } from '../../../shared/querySplitter';
+  import type { QuerySlice } from '../../../shared/querySplitter';
   import { watchFile } from '../api/websocket';
   import * as api from '../api/client';
   import { supportsFileSystemAccess, openFile, saveFile } from '../lib/file-access';
@@ -25,6 +31,11 @@
   let results = $derived(queryStore.getResults(tab.id));
   let isExecuting = $derived(queryStore.getIsExecuting(tab.id));
   let error = $derived(queryStore.getError(tab.id));
+
+  // Multi-query state
+  let subResults = $derived(queryStore.getSubResults(tab.id));
+  let activeResultIndex = $derived(queryStore.getActiveResultIndex(tab.id));
+  let hasMultipleResults = $derived(subResults.length > 1);
 
   // Extract collection name from query text (supports dot, bracket, and getCollection syntax)
   const collectionName = $derived.by(() => {
@@ -55,6 +66,7 @@
   // UI state
   let showHistory = $state(false);
   let editorRef: Editor | null = $state(null);
+  let showDropdown = $state(false);
 
   // Resizable splitter state
   let editorHeight = $state(200);
@@ -102,15 +114,63 @@
     }
   }
 
-  async function handleExecute() {
-    const query = queryStore.getQueryText(tab.id);
-    if (!query.trim()) return;
+  // Resolve which slices to execute based on mode
+  function resolveQueries(info: ExecuteInfo): QuerySlice[] {
+    const fullText = queryStore.getQueryText(tab.id);
+    const allSlices = splitQueries(fullText);
 
-    // Reset grid state for new query
-    gridStore.resetState(tab.id);
+    if (allSlices.length === 0) return [];
+
+    switch (info.mode) {
+      case 'all':
+        return allSlices;
+
+      case 'current': {
+        const slice = findSliceAtOffset(allSlices, info.cursorOffset);
+        return slice ? [slice] : allSlices.length > 0 ? [allSlices[0]] : [];
+      }
+
+      case 'selected': {
+        if (!info.hasSelection) {
+          // No selection — fall back to all
+          return allSlices;
+        }
+        const selected = findSlicesInSelection(allSlices, info.selectionFrom, info.selectionTo);
+        if (selected.length === 0) {
+          // Partial selection — find the slice that overlaps the most
+          const atCursor = findSliceAtOffset(allSlices, info.selectionFrom);
+          return atCursor ? [atCursor] : [];
+        }
+        return selected;
+      }
+
+      default:
+        return allSlices;
+    }
+  }
+
+  async function handleExecute(info?: ExecuteInfo) {
+    const fullText = queryStore.getQueryText(tab.id);
+    if (!fullText.trim()) return;
+
+    const executeInfo: ExecuteInfo = info ?? {
+      mode: queryStore.lastExecuteMode,
+      cursorOffset: 0,
+      selectionFrom: 0,
+      selectionTo: 0,
+      hasSelection: false,
+    };
+
+    queryStore.lastExecuteMode = executeInfo.mode;
+
+    const queries = resolveQueries(executeInfo);
+    if (queries.length === 0) return;
+
+    // Reset grid state for all sub-results
+    gridStore.resetAllSubResults(tab.id, queries.length);
 
     const pageSize = gridStore.getPageSize(tab.id);
-    await queryStore.executeQuery(tab.id, tab.connectionId, tab.database, query, 1, pageSize);
+    await queryStore.executeQueries(tab.id, tab.connectionId, tab.database, queries, pageSize);
 
     // Enrich schema cache from result documents
     const queryResults = queryStore.getResults(tab.id);
@@ -126,6 +186,65 @@
 
   function handleCancel() {
     queryStore.cancelQuery(tab.id);
+  }
+
+  // Execute mode labels and shortcuts
+  const modeConfig: Record<ExecuteMode, { label: string; shortcut: string }> = {
+    all: { label: 'Run All', shortcut: '⌘↵' },
+    current: { label: 'Run Current', shortcut: '⌘⇧↵' },
+    selected: { label: 'Run Selected', shortcut: '⌘⌥↵' },
+  };
+
+  function handleDropdownClick(mode: ExecuteMode) {
+    showDropdown = false;
+    const cursorInfo = editorRef?.getCursorInfo() ?? {
+      offset: 0,
+      selectionFrom: 0,
+      selectionTo: 0,
+      hasSelection: false,
+    };
+    handleExecute({
+      mode,
+      cursorOffset: cursorInfo.offset,
+      selectionFrom: cursorInfo.selectionFrom,
+      selectionTo: cursorInfo.selectionTo,
+      hasSelection: cursorInfo.hasSelection,
+    });
+  }
+
+  function handleMainExecuteClick() {
+    const cursorInfo = editorRef?.getCursorInfo() ?? {
+      offset: 0,
+      selectionFrom: 0,
+      selectionTo: 0,
+      hasSelection: false,
+    };
+    handleExecute({
+      mode: queryStore.lastExecuteMode,
+      cursorOffset: cursorInfo.offset,
+      selectionFrom: cursorInfo.selectionFrom,
+      selectionTo: cursorInfo.selectionTo,
+      hasSelection: cursorInfo.hasSelection,
+    });
+  }
+
+  function toggleDropdown() {
+    showDropdown = !showDropdown;
+  }
+
+  // Close dropdown when clicking outside
+  function handleWindowClick(e: MouseEvent) {
+    if (showDropdown) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.split-button')) {
+        showDropdown = false;
+      }
+    }
+  }
+
+  // Sub-result tab switching
+  function switchSubResult(index: number) {
+    queryStore.setActiveResultIndex(tab.id, index);
   }
 
   // Error categorization
@@ -207,16 +326,52 @@
   }
 
   async function handlePageChange(newPage: number) {
-    const query = queryStore.getQueryText(tab.id);
-    const pageSize = gridStore.getPageSize(tab.id);
-    await queryStore.loadPage(tab.id, tab.connectionId, tab.database, query, newPage, pageSize);
+    if (hasMultipleResults) {
+      const sub = subResults[activeResultIndex];
+      if (sub) {
+        const pageSize = gridStore.getPageSize(tab.id, activeResultIndex);
+        await queryStore.loadPage(
+          tab.id,
+          tab.connectionId,
+          tab.database,
+          sub.query,
+          newPage,
+          pageSize,
+          false,
+          activeResultIndex
+        );
+      }
+    } else {
+      const query = queryStore.getQueryText(tab.id);
+      const pageSize = gridStore.getPageSize(tab.id);
+      await queryStore.loadPage(tab.id, tab.connectionId, tab.database, query, newPage, pageSize);
+    }
   }
 
   async function handlePageSizeChange(newSize: 50 | 100 | 250 | 500) {
-    const query = queryStore.getQueryText(tab.id);
-    // Re-execute query from page 1 with new page size
-    await queryStore.executeQuery(tab.id, tab.connectionId, tab.database, query, 1, newSize);
+    if (hasMultipleResults) {
+      const sub = subResults[activeResultIndex];
+      if (sub) {
+        gridStore.setPageSize(tab.id, newSize);
+        await queryStore.loadPage(
+          tab.id,
+          tab.connectionId,
+          tab.database,
+          sub.query,
+          1,
+          newSize,
+          false,
+          activeResultIndex
+        );
+      }
+    } else {
+      const query = queryStore.getQueryText(tab.id);
+      await queryStore.executeQuery(tab.id, tab.connectionId, tab.database, query, 1, newSize);
+    }
   }
+
+  // Derive the active sub-result for rendering
+  let activeSubResult = $derived(hasMultipleResults ? subResults[activeResultIndex] : null);
 
   // History handlers
   function openHistory() {
@@ -384,9 +539,22 @@
       }
     };
   });
+
+  // Executing progress message
+  let executingMessage = $derived.by(() => {
+    if (!isExecuting) return '';
+    if (subResults.length > 1) {
+      const running = subResults.findIndex((s) => s.isExecuting);
+      if (running >= 0) {
+        return `Executing query ${running + 1} of ${subResults.length}...`;
+      }
+      return 'Executing queries...';
+    }
+    return 'Executing query...';
+  });
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} onclick={handleWindowClick} />
 
 <div class="query-panel" class:is-dragging={isDragging} bind:this={panelEl}>
   <div class="editor-section" style="height: {editorHeight}px">
@@ -394,9 +562,40 @@
       {#if isExecuting}
         <button class="cancel-btn" onclick={handleCancel}> Cancel </button>
       {:else}
-        <button class="execute-btn" onclick={handleExecute} disabled={!queryText.trim()}>
-          Execute (⌘↵)
-        </button>
+        <div class="split-button">
+          <button
+            class="execute-btn split-main"
+            onclick={handleMainExecuteClick}
+            disabled={!queryText.trim()}
+          >
+            {modeConfig[queryStore.lastExecuteMode].label} ({modeConfig[queryStore.lastExecuteMode]
+              .shortcut})
+          </button>
+          <button
+            class="execute-btn split-dropdown"
+            onclick={toggleDropdown}
+            disabled={!queryText.trim()}
+            title="Choose execute mode"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+              <path d="M2 3.5L5 7L8 3.5H2Z" />
+            </svg>
+          </button>
+          {#if showDropdown}
+            <div class="execute-dropdown">
+              {#each ['all', 'current', 'selected'] as const as mode}
+                <button
+                  class="dropdown-item"
+                  class:active={queryStore.lastExecuteMode === mode}
+                  onclick={() => handleDropdownClick(mode)}
+                >
+                  <span class="dropdown-label">{modeConfig[mode].label}</span>
+                  <span class="dropdown-shortcut">{modeConfig[mode].shortcut}</span>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
       {/if}
 
       <div class="toolbar-divider"></div>
@@ -488,7 +687,82 @@
   <div class="splitter" onmousedown={onSplitterMouseDown}></div>
 
   <div class="results-section">
-    {#if error}
+    {#if hasMultipleResults}
+      <!-- Sub-result tab bar -->
+      <div class="sub-result-tabs">
+        {#each subResults as sub, i}
+          <button
+            class="sub-result-tab"
+            class:active={i === activeResultIndex}
+            class:has-error={sub.error !== null}
+            class:is-executing={sub.isExecuting}
+            onclick={() => switchSubResult(i)}
+          >
+            <span class="sub-tab-label">Query {i + 1}</span>
+            {#if sub.error}
+              <span class="sub-tab-error-dot" title="Error"></span>
+            {:else if sub.isExecuting}
+              <Spinner size="xs" />
+            {:else if sub.result}
+              <span class="sub-tab-count">{sub.result.totalCount}</span>
+            {/if}
+          </button>
+        {/each}
+      </div>
+
+      <!-- Active sub-result content -->
+      {#if activeSubResult}
+        {#if activeSubResult.error}
+          {@const errorInfo = categorizeError(activeSubResult.error)}
+          <div class="error-display">
+            <div class="error-header">
+              <span class="error-type">{errorInfo.type}</span>
+              <button
+                class="copy-error-btn"
+                onclick={() => copyError(activeSubResult?.error ?? '')}
+                title="Copy error to clipboard"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path
+                    d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"
+                  />
+                  <path
+                    d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"
+                  />
+                </svg>
+              </button>
+            </div>
+            <pre class="error-message">{activeSubResult.error}</pre>
+            {#if errorInfo.suggestion}
+              <div class="error-suggestion">
+                <strong>Suggestion:</strong>
+                {errorInfo.suggestion}
+              </div>
+            {/if}
+          </div>
+        {:else if activeSubResult.isExecuting}
+          <div class="loading-display">
+            <Spinner size="lg" />
+            <span>{executingMessage}</span>
+          </div>
+        {:else if activeSubResult.result}
+          <ResultsContainer
+            tabId={tab.id}
+            results={activeSubResult.result}
+            connectionId={tab.connectionId}
+            database={tab.database}
+            collection={collectionName}
+            query={activeSubResult.query}
+            onpagechange={handlePageChange}
+            onpagesizechange={handlePageSizeChange}
+          />
+        {:else}
+          <div class="empty-results">
+            <p class="empty-title">No results yet</p>
+          </div>
+        {/if}
+      {/if}
+    {:else if error}
       {@const errorInfo = categorizeError(error)}
       <div class="error-display">
         <div class="error-header">
@@ -519,7 +793,7 @@
     {:else if isExecuting}
       <div class="loading-display">
         <Spinner size="lg" />
-        <span>Executing query...</span>
+        <span>{executingMessage}</span>
       </div>
     {:else if results}
       <ResultsContainer
@@ -540,7 +814,7 @@
           />
         </svg>
         <p class="empty-title">Execute a query to see results</p>
-        <p class="empty-hint">Press <kbd>Cmd</kbd>+<kbd>Enter</kbd> to run your query</p>
+        <p class="empty-hint">Press <kbd>Cmd</kbd>+<kbd>Enter</kbd> to run all queries</p>
       </div>
     {/if}
   </div>
@@ -607,23 +881,92 @@
     border-bottom: 1px solid var(--color-border-light);
   }
 
-  .execute-btn {
+  /* Split button */
+  .split-button {
+    display: flex;
+    position: relative;
+  }
+
+  .execute-btn.split-main {
     padding: var(--space-xs) var(--space-md);
     background-color: var(--color-primary);
     color: var(--color-primary-text);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-medium);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
     transition: background-color var(--transition-fast);
   }
 
-  .execute-btn:hover:not(:disabled) {
+  .execute-btn.split-main:hover:not(:disabled) {
     background-color: var(--color-primary-hover);
   }
 
-  .execute-btn:disabled {
+  .execute-btn.split-main:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .execute-btn.split-dropdown {
+    display: flex;
+    align-items: center;
+    padding: var(--space-xs) var(--space-xs);
+    background-color: var(--color-primary);
+    color: var(--color-primary-text);
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    transition: background-color var(--transition-fast);
+  }
+
+  .execute-btn.split-dropdown:hover:not(:disabled) {
+    background-color: var(--color-primary-hover);
+  }
+
+  .execute-btn.split-dropdown:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .execute-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 100;
+    min-width: 200px;
+    margin-top: 2px;
+    background-color: var(--color-bg-primary);
+    border: 1px solid var(--color-border-medium);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+  }
+
+  .dropdown-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+  }
+
+  .dropdown-item:hover {
+    background-color: var(--color-bg-hover);
+  }
+
+  .dropdown-item.active {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+  }
+
+  .dropdown-shortcut {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
   }
 
   .cancel-btn {
@@ -696,6 +1039,68 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+
+  /* Sub-result tabs */
+  .sub-result-tabs {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    padding: 0 var(--space-sm);
+    background-color: var(--color-bg-secondary);
+    border-bottom: 1px solid var(--color-border-light);
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+
+  .sub-result-tab {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+  }
+
+  .sub-result-tab:hover {
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-hover);
+  }
+
+  .sub-result-tab.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+  }
+
+  .sub-result-tab.has-error {
+    color: var(--color-error);
+  }
+
+  .sub-result-tab.has-error.active {
+    border-bottom-color: var(--color-error);
+  }
+
+  .sub-tab-error-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-error);
+  }
+
+  .sub-tab-count {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    background-color: var(--color-bg-tertiary);
+    padding: 0 4px;
+    border-radius: var(--radius-sm);
   }
 
   .error-display {

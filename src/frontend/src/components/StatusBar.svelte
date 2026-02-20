@@ -8,7 +8,24 @@
     if (!tabId) return '';
 
     if (queryStore.getIsExecuting(tabId)) {
+      const subs = queryStore.getSubResults(tabId);
+      if (subs.length > 1) {
+        const running = subs.findIndex((s) => s.isExecuting);
+        if (running >= 0) return `Executing query ${running + 1} of ${subs.length}...`;
+      }
       return 'Executing...';
+    }
+
+    // Multi-query: show active sub-result info with prefix
+    const subs = queryStore.getSubResults(tabId);
+    if (subs.length > 1) {
+      const idx = queryStore.getActiveResultIndex(tabId);
+      const sub = subs[idx];
+      if (!sub?.result) return '';
+      const { totalCount, page, pageSize, executionTimeMs } = sub.result;
+      const start = (page - 1) * pageSize + 1;
+      const end = Math.min(page * pageSize, totalCount);
+      return `[${idx + 1}/${subs.length}] ${start}-${end} of ${totalCount} documents (${executionTimeMs}ms)`;
     }
 
     const results = queryStore.getResults(tabId);

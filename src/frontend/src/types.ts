@@ -55,3 +55,22 @@ export interface QueryHistoryItem {
   timestamp: string;
   executionTimeMs?: number;
 }
+
+// Multi-query execution types
+export type ExecuteMode = 'all' | 'current' | 'selected';
+
+export interface SubQueryResult {
+  index: number;
+  query: string;
+  result: import('../../shared/contracts').ExecuteQueryResponse | null;
+  error: string | null;
+  isExecuting: boolean;
+}
+
+export interface ExecuteInfo {
+  mode: ExecuteMode;
+  cursorOffset: number;
+  selectionFrom: number;
+  selectionTo: number;
+  hasSelection: boolean;
+}

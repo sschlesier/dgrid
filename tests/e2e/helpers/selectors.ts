@@ -65,9 +65,17 @@ export function selectors(page: Page) {
     query: {
       editor: () => page.locator('.cm-editor'),
       editorContent: () => page.locator('.cm-content'),
-      executeButton: () => page.locator('.execute-btn'),
+      executeButton: () => page.locator('.execute-btn.split-main'),
+      executeDropdownToggle: () => page.locator('.execute-btn.split-dropdown'),
+      executeDropdown: () => page.locator('.execute-dropdown'),
+      executeDropdownItem: (label: string) =>
+        page.locator('.execute-dropdown .dropdown-item', { hasText: label }),
       cancelButton: () => page.locator('.cancel-btn'),
       errorDisplay: () => page.locator('.error-display'),
+      subResultTabs: () => page.locator('.sub-result-tabs'),
+      subResultTab: (index: number) => page.locator('.sub-result-tab').nth(index),
+      subResultTabActive: () => page.locator('.sub-result-tab.active'),
+      subResultTabWithError: () => page.locator('.sub-result-tab.has-error'),
       autocomplete: () => page.locator('.cm-tooltip-autocomplete'),
       autocompleteOption: (label: string) =>
         page.locator('.cm-tooltip-autocomplete .cm-completionLabel', { hasText: label }),
