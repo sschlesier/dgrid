@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0
+
+- Add multi-query execution: write multiple queries in a single editor buffer
+- Add split-button execute modes: Run All (Cmd+Enter), Run Current (Cmd+Shift+Enter), Run Selected (Cmd+Alt+Enter)
+- Show results for multiple queries as switchable sub-tabs with independent pagination
+- Errors in one query no longer block execution of others
+
 ## 0.5.0
 
 - Add write operations to query execution (insertOne, updateMany, deleteMany, etc.)
