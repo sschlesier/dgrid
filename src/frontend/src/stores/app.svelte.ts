@@ -60,6 +60,32 @@ class AppStore {
   isLoadingDatabases = $state(false);
   isConnecting = $state(false);
 
+  // Delayed per-node loading spinners (visible after 1s)
+  private _loadingTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private _loadingNodes = $state<Set<string>>(new Set());
+
+  private startNodeLoading(nodeId: string): void {
+    if (this._loadingTimers.has(nodeId)) return;
+    const timer = setTimeout(() => {
+      this._loadingNodes = new Set([...this._loadingNodes, nodeId]);
+      this._loadingTimers.delete(nodeId);
+    }, 1000);
+    this._loadingTimers.set(nodeId, timer);
+  }
+
+  private stopNodeLoading(nodeId: string): void {
+    const timer = this._loadingTimers.get(nodeId);
+    if (timer) {
+      clearTimeout(timer);
+      this._loadingTimers.delete(nodeId);
+    }
+    if (this._loadingNodes.has(nodeId)) {
+      const next = new Set(this._loadingNodes);
+      next.delete(nodeId);
+      this._loadingNodes = next;
+    }
+  }
+
   constructor() {
     // Listen for connection-lost events dispatched by the query store (avoids circular import)
     window.addEventListener('dgrid:connection-lost', ((
@@ -150,7 +176,9 @@ class AppStore {
   }
 
   async connect(id: string, password?: string, savePassword?: boolean): Promise<void> {
+    const nodeId = `conn:${id}`;
     this.isConnecting = true;
+    this.startNodeLoading(nodeId);
     try {
       const connectData =
         password !== undefined || savePassword !== undefined
@@ -161,14 +189,15 @@ class AppStore {
       this.activeConnectionId = id;
       this.collapseConnectionTree(id);
       this.notify('success', `Connected to "${connection.name}"`);
-      // Load databases after connecting
-      await this.loadDatabases(id);
+      // Load databases after connecting (skip node loading — connect manages it)
+      await this.loadDatabases(id, true);
     } catch (error) {
       const errorMessage = this.getConnectionErrorMessage((error as Error).message);
       this.notify('error', errorMessage);
       throw error;
     } finally {
       this.isConnecting = false;
+      this.stopNodeLoading(nodeId);
     }
   }
 
@@ -258,7 +287,9 @@ class AppStore {
   }
 
   // Database actions
-  async loadDatabases(connectionId: string): Promise<void> {
+  async loadDatabases(connectionId: string, skipNodeLoading = false): Promise<void> {
+    const nodeId = `conn:${connectionId}`;
+    if (!skipNodeLoading) this.startNodeLoading(nodeId);
     this.isLoadingDatabases = true;
     try {
       this.databases = await api.getDatabases(connectionId);
@@ -270,10 +301,13 @@ class AppStore {
       throw error;
     } finally {
       this.isLoadingDatabases = false;
+      if (!skipNodeLoading) this.stopNodeLoading(nodeId);
     }
   }
 
   async loadCollections(connectionId: string, database: string): Promise<void> {
+    const nodeId = `db:${connectionId}:${database}`;
+    this.startNodeLoading(nodeId);
     try {
       const collections = await api.getCollections(connectionId, database);
       const newMap = new Map(this.collections);
@@ -285,6 +319,8 @@ class AppStore {
         this.notify('error', `Failed to load collections: ${(error as Error).message}`);
       }
       throw error;
+    } finally {
+      this.stopNodeLoading(nodeId);
     }
   }
 
@@ -440,7 +476,7 @@ class AppStore {
         type: 'connection',
         label: connection.name,
         connectionId: connection.id,
-        isLoading: this.isConnecting && this.activeConnectionId === connection.id,
+        isLoading: this._loadingNodes.has(connectionNodeId),
         children: connection.isConnected
           ? databases.map((db): TreeNodeData => {
               const dbNodeId = `db:${connection.id}:${db.name}`;
@@ -454,7 +490,7 @@ class AppStore {
                 label: db.name,
                 connectionId: connection.id,
                 databaseName: db.name,
-                isLoading: false,
+                isLoading: this._loadingNodes.has(dbNodeId),
                 children: [
                   {
                     id: `coll-group:${connection.id}:${db.name}`,
