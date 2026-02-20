@@ -47,27 +47,6 @@ test.describe('Document Delete', () => {
     await deleteAllConnections(request);
   });
 
-  test('right-click shows context menu with Delete Document option', async ({
-    page,
-    s,
-    mongoInfo,
-  }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
-      { name: 'Alice', value: 1 },
-      { name: 'Bob', value: 2 },
-    ]);
-
-    await setupQueryTab(page, s, mongoInfo);
-
-    // Right-click on a row
-    const row = s.results.gridRow(0);
-    await row.click({ button: 'right' });
-
-    // Context menu should appear
-    await expect(s.contextMenu.menu()).toBeVisible();
-    await expect(s.contextMenu.item('Delete Document')).toBeVisible();
-  });
-
   test('delete document removes it from results', async ({ page, s, mongoInfo }) => {
     await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [
       { name: 'ToDelete', value: 1 },

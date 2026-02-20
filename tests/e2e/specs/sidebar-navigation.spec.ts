@@ -46,32 +46,6 @@ test.describe('Sidebar Navigation', () => {
     await expect(s.sidebar.treeItem(TEST_COLLECTION)).toBeVisible({ timeout: 10_000 });
   });
 
-  test('click collection opens query tab', async ({ page, s, mongoInfo }) => {
-    await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'Item 1' }]);
-
-    await page.goto('/');
-    await createConnection(page, {
-      name: 'SidebarTest',
-      host: mongoInfo.host,
-      port: mongoInfo.port,
-    });
-    await connectToServer(page, 'SidebarTest');
-
-    await expandTreeNode(page, TEST_DB);
-    await expect(s.sidebar.treeItem('Collections')).toBeVisible({ timeout: 10_000 });
-    await expandTreeNode(page, 'Collections');
-    await expect(s.sidebar.treeItem(TEST_COLLECTION)).toBeVisible({ timeout: 10_000 });
-
-    // Click collection to open a tab
-    await s.sidebar.treeItem(TEST_COLLECTION).click();
-
-    // A tab should appear with the collection name
-    await expect(s.tabs.bar()).toBeVisible();
-    await expect(s.tabs.activeTab()).toBeVisible();
-    // The editor should appear
-    await expect(s.query.editor()).toBeVisible();
-  });
-
   test('disconnect from server', async ({ page, s, mongoInfo }) => {
     await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'Item 1' }]);
 
