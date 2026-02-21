@@ -13,6 +13,7 @@ use state::AppState;
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             commands::version::get_version,
@@ -33,6 +34,8 @@ pub fn run() {
             commands::query::cancel_query,
             commands::documents::update_field,
             commands::documents::delete_document,
+            commands::export::export_csv,
+            commands::export::cancel_export,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
