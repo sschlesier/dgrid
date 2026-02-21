@@ -2,6 +2,7 @@ mod commands;
 mod credentials;
 mod error;
 mod state;
+mod storage;
 
 use state::AppState;
 
