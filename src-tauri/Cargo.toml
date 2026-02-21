@@ -21,6 +21,8 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "linux-
 mongodb = "3"
 dirs = "6"
 futures-util = "0.3"
+base64 = "0.22"
+tokio-util = { version = "0.7", features = ["rt"] }
 indexmap = "2"
 
 [dev-dependencies]

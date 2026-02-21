@@ -1,6 +1,8 @@
+mod bson_ser;
 mod commands;
 mod credentials;
 mod error;
+mod executor;
 mod keyring;
 mod pool;
 mod state;
@@ -26,6 +28,8 @@ pub fn run() {
             commands::databases::get_collections,
             commands::databases::get_collection_stats_cmd,
             commands::databases::get_schema,
+            commands::query::execute_query,
+            commands::query::cancel_query,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

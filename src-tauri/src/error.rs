@@ -23,6 +23,12 @@ pub enum DgridError {
 
     #[error("{0}")]
     Validation(String),
+
+    #[error("{0}")]
+    QueryExecution(String),
+
+    #[error("Query was cancelled")]
+    QueryCancelled,
 }
 
 impl From<std::io::Error> for DgridError {
