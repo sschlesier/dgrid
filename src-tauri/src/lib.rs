@@ -30,6 +30,8 @@ pub fn run() {
             commands::databases::get_schema,
             commands::query::execute_query,
             commands::query::cancel_query,
+            commands::documents::update_field,
+            commands::documents::delete_document,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
