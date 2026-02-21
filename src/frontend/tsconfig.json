@@ -11,5 +11,5 @@
     "noEmit": true
   },
   "include": ["src/**/*", "../shared/**/*", "../../tests/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "../shared/__tests__"]
 }

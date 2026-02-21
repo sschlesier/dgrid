@@ -18,5 +18,12 @@
     "sourceMap": true
   },
   "include": ["src/shared/**/*"],
-  "exclude": ["node_modules", "dist", "build", "src/backend", "src/frontend"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "src/backend",
+    "src/frontend",
+    "src/shared/__tests__"
+  ]
 }
