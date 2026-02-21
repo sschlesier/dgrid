@@ -38,14 +38,14 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     id: 'new-tab',
     description: 'New tab',
     category: 'Tabs',
-    defaultBinding: { key: 't', meta: true },
+    defaultBinding: { key: 't', alt: true },
     alwaysGlobal: true,
   },
   {
     id: 'close-tab',
     description: 'Close tab',
     category: 'Tabs',
-    defaultBinding: { key: 'w', meta: true },
+    defaultBinding: { key: 'w', alt: true },
     alwaysGlobal: true,
   },
 

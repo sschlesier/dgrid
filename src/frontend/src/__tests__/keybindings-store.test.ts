@@ -57,7 +57,7 @@ describe('KeybindingsStore', () => {
   describe('getFormatted', () => {
     it('returns formatted default binding', () => {
       const formatted = keybindingsStore.getFormatted('new-tab');
-      expect(formatted).toBe('⌘T');
+      expect(formatted).toBe('⌥T');
     });
 
     it('returns formatted override binding', () => {
@@ -143,8 +143,8 @@ describe('KeybindingsStore', () => {
     });
 
     it('finds conflict with another shortcut default', () => {
-      // new-tab default is { key: 't', meta: true }
-      const result = keybindingsStore.findConflict('show-help', { key: 't', meta: true });
+      // new-tab default is { key: 't', alt: true }
+      const result = keybindingsStore.findConflict('show-help', { key: 't', alt: true });
       expect(result).toBe('new-tab');
     });
 

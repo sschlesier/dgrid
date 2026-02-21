@@ -60,8 +60,8 @@ Press `?` to see all shortcuts. The essentials:
 | Shortcut    | Action               |
 | ----------- | -------------------- |
 | `Cmd+Enter` | Execute query        |
-| `Cmd+T`     | New tab              |
-| `Cmd+W`     | Close tab            |
+| `Alt+T`     | New tab              |
+| `Alt+W`     | Close tab            |
 | `Cmd+S`     | Save query to file   |
 | `Cmd+O`     | Load query from file |
 

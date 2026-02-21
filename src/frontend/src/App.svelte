@@ -111,7 +111,7 @@
           <div class="empty-state">
             <div class="empty-state-content">
               <h2>No Query Tabs Open</h2>
-              <p>Click the + button above or press Cmd+T to start querying</p>
+              <p>Click the + button above or press Alt+T to start querying</p>
             </div>
           </div>
         {/if}
