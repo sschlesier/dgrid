@@ -27,6 +27,7 @@ vi.mock('../../stores/app.svelte', () => {
     appStore: {
       tabs: mockTabs,
       activeTabId: 'tab-1',
+      activeTab: mockTabs[0],
       activeConnection: { id: 'conn-1', name: 'Test', isConnected: true },
       databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
       createTab: vi.fn(),

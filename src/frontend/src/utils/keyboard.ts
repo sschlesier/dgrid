@@ -163,7 +163,7 @@ function handleKeyDown(event: KeyboardEvent): void {
  */
 function ensureListener(): void {
   if (!isListenerRegistered && typeof window !== 'undefined') {
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
     isListenerRegistered = true;
   }
 }
@@ -233,7 +233,7 @@ export function formatShortcut(
  */
 export function cleanup(): void {
   if (isListenerRegistered && typeof window !== 'undefined') {
-    window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('keydown', handleKeyDown, true);
     isListenerRegistered = false;
   }
   shortcuts.clear();

@@ -9,8 +9,9 @@
   function handleNewTab() {
     const connection = appStore.activeConnection;
     if (connection?.isConnected && appStore.databases.length > 0) {
-      // Use the first database as default
-      appStore.createTab(connection.id, appStore.databases[0].name);
+      const activeTab = appStore.activeTab;
+      const database = activeTab?.database ?? appStore.databases[0].name;
+      appStore.createTab(connection.id, database);
     }
   }
 
