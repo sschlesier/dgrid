@@ -46,3 +46,7 @@ mongo-data/
 
 # Application data
 .dgrid/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/
