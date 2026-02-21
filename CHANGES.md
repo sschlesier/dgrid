@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- Add configurable keyboard shortcuts with editing UI
+- New tab inherits active tab's database
+- Show loading spinner on sidebar tree nodes during expansion
+- Fix Alt+key shortcuts on macOS where Option key produces dead keys
+- Change new-tab/close-tab shortcuts to Alt+T/Alt+W to avoid browser conflicts
+
 ## 0.6.0
 
 - Add multi-query execution: write multiple queries in a single editor buffer
