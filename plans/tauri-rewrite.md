@@ -93,11 +93,24 @@ Set up Tauri v2 in the project. Configure `tauri.conf.json` to serve the existin
 - 3 Rust tests passing (error serialization, error display, version command)
 - `.gitignore` updated for `src-tauri/target/` and `src-tauri/gen/`
 
-### Phase 2: Connection Storage + Connectivity — [ ] TODO
+### Phase 2: Connection Storage + Connectivity — [x] COMPLETE
 
 Port connection storage (JSON file CRUD with atomic writes), keyring integration, and credential handling. Then add the MongoDB connection pool and database browsing commands. Wire up `client.ts` to use `invoke()` instead of `fetch()`.
 
 Verify: connection dialog CRUD works, can connect to MongoDB, sidebar tree populates.
+
+**Done:**
+
+- `error.rs` — expanded DgridError with Storage, Keyring, Connection, Database, NotFound, Validation variants + From impls
+- `credentials.rs` — strip_credentials, inject_credentials, get_database_from_uri (percent-encoding, SRV support)
+- `storage.rs` — ConnectionStorage with JSON file CRUD, atomic writes (temp+rename), old-format detection, UUID/timestamps
+- `keyring.rs` — PasswordStorage trait, KeyringPasswordStorage (service "dgrid-mongodb-gui"), MockPasswordStorage for tests
+- `pool.rs` — ConnectionPool with RwLock<HashMap>, connect/disconnect/force_disconnect/get_client/get_db
+- `state.rs` — AppState wiring (storage + passwords + pool), data dir ~/.dgrid
+- `commands/connections.rs` — list, get, create, update, delete, test, test_saved, connect, disconnect
+- `commands/databases.rs` — get_databases, get_collections, get_collection_stats, get_schema (with flatten_document_keys/collect_columns)
+- `client.ts` — migrated to invoke() for all connection/database/version endpoints; fetch() kept for Phase 3+ endpoints
+- 64 Rust tests passing (10 error, 16 credentials, 18 storage, 7 keyring, 7 pool, 6 database helpers)
 
 ### Phase 3: Query Execution — [ ] TODO
 
