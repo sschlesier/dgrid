@@ -1,5 +1,6 @@
-// Typed API client wrapper
+// Typed API client wrapper — Tauri IPC for connections/databases, fetch for the rest
 
+import { invoke } from '@tauri-apps/api/core';
 import type {
   ConnectionResponse,
   CreateConnectionRequest,
@@ -17,7 +18,6 @@ import type {
   UpdateFieldResponse,
   DeleteDocumentRequest,
   DeleteDocumentResponse,
-  VersionResponse,
   ErrorResponse,
 } from '../../../shared/contracts';
 
@@ -38,6 +38,19 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+/**
+ * Wrap a Tauri invoke error into an ApiError
+ */
+function wrapInvokeError(error: unknown): ApiError {
+  if (typeof error === 'string') {
+    return new ApiError(500, 'InvokeError', error);
+  }
+  if (error instanceof Error) {
+    return new ApiError(500, 'InvokeError', error.message);
+  }
+  return new ApiError(500, 'InvokeError', String(error));
 }
 
 /**
@@ -77,7 +90,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 /**
- * Make a typed fetch request
+ * Make a typed fetch request (for endpoints not yet ported to Tauri)
  */
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { ...options.headers } as Record<string, string>;
@@ -104,103 +117,143 @@ export class QueryCancelledError extends Error {
   }
 }
 
-// Version endpoint
+// Version endpoint (Tauri)
 
-export async function getVersion(): Promise<VersionResponse> {
-  return request<VersionResponse>('/version');
+export async function getVersion(): Promise<{
+  version: string;
+  update?: { version: string; url: string };
+}> {
+  try {
+    const version = await invoke<string>('get_version');
+    return { version };
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
-// Connection endpoints
+// Connection endpoints (Tauri)
 
 export async function getConnections(): Promise<ConnectionResponse[]> {
-  return request<ConnectionResponse[]>('/connections');
+  try {
+    return await invoke<ConnectionResponse[]>('list_connections');
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
 export async function getConnection(id: string): Promise<ConnectionResponse> {
-  return request<ConnectionResponse>(`/connections/${id}`);
+  try {
+    return await invoke<ConnectionResponse>('get_connection', { id });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
 export async function createConnection(data: CreateConnectionRequest): Promise<ConnectionResponse> {
-  return request<ConnectionResponse>('/connections', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
+  try {
+    return await invoke<ConnectionResponse>('create_connection', { request: data });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
 export async function updateConnection(
   id: string,
   data: UpdateConnectionRequest
 ): Promise<ConnectionResponse> {
-  return request<ConnectionResponse>(`/connections/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  });
+  try {
+    return await invoke<ConnectionResponse>('update_connection', { id, request: data });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
 export async function deleteConnection(id: string): Promise<void> {
-  await request<void>(`/connections/${id}`, {
-    method: 'DELETE',
-  });
+  try {
+    await invoke<void>('delete_connection', { id });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
 export async function testConnection(data: TestConnectionRequest): Promise<TestConnectionResponse> {
-  return request<TestConnectionResponse>('/connections/test', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
+  try {
+    return await invoke<TestConnectionResponse>('test_connection', { request: data });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
-export async function testSavedConnection(id: string): Promise<TestConnectionResponse> {
-  return request<TestConnectionResponse>(`/connections/${id}/test`, {
-    method: 'POST',
-    body: JSON.stringify({}),
-  });
+export async function testSavedConnection(
+  id: string,
+  password?: string
+): Promise<TestConnectionResponse> {
+  try {
+    return await invoke<TestConnectionResponse>('test_saved_connection', { id, password });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
 export async function connectToConnection(
   id: string,
   data?: ConnectRequest
 ): Promise<ConnectionResponse> {
-  return request<ConnectionResponse>(`/connections/${id}/connect`, {
-    method: 'POST',
-    ...(data ? { body: JSON.stringify(data) } : {}),
-  });
+  try {
+    return await invoke<ConnectionResponse>('connect_to_connection', { id, request: data });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
 export async function disconnectFromConnection(id: string): Promise<ConnectionResponse> {
-  return request<ConnectionResponse>(`/connections/${id}/disconnect`, {
-    method: 'POST',
-  });
+  try {
+    return await invoke<ConnectionResponse>('disconnect_from_connection', { id });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
-// Database endpoints
+// Database endpoints (Tauri)
 
 export async function getDatabases(connectionId: string): Promise<DatabaseInfo[]> {
-  return request<DatabaseInfo[]>(`/connections/${connectionId}/databases`);
+  try {
+    return await invoke<DatabaseInfo[]>('get_databases', { id: connectionId });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
 export async function getCollections(
   connectionId: string,
   database: string
 ): Promise<CollectionInfo[]> {
-  return request<CollectionInfo[]>(
-    `/connections/${connectionId}/databases/${database}/collections`
-  );
+  try {
+    return await invoke<CollectionInfo[]>('get_collections', { id: connectionId, database });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
-// Schema endpoints
+// Schema endpoints (Tauri)
 
 export async function getCollectionSchema(
   connectionId: string,
   database: string,
   collection: string
 ): Promise<CollectionSchemaResponse> {
-  return request<CollectionSchemaResponse>(
-    `/connections/${connectionId}/databases/${database}/collections/${collection}/schema`
-  );
+  try {
+    return await invoke<CollectionSchemaResponse>('get_schema', {
+      id: connectionId,
+      database,
+      collection,
+    });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
-// Query endpoints
+// Query endpoints (fetch — Phase 3)
 
 export interface ExecuteQueryOptions {
   signal?: AbortSignal;
@@ -231,7 +284,7 @@ export async function executeQuery(
   }
 }
 
-// Export endpoints
+// Export endpoints (fetch — Phase 4)
 
 export async function exportCsv(
   connectionId: string,
@@ -252,7 +305,7 @@ export async function exportCsv(
   return response;
 }
 
-// Document endpoints
+// Document endpoints (fetch — Phase 4)
 
 export async function updateField(
   connectionId: string,
@@ -274,7 +327,7 @@ export async function deleteDocument(
   });
 }
 
-// File endpoints
+// File endpoints (fetch — Phase 5)
 
 export interface FileReadResponse {
   content: string;
