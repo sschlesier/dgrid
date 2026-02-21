@@ -6,7 +6,7 @@ export function selectors(page: Page) {
     header: {
       root: () => page.locator('header.header'),
       newConnectionButton: () => page.getByTitle('Add new connection'),
-      helpButton: () => page.getByTitle('Keyboard Shortcuts (?)'),
+      helpButton: () => page.locator('.help-btn'),
       title: () => page.locator('.app-title'),
       updateBadge: () => page.locator('.update-badge'),
     },
@@ -115,6 +115,10 @@ export function selectors(page: Page) {
       modal: () => page.locator('.modal-overlay .modal'),
       heading: () => page.locator('.modal-header h2'),
       closeButton: () => page.locator('.modal-header .close-btn'),
+      shortcutKeys: (id: string) => page.getByTestId(`shortcut-keys-${id}`),
+      captureZone: () => page.getByTestId('capture-zone'),
+      resetButton: (id: string) => page.getByTestId(`reset-${id}`),
+      resetAllButton: () => page.getByTestId('reset-all-btn'),
     },
 
     editDialog: {

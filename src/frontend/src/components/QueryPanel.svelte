@@ -5,12 +5,14 @@
   import { editorStore } from '../stores/editor.svelte';
   import { gridStore } from '../stores/grid.svelte';
   import { schemaStore } from '../stores/schema.svelte';
+  import { keybindingsStore } from '../stores/keybindings.svelte';
   import {
     splitQueries,
     findSliceAtOffset,
     findSlicesInSelection,
   } from '../../../shared/querySplitter';
   import type { QuerySlice } from '../../../shared/querySplitter';
+  import { matchesBinding } from '../utils/keyboard';
   import { watchFile } from '../api/websocket';
   import * as api from '../api/client';
   import { supportsFileSystemAccess, openFile, saveFile } from '../lib/file-access';
@@ -188,12 +190,15 @@
     queryStore.cancelQuery(tab.id);
   }
 
-  // Execute mode labels and shortcuts
-  const modeConfig: Record<ExecuteMode, { label: string; shortcut: string }> = {
-    all: { label: 'Run All', shortcut: '⌘↵' },
-    current: { label: 'Run Current', shortcut: '⌘⇧↵' },
-    selected: { label: 'Run Selected', shortcut: '⌘⌥↵' },
-  };
+  // Execute mode labels and shortcuts (reactive to keybinding changes)
+  const modeConfig = $derived<Record<ExecuteMode, { label: string; shortcut: string }>>({
+    all: { label: 'Run All', shortcut: keybindingsStore.getFormatted('execute-all') },
+    current: { label: 'Run Current', shortcut: keybindingsStore.getFormatted('execute-current') },
+    selected: {
+      label: 'Run Selected',
+      shortcut: keybindingsStore.getFormatted('execute-selected'),
+    },
+  });
 
   function handleDropdownClick(mode: ExecuteMode) {
     showDropdown = false;
@@ -514,18 +519,16 @@
     });
   }
 
-  // Keyboard shortcuts for file operations
+  // Keyboard shortcuts for file operations (uses keybindings store)
   function handleKeydown(event: KeyboardEvent) {
-    const mod = event.metaKey || event.ctrlKey;
-    if (!mod) return;
-
-    if (event.key === 's' && event.shiftKey) {
+    // Check save-as before save since save-as is a superset (Cmd+Shift+S vs Cmd+S)
+    if (matchesBinding(event, keybindingsStore.getBinding('save-query-as'))) {
       event.preventDefault();
       handleSaveAs();
-    } else if (event.key === 's') {
+    } else if (matchesBinding(event, keybindingsStore.getBinding('save-query'))) {
       event.preventDefault();
       handleSave();
-    } else if (event.key === 'o') {
+    } else if (matchesBinding(event, keybindingsStore.getBinding('open-file'))) {
       event.preventDefault();
       handleOpen();
     }
@@ -615,7 +618,11 @@
         <span>History</span>
       </button>
 
-      <button class="toolbar-btn" onclick={handleOpen} title="Open File (⌘O)">
+      <button
+        class="toolbar-btn"
+        onclick={handleOpen}
+        title="Open File ({keybindingsStore.getFormatted('open-file')})"
+      >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path
             d="M3.5 3.75a.25.25 0 0 1 .25-.25h5a.75.75 0 0 0 0-1.5h-5A1.75 1.75 0 0 0 2 3.75v8.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 12.25v-6.5a.75.75 0 0 0-1.5 0v6.5a.25.25 0 0 1-.25.25h-8.5a.25.25 0 0 1-.25-.25v-8.5Z"
@@ -627,7 +634,11 @@
         <span>Open</span>
       </button>
 
-      <button class="toolbar-btn" onclick={handleSave} title="Save (⌘S)">
+      <button
+        class="toolbar-btn"
+        onclick={handleSave}
+        title="Save ({keybindingsStore.getFormatted('save-query')})"
+      >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path
             d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z"
@@ -636,7 +647,11 @@
         <span>Save</span>
       </button>
 
-      <button class="toolbar-btn" onclick={handleSaveAs} title="Save As (⌘⇧S)">
+      <button
+        class="toolbar-btn"
+        onclick={handleSaveAs}
+        title="Save As ({keybindingsStore.getFormatted('save-query-as')})"
+      >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path
             d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z"
@@ -814,7 +829,9 @@
           />
         </svg>
         <p class="empty-title">Execute a query to see results</p>
-        <p class="empty-hint">Press <kbd>Cmd</kbd>+<kbd>Enter</kbd> to run all queries</p>
+        <p class="empty-hint">
+          Press <kbd>{keybindingsStore.getFormatted('execute-all')}</kbd> to run all queries
+        </p>
       </div>
     {/if}
   </div>

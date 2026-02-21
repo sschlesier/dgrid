@@ -16,6 +16,8 @@
   import { bracketMatching } from '@codemirror/language';
   import { editorHighlighting } from '../lib/editorHighlighting';
   import { fieldCompletionExtension } from '../lib/fieldCompletion';
+  import { keybindingsStore } from '../stores/keybindings.svelte';
+  import { bindingToCodeMirrorKey } from '../utils/keyboard';
   import type { ExecuteInfo, ExecuteMode } from '../types';
 
   interface Props {
@@ -43,6 +45,7 @@
   let vimCompartment = new Compartment();
   let readonlyCompartment = new Compartment();
   let autocompleteCompartment = new Compartment();
+  let executeCompartment = new Compartment();
 
   // Mutable ref so the completion source closure always reads the latest field names.
   // Updated by the "Sync autocomplete field names" $effect below.
@@ -140,25 +143,25 @@
     };
   }
 
-  // Execute keybindings
+  // Execute keybindings — built from keybindings store, reconfigured via compartment
   function createExecuteKeymap() {
     return keymap.of([
       {
-        key: 'Mod-Enter',
+        key: bindingToCodeMirrorKey(keybindingsStore.getBinding('execute-all')),
         run: () => {
           onexecute?.(buildExecuteInfo('all'));
           return true;
         },
       },
       {
-        key: 'Mod-Shift-Enter',
+        key: bindingToCodeMirrorKey(keybindingsStore.getBinding('execute-current')),
         run: () => {
           onexecute?.(buildExecuteInfo('current'));
           return true;
         },
       },
       {
-        key: 'Mod-Alt-Enter',
+        key: bindingToCodeMirrorKey(keybindingsStore.getBinding('execute-selected')),
         run: () => {
           onexecute?.(buildExecuteInfo('selected'));
           return true;
@@ -187,7 +190,7 @@
       editorHighlighting,
       theme,
       updateListener,
-      createExecuteKeymap(),
+      executeCompartment.of(createExecuteKeymap()),
       autocompleteCompartment.of(
         currentFieldNames.length > 0 ? fieldCompletionExtension(() => currentFieldNames) : []
       ),
@@ -244,6 +247,19 @@
         effects: autocompleteCompartment.reconfigure(
           fieldNames.length > 0 ? fieldCompletionExtension(() => currentFieldNames) : []
         ),
+      });
+    }
+  });
+
+  // Sync execute keybindings when store changes
+  $effect(() => {
+    // Read bindings to establish reactive dependency
+    keybindingsStore.getBinding('execute-all');
+    keybindingsStore.getBinding('execute-current');
+    keybindingsStore.getBinding('execute-selected');
+    if (view) {
+      view.dispatch({
+        effects: executeCompartment.reconfigure(createExecuteKeymap()),
       });
     }
   });

@@ -7,7 +7,8 @@
     getCellTypeClass,
     isDrillable,
   } from './utils';
-  import { matchesShortcut } from '../../utils/keyboard';
+  import { matchesBinding } from '../../utils/keyboard';
+  import { keybindingsStore } from '../../stores/keybindings.svelte';
 
   interface Props {
     value: unknown;
@@ -38,7 +39,7 @@
       event.preventDefault();
       ondrill(fieldKey);
     }
-    if (matchesShortcut(event, { key: 'e', meta: true, handler: () => {} }) && onedit && fieldKey) {
+    if (matchesBinding(event, keybindingsStore.getBinding('edit-field')) && onedit && fieldKey) {
       event.preventDefault();
       event.stopPropagation();
       onedit(fieldKey, value);

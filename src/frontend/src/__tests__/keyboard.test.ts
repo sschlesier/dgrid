@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   isMac,
   matchesShortcut,
+  matchesBinding,
+  bindingToCodeMirrorKey,
+  bindingToShortcut,
   formatShortcut,
   registerShortcut,
   unregisterShortcut,
@@ -190,6 +193,99 @@ describe('keyboard utilities', () => {
 
       expect(handler1).not.toHaveBeenCalled();
       expect(handler2).toHaveBeenCalledTimes(1);
+    });
+
+    it('respects alwaysGlobal flag for input elements', () => {
+      const handler = vi.fn();
+      registerShortcut('global-test', { key: 'x', ctrl: true, alwaysGlobal: true, handler });
+
+      // Create an input element and dispatch from it
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      const event = new KeyboardEvent('keydown', { key: 'x', ctrlKey: true, bubbles: true });
+      input.dispatchEvent(event);
+      document.body.removeChild(input);
+
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not fire non-global shortcut from input elements', () => {
+      const handler = vi.fn();
+      registerShortcut('local-test', { key: 'x', ctrl: true, handler });
+
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      const event = new KeyboardEvent('keydown', { key: 'x', ctrlKey: true, bubbles: true });
+      input.dispatchEvent(event);
+      document.body.removeChild(input);
+
+      expect(handler).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('matchesBinding', () => {
+    it('matches a simple binding', () => {
+      const event = new KeyboardEvent('keydown', { key: '?' });
+      expect(matchesBinding(event, { key: '?' })).toBe(true);
+    });
+
+    it('matches a binding with modifiers', () => {
+      vi.stubGlobal('navigator', { platform: 'MacIntel' });
+      const event = new KeyboardEvent('keydown', { key: 'e', metaKey: true });
+      expect(matchesBinding(event, { key: 'e', meta: true })).toBe(true);
+    });
+
+    it('does not match when key differs', () => {
+      const event = new KeyboardEvent('keydown', { key: 'a' });
+      expect(matchesBinding(event, { key: 'b' })).toBe(false);
+    });
+
+    it('does not match when modifier differs', () => {
+      vi.stubGlobal('navigator', { platform: 'MacIntel' });
+      const event = new KeyboardEvent('keydown', { key: 'e' });
+      expect(matchesBinding(event, { key: 'e', meta: true })).toBe(false);
+    });
+  });
+
+  describe('bindingToCodeMirrorKey', () => {
+    it('converts Mod+Enter', () => {
+      expect(bindingToCodeMirrorKey({ key: 'enter', meta: true })).toBe('Mod-Enter');
+    });
+
+    it('converts Mod+Shift+Enter', () => {
+      expect(bindingToCodeMirrorKey({ key: 'enter', meta: true, shift: true })).toBe(
+        'Mod-Shift-Enter'
+      );
+    });
+
+    it('converts Mod+Alt+Enter', () => {
+      expect(bindingToCodeMirrorKey({ key: 'enter', meta: true, alt: true })).toBe('Mod-Alt-Enter');
+    });
+
+    it('converts plain letter key', () => {
+      expect(bindingToCodeMirrorKey({ key: 's', meta: true })).toBe('Mod-s');
+    });
+
+    it('converts ctrl binding the same as meta', () => {
+      expect(bindingToCodeMirrorKey({ key: 's', ctrl: true })).toBe('Mod-s');
+    });
+  });
+
+  describe('bindingToShortcut', () => {
+    it('creates a KeyboardShortcut from binding and handler', () => {
+      const handler = vi.fn();
+      const shortcut = bindingToShortcut({ key: 't', meta: true }, handler);
+      expect(shortcut.key).toBe('t');
+      expect(shortcut.meta).toBe(true);
+      expect(shortcut.handler).toBe(handler);
+    });
+
+    it('passes alwaysGlobal option', () => {
+      const handler = vi.fn();
+      const shortcut = bindingToShortcut({ key: 't', meta: true }, handler, {
+        alwaysGlobal: true,
+      });
+      expect(shortcut.alwaysGlobal).toBe(true);
     });
   });
 });

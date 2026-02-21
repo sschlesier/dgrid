@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onDestroy } from 'svelte';
   import { appStore } from '../stores/app.svelte';
+  import { keybindingsStore } from '../stores/keybindings.svelte';
   import KeyboardShortcutsModal from './KeyboardShortcutsModal.svelte';
-  import { registerShortcut, unregisterShortcut } from '../utils/keyboard';
+  import { registerShortcut, unregisterShortcut, bindingToShortcut } from '../utils/keyboard';
 
   interface Props {
     onNewConnection: () => void;
@@ -16,13 +17,14 @@
     showShortcuts = !showShortcuts;
   }
 
-  onMount(() => {
-    registerShortcut('show-help', {
-      key: '?',
-      handler: () => {
+  $effect(() => {
+    const binding = keybindingsStore.getBinding('show-help');
+    registerShortcut(
+      'show-help',
+      bindingToShortcut(binding, () => {
         showShortcuts = true;
-      },
-    });
+      })
+    );
   });
 
   onDestroy(() => {
@@ -58,7 +60,11 @@
         Update v{appStore.updateAvailable.version}
       </a>
     {/if}
-    <button class="help-btn" onclick={toggleShortcuts} title="Keyboard Shortcuts (?)">
+    <button
+      class="help-btn"
+      onclick={toggleShortcuts}
+      title="Keyboard Shortcuts ({keybindingsStore.getFormatted('show-help')})"
+    >
       <svg
         width="18"
         height="18"

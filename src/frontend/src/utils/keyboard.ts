@@ -1,11 +1,14 @@
 // Keyboard shortcut utilities
 
+import type { ShortcutBinding } from '../stores/keybindings.svelte';
+
 export interface KeyboardShortcut {
   key: string;
   ctrl?: boolean;
   meta?: boolean;
   shift?: boolean;
   alt?: boolean;
+  alwaysGlobal?: boolean;
   handler: (event: KeyboardEvent) => void;
 }
 
@@ -25,7 +28,10 @@ export function isMac(): boolean {
  * Check if the modifier key matches the event
  * On Mac: uses Meta (Cmd), on Windows/Linux: uses Ctrl
  */
-export function matchesModifier(event: KeyboardEvent, shortcut: KeyboardShortcut): boolean {
+export function matchesModifier(
+  event: KeyboardEvent,
+  shortcut: Pick<KeyboardShortcut, 'meta' | 'ctrl' | 'shift' | 'alt'>
+): boolean {
   const mac = isMac();
 
   // Check primary modifier (Cmd on Mac, Ctrl on Windows/Linux)
@@ -59,6 +65,63 @@ export function matchesShortcut(event: KeyboardEvent, shortcut: KeyboardShortcut
 }
 
 /**
+ * Check if an event matches a binding (no handler required)
+ */
+export function matchesBinding(event: KeyboardEvent, binding: ShortcutBinding): boolean {
+  if (event.key.toLowerCase() !== binding.key.toLowerCase()) {
+    return false;
+  }
+  return matchesModifier(event, binding);
+}
+
+/**
+ * Convert a ShortcutBinding to a CodeMirror key string (e.g. 'Mod-Enter', 'Mod-Shift-Enter')
+ */
+export function bindingToCodeMirrorKey(binding: ShortcutBinding): string {
+  const parts: string[] = [];
+  if (binding.meta || binding.ctrl) parts.push('Mod');
+  if (binding.shift) parts.push('Shift');
+  if (binding.alt) parts.push('Alt');
+
+  // CodeMirror uses capitalized key names
+  const keyMap: Record<string, string> = {
+    enter: 'Enter',
+    escape: 'Escape',
+    backspace: 'Backspace',
+    delete: 'Delete',
+    tab: 'Tab',
+    arrowup: 'ArrowUp',
+    arrowdown: 'ArrowDown',
+    arrowleft: 'ArrowLeft',
+    arrowright: 'ArrowRight',
+  };
+
+  const cmKey = keyMap[binding.key.toLowerCase()] || binding.key.toLowerCase();
+  parts.push(cmKey);
+
+  return parts.join('-');
+}
+
+/**
+ * Create a KeyboardShortcut from a ShortcutBinding plus a handler
+ */
+export function bindingToShortcut(
+  binding: ShortcutBinding,
+  handler: (event: KeyboardEvent) => void,
+  options?: { alwaysGlobal?: boolean }
+): KeyboardShortcut {
+  return {
+    key: binding.key,
+    meta: binding.meta,
+    ctrl: binding.ctrl,
+    shift: binding.shift,
+    alt: binding.alt,
+    alwaysGlobal: options?.alwaysGlobal,
+    handler,
+  };
+}
+
+/**
  * Handle keyboard events and dispatch to registered shortcuts
  */
 function handleKeyDown(event: KeyboardEvent): void {
@@ -69,11 +132,7 @@ function handleKeyDown(event: KeyboardEvent): void {
 
   for (const shortcut of shortcuts.values()) {
     if (matchesShortcut(event, shortcut)) {
-      // For Cmd+T and Cmd+W, always handle even in inputs to prevent browser default
-      const isGlobalShortcut =
-        shortcut.key.toLowerCase() === 't' || shortcut.key.toLowerCase() === 'w';
-
-      if (!isInput || isGlobalShortcut) {
+      if (!isInput || shortcut.alwaysGlobal) {
         event.preventDefault();
         shortcut.handler(event);
         return;

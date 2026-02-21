@@ -42,9 +42,39 @@ vi.mock('../../stores/query.svelte', () => ({
   },
 }));
 
+vi.mock('../../stores/export.svelte', () => ({
+  exportStore: {
+    cleanupTab: vi.fn(),
+  },
+}));
+
+vi.mock('../../stores/keybindings.svelte', () => ({
+  keybindingsStore: {
+    getBinding: (id: string) => {
+      const defaults: Record<string, { key: string; meta?: boolean }> = {
+        'new-tab': { key: 't', meta: true },
+        'close-tab': { key: 'w', meta: true },
+      };
+      return defaults[id] ?? { key: '?' };
+    },
+    getFormatted: (id: string) => {
+      const labels: Record<string, string> = {
+        'new-tab': '⌘T',
+        'close-tab': '⌘W',
+      };
+      return labels[id] ?? '?';
+    },
+  },
+}));
+
 vi.mock('../../utils/keyboard', () => ({
   registerShortcut: vi.fn(),
   unregisterShortcut: vi.fn(),
+  bindingToShortcut: vi.fn((_binding: unknown, handler: unknown) => ({
+    key: 't',
+    meta: true,
+    handler,
+  })),
 }));
 
 import { appStore } from '../../stores/app.svelte';
@@ -124,21 +154,21 @@ describe('TabBar', () => {
     it('renders new tab button', () => {
       render(TabBar);
 
-      const newTabBtn = screen.getByTitle('New tab (Cmd+T)');
+      const newTabBtn = screen.getByTitle('New tab (⌘T)');
       expect(newTabBtn).toBeInTheDocument();
     });
 
     it('is enabled when connection is connected and has databases', () => {
       render(TabBar);
 
-      const newTabBtn = screen.getByTitle('New tab (Cmd+T)');
+      const newTabBtn = screen.getByTitle('New tab (⌘T)');
       expect(newTabBtn).not.toBeDisabled();
     });
 
     it('calls createTab when clicked', async () => {
       render(TabBar);
 
-      const newTabBtn = screen.getByTitle('New tab (Cmd+T)');
+      const newTabBtn = screen.getByTitle('New tab (⌘T)');
       await fireEvent.click(newTabBtn);
 
       expect(appStore.createTab).toHaveBeenCalledWith('conn-1', 'testdb');

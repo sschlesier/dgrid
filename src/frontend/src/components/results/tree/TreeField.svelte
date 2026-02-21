@@ -9,7 +9,8 @@
     getTypeBadge,
     buildPath,
   } from './tree-utils';
-  import { matchesShortcut } from '../../../utils/keyboard';
+  import { matchesBinding } from '../../../utils/keyboard';
+  import { keybindingsStore } from '../../../stores/keybindings.svelte';
 
   interface Props {
     fieldKey: string | number;
@@ -84,7 +85,7 @@
   }
 
   function handleValueKeydown(event: KeyboardEvent) {
-    if (matchesShortcut(event, { key: 'e', meta: true, handler: () => {} }) && onedit) {
+    if (matchesBinding(event, keybindingsStore.getBinding('edit-field')) && onedit) {
       event.preventDefault();
       event.stopPropagation();
       triggerEdit();

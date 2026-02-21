@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onDestroy } from 'svelte';
   import { appStore } from '../stores/app.svelte';
   import { queryStore } from '../stores/query.svelte';
   import { exportStore } from '../stores/export.svelte';
-  import { registerShortcut, unregisterShortcut } from '../utils/keyboard';
+  import { keybindingsStore } from '../stores/keybindings.svelte';
+  import { registerShortcut, unregisterShortcut, bindingToShortcut } from '../utils/keyboard';
 
   function handleNewTab() {
     const connection = appStore.activeConnection;
@@ -25,18 +26,20 @@
     }
   }
 
-  onMount(() => {
-    registerShortcut('new-tab', {
-      key: 't',
-      meta: true,
-      handler: handleNewTab,
-    });
+  $effect(() => {
+    const newTabBinding = keybindingsStore.getBinding('new-tab');
+    registerShortcut(
+      'new-tab',
+      bindingToShortcut(newTabBinding, handleNewTab, { alwaysGlobal: true })
+    );
+  });
 
-    registerShortcut('close-tab', {
-      key: 'w',
-      meta: true,
-      handler: handleCloseActiveTab,
-    });
+  $effect(() => {
+    const closeTabBinding = keybindingsStore.getBinding('close-tab');
+    registerShortcut(
+      'close-tab',
+      bindingToShortcut(closeTabBinding, handleCloseActiveTab, { alwaysGlobal: true })
+    );
   });
 
   onDestroy(() => {
@@ -86,7 +89,7 @@
     class="new-tab-btn"
     onclick={handleNewTab}
     disabled={!appStore.activeConnection?.isConnected || appStore.databases.length === 0}
-    title="New tab (Cmd+T)"
+    title="New tab ({keybindingsStore.getFormatted('new-tab')})"
   >
     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
       <path
