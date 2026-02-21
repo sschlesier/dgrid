@@ -253,10 +253,12 @@ export async function getCollectionSchema(
   }
 }
 
-// Query endpoints (fetch — Phase 3)
+// Query endpoints (Tauri)
+
+import { parseQuery } from '../../../shared/queries.js';
 
 export interface ExecuteQueryOptions {
-  signal?: AbortSignal;
+  tabId?: string;
 }
 
 export async function executeQuery(
@@ -264,23 +266,36 @@ export async function executeQuery(
   data: ExecuteQueryRequest,
   options?: ExecuteQueryOptions
 ): Promise<ExecuteQueryResponse> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  // Parse the query on the frontend before sending to Rust
+  const parsed = parseQuery(data.query);
+  if (!parsed.ok) {
+    throw new ApiError(400, 'QueryParseError', parsed.error.message);
+  }
 
   try {
-    const response = await fetch(`${API_BASE}/connections/${connectionId}/query`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(data),
-      signal: options?.signal,
+    return await invoke<ExecuteQueryResponse>('execute_query', {
+      id: connectionId,
+      request: {
+        query: parsed.value,
+        database: data.database,
+        page: data.page ?? 1,
+        pageSize: data.pageSize ?? 50,
+        tabId: options?.tabId,
+      },
     });
-    return handleResponse<ExecuteQueryResponse>(response);
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
+    if (typeof error === 'string' && error.includes('cancelled')) {
       throw new QueryCancelledError();
     }
-    throw error;
+    throw wrapInvokeError(error);
+  }
+}
+
+export async function cancelQuery(tabId: string): Promise<void> {
+  try {
+    await invoke<void>('cancel_query', { tabId });
+  } catch (e) {
+    throw wrapInvokeError(e);
   }
 }
 

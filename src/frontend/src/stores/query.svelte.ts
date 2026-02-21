@@ -49,8 +49,8 @@ class QueryStore {
   activeResultIndex = $state<Map<string, number>>(new Map());
   lastExecuteMode = $state<ExecuteMode>('all');
 
-  // Abort controllers for cancellable queries (not reactive, internal only)
-  private abortControllers: Map<string, AbortController> = new Map();
+  // Track which tabs have running queries for cancellation
+  private runningTabs: Set<string> = new Set();
 
   // Global history (last 20 queries)
   history = $state<QueryHistoryItem[]>(loadHistory());
@@ -134,9 +134,8 @@ class QueryStore {
     newIdx.delete(tabId);
     this.activeResultIndex = newIdx;
 
-    // Create new abort controller
-    const abortController = new AbortController();
-    this.abortControllers.set(tabId, abortController);
+    // Mark tab as running
+    this.runningTabs.add(tabId);
 
     // Set executing state (skip when silent to keep view mounted)
     if (!silent) {
@@ -159,7 +158,7 @@ class QueryStore {
           page,
           pageSize,
         },
-        { signal: abortController.signal }
+        { tabId }
       );
 
       // Store results
@@ -205,8 +204,8 @@ class QueryStore {
 
       return null;
     } finally {
-      // Clean up abort controller
-      this.abortControllers.delete(tabId);
+      // Clean up running tab
+      this.runningTabs.delete(tabId);
 
       // Clear executing state
       const newExecuting = new Map(this.isExecuting);
@@ -263,9 +262,9 @@ class QueryStore {
     newExecuting.set(tabId, true);
     this.isExecuting = newExecuting;
 
-    // Create abort controller for the whole batch
-    const abortController = new AbortController();
-    this.abortControllers.set(tabId, abortController);
+    // Mark tab as running
+    this.runningTabs.add(tabId);
+    let cancelled = false;
 
     // Add only the first query to history
     this.addToHistory({
@@ -279,7 +278,7 @@ class QueryStore {
     try {
       for (let i = 0; i < queries.length; i++) {
         // Check for cancellation before starting each query
-        if (abortController.signal.aborted) break;
+        if (cancelled || !this.runningTabs.has(tabId)) break;
 
         // Mark current sub-result as executing
         this.updateSubResult(tabId, i, { isExecuting: true });
@@ -293,7 +292,7 @@ class QueryStore {
               page: 1,
               pageSize,
             },
-            { signal: abortController.signal }
+            { tabId }
           );
 
           this.updateSubResult(tabId, i, {
@@ -301,9 +300,10 @@ class QueryStore {
             isExecuting: false,
           });
         } catch (error) {
-          if (error instanceof QueryCancelledError || abortController.signal.aborted) {
+          if (error instanceof QueryCancelledError) {
             // Mark this and all remaining as not executing
             this.updateSubResult(tabId, i, { isExecuting: false });
+            cancelled = true;
             break;
           }
 
@@ -321,7 +321,7 @@ class QueryStore {
         }
       }
     } finally {
-      this.abortControllers.delete(tabId);
+      this.runningTabs.delete(tabId);
 
       const newExecuting = new Map(this.isExecuting);
       newExecuting.set(tabId, false);
@@ -342,10 +342,11 @@ class QueryStore {
 
   // Cancel a running query
   cancelQuery(tabId: string): void {
-    const controller = this.abortControllers.get(tabId);
-    if (controller) {
-      controller.abort();
-      this.abortControllers.delete(tabId);
+    if (this.runningTabs.has(tabId)) {
+      this.runningTabs.delete(tabId);
+      api.cancelQuery(tabId).catch(() => {
+        // Ignore cancel errors — query may already be complete
+      });
     }
   }
 
@@ -363,16 +364,14 @@ class QueryStore {
     const subs = this.subResults.get(tabId);
     if (subs && subs.length > 1 && resultIndex !== undefined) {
       // Multi-query mode: update the specific sub-result
-      const abortController = new AbortController();
-      this.abortControllers.set(tabId, abortController);
-
+      this.runningTabs.add(tabId);
       this.updateSubResult(tabId, resultIndex, { isExecuting: true });
 
       try {
         const result = await api.executeQuery(
           connectionId,
           { query, database, page, pageSize },
-          { signal: abortController.signal }
+          { tabId }
         );
 
         this.updateSubResult(tabId, resultIndex, { result, isExecuting: false });
@@ -388,7 +387,7 @@ class QueryStore {
         }
         return null;
       } finally {
-        this.abortControllers.delete(tabId);
+        this.runningTabs.delete(tabId);
       }
     }
 

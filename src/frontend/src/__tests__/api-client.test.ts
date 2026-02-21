@@ -1,21 +1,32 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   ApiError,
+  QueryCancelledError,
   getConnections,
   getConnection,
   createConnection,
   updateConnection,
   deleteConnection,
   testConnection,
+  testSavedConnection,
   connectToConnection,
   disconnectFromConnection,
   getDatabases,
   getCollections,
+  getCollectionSchema,
+  getVersion,
   executeQuery,
+  cancelQuery,
   exportCsv,
   readFile,
   writeFile,
 } from '../api/client';
+
+// Mock Tauri invoke
+const mockInvoke = vi.fn();
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (...args: unknown[]) => mockInvoke(...args),
+}));
 
 describe('API client', () => {
   const mockFetch = vi.fn();
@@ -23,6 +34,7 @@ describe('API client', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch);
     mockFetch.mockReset();
+    mockInvoke.mockReset();
   });
 
   function mockResponse(data: unknown, status = 200) {
@@ -34,7 +46,7 @@ describe('API client', () => {
     });
   }
 
-  describe('error handling', () => {
+  describe('error handling (fetch-based)', () => {
     it('throws ApiError on 4xx response with details', async () => {
       mockResponse(
         {
@@ -47,7 +59,7 @@ describe('API client', () => {
       );
 
       try {
-        await getConnections();
+        await readFile('/test.js');
         expect.fail('Should have thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
@@ -68,7 +80,7 @@ describe('API client', () => {
         500
       );
 
-      await expect(getConnections()).rejects.toThrow(ApiError);
+      await expect(readFile('/test.js')).rejects.toThrow(ApiError);
     });
 
     it('handles non-JSON error response', async () => {
@@ -79,7 +91,7 @@ describe('API client', () => {
         json: () => Promise.reject(new Error('Invalid JSON')),
       });
 
-      await expect(getConnections()).rejects.toThrow('Internal Server Error');
+      await expect(readFile('/test.js')).rejects.toThrow('Internal Server Error');
     });
 
     it('propagates isConnected: false from error response', async () => {
@@ -94,7 +106,7 @@ describe('API client', () => {
       );
 
       try {
-        await getConnections();
+        await readFile('/test.js');
         expect.fail('Should have thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
@@ -113,11 +125,39 @@ describe('API client', () => {
       );
 
       try {
-        await getConnections();
+        await readFile('/test.js');
         expect.fail('Should have thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
         expect((error as ApiError).isConnected).toBeUndefined();
+      }
+    });
+  });
+
+  describe('error handling (Tauri invoke)', () => {
+    it('wraps string errors into ApiError', async () => {
+      mockInvoke.mockRejectedValueOnce('Connection refused');
+
+      try {
+        await getConnections();
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(500);
+        expect((error as ApiError).errorType).toBe('InvokeError');
+        expect((error as ApiError).message).toBe('Connection refused');
+      }
+    });
+
+    it('wraps Error objects into ApiError', async () => {
+      mockInvoke.mockRejectedValueOnce(new Error('Something went wrong'));
+
+      try {
+        await getConnections();
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).message).toBe('Something went wrong');
       }
     });
   });
@@ -178,155 +218,130 @@ describe('API client', () => {
     });
   });
 
-  describe('connections', () => {
-    it('getConnections fetches all connections', async () => {
-      const connections = [
-        { id: '1', name: 'Test', host: 'localhost', port: 27017, isConnected: false },
-      ];
-      mockResponse(connections);
+  describe('version (Tauri)', () => {
+    it('getVersion returns version string', async () => {
+      mockInvoke.mockResolvedValueOnce('1.0.0');
 
-      const result = await getConnections();
+      const result = await getVersion();
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/connections', expect.any(Object));
-      expect(result).toEqual(connections);
-    });
-
-    it('getConnection fetches single connection', async () => {
-      const connection = { id: '1', name: 'Test', host: 'localhost', port: 27017 };
-      mockResponse(connection);
-
-      const result = await getConnection('1');
-
-      expect(mockFetch).toHaveBeenCalledWith('/api/connections/1', expect.any(Object));
-      expect(result).toEqual(connection);
-    });
-
-    it('createConnection sends POST request', async () => {
-      const newConnection = { name: 'New', uri: 'mongodb://localhost:27017' };
-      const created = { id: '1', ...newConnection, isConnected: false };
-      mockResponse(created);
-
-      const result = await createConnection(newConnection);
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/connections',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify(newConnection),
-        })
-      );
-      expect(result).toEqual(created);
-    });
-
-    it('updateConnection sends PUT request', async () => {
-      const updates = { name: 'Updated' };
-      const updated = { id: '1', name: 'Updated', host: 'localhost', port: 27017 };
-      mockResponse(updated);
-
-      const result = await updateConnection('1', updates);
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/connections/1',
-        expect.objectContaining({
-          method: 'PUT',
-          body: JSON.stringify(updates),
-        })
-      );
-      expect(result).toEqual(updated);
-    });
-
-    it('deleteConnection sends DELETE request', async () => {
-      mockResponse(undefined);
-
-      await deleteConnection('1');
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/connections/1',
-        expect.objectContaining({
-          method: 'DELETE',
-        })
-      );
-    });
-
-    it('testConnection sends POST request', async () => {
-      const testData = { uri: 'mongodb://localhost:27017' };
-      const testResult = { success: true, message: 'Connected', latencyMs: 10 };
-      mockResponse(testResult);
-
-      const result = await testConnection(testData);
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/connections/test',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify(testData),
-        })
-      );
-      expect(result).toEqual(testResult);
-    });
-
-    it('connectToConnection sends POST request', async () => {
-      const connected = { id: '1', name: 'Test', isConnected: true };
-      mockResponse(connected);
-
-      const result = await connectToConnection('1');
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/connections/1/connect',
-        expect.objectContaining({ method: 'POST' })
-      );
-      expect(result).toEqual(connected);
-    });
-
-    it('disconnectFromConnection sends POST request', async () => {
-      const disconnected = { id: '1', name: 'Test', isConnected: false };
-      mockResponse(disconnected);
-
-      const result = await disconnectFromConnection('1');
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/connections/1/disconnect',
-        expect.objectContaining({ method: 'POST' })
-      );
-      expect(result).toEqual(disconnected);
-    });
-
-    it('does not set Content-Type header for requests without body', async () => {
-      // Regression test: Fastify rejects empty body with Content-Type: application/json
-      const disconnected = { id: '1', name: 'Test', isConnected: false };
-      mockResponse(disconnected);
-
-      await disconnectFromConnection('1');
-
-      const fetchCall = mockFetch.mock.calls[0];
-      const headers = fetchCall[1].headers;
-      expect(headers['Content-Type']).toBeUndefined();
-    });
-
-    it('sets Content-Type header for requests with body', async () => {
-      const newConnection = { name: 'New', uri: 'mongodb://localhost:27017' };
-      mockResponse({ id: '1', ...newConnection });
-
-      await createConnection(newConnection);
-
-      const fetchCall = mockFetch.mock.calls[0];
-      const headers = fetchCall[1].headers;
-      expect(headers['Content-Type']).toBe('application/json');
+      expect(mockInvoke).toHaveBeenCalledWith('get_version');
+      expect(result).toEqual({ version: '1.0.0' });
     });
   });
 
-  describe('databases', () => {
-    it('getDatabases fetches databases for connection', async () => {
+  describe('connections (Tauri)', () => {
+    it('getConnections invokes list_connections', async () => {
+      const connections = [
+        { id: '1', name: 'Test', host: 'localhost', port: 27017, isConnected: false },
+      ];
+      mockInvoke.mockResolvedValueOnce(connections);
+
+      const result = await getConnections();
+
+      expect(mockInvoke).toHaveBeenCalledWith('list_connections');
+      expect(result).toEqual(connections);
+    });
+
+    it('getConnection invokes get_connection', async () => {
+      const connection = { id: '1', name: 'Test', host: 'localhost', port: 27017 };
+      mockInvoke.mockResolvedValueOnce(connection);
+
+      const result = await getConnection('1');
+
+      expect(mockInvoke).toHaveBeenCalledWith('get_connection', { id: '1' });
+      expect(result).toEqual(connection);
+    });
+
+    it('createConnection invokes create_connection', async () => {
+      const newConnection = { name: 'New', uri: 'mongodb://localhost:27017' };
+      const created = { id: '1', ...newConnection, isConnected: false };
+      mockInvoke.mockResolvedValueOnce(created);
+
+      const result = await createConnection(newConnection);
+
+      expect(mockInvoke).toHaveBeenCalledWith('create_connection', { request: newConnection });
+      expect(result).toEqual(created);
+    });
+
+    it('updateConnection invokes update_connection', async () => {
+      const updates = { name: 'Updated' };
+      const updated = { id: '1', name: 'Updated', host: 'localhost', port: 27017 };
+      mockInvoke.mockResolvedValueOnce(updated);
+
+      const result = await updateConnection('1', updates);
+
+      expect(mockInvoke).toHaveBeenCalledWith('update_connection', { id: '1', request: updates });
+      expect(result).toEqual(updated);
+    });
+
+    it('deleteConnection invokes delete_connection', async () => {
+      mockInvoke.mockResolvedValueOnce(undefined);
+
+      await deleteConnection('1');
+
+      expect(mockInvoke).toHaveBeenCalledWith('delete_connection', { id: '1' });
+    });
+
+    it('testConnection invokes test_connection', async () => {
+      const testData = { uri: 'mongodb://localhost:27017' };
+      const testResult = { success: true, message: 'Connected', latencyMs: 10 };
+      mockInvoke.mockResolvedValueOnce(testResult);
+
+      const result = await testConnection(testData);
+
+      expect(mockInvoke).toHaveBeenCalledWith('test_connection', { request: testData });
+      expect(result).toEqual(testResult);
+    });
+
+    it('testSavedConnection invokes test_saved_connection', async () => {
+      const testResult = { success: true, message: 'Connected', latencyMs: 10 };
+      mockInvoke.mockResolvedValueOnce(testResult);
+
+      const result = await testSavedConnection('1', 'secret');
+
+      expect(mockInvoke).toHaveBeenCalledWith('test_saved_connection', {
+        id: '1',
+        password: 'secret',
+      });
+      expect(result).toEqual(testResult);
+    });
+
+    it('connectToConnection invokes connect_to_connection', async () => {
+      const connected = { id: '1', name: 'Test', isConnected: true };
+      mockInvoke.mockResolvedValueOnce(connected);
+
+      const result = await connectToConnection('1');
+
+      expect(mockInvoke).toHaveBeenCalledWith('connect_to_connection', {
+        id: '1',
+        request: undefined,
+      });
+      expect(result).toEqual(connected);
+    });
+
+    it('disconnectFromConnection invokes disconnect_from_connection', async () => {
+      const disconnected = { id: '1', name: 'Test', isConnected: false };
+      mockInvoke.mockResolvedValueOnce(disconnected);
+
+      const result = await disconnectFromConnection('1');
+
+      expect(mockInvoke).toHaveBeenCalledWith('disconnect_from_connection', { id: '1' });
+      expect(result).toEqual(disconnected);
+    });
+  });
+
+  describe('databases (Tauri)', () => {
+    it('getDatabases invokes get_databases', async () => {
       const databases = [{ name: 'test', sizeOnDisk: 1024, empty: false }];
-      mockResponse(databases);
+      mockInvoke.mockResolvedValueOnce(databases);
 
       const result = await getDatabases('1');
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/connections/1/databases', expect.any(Object));
+      expect(mockInvoke).toHaveBeenCalledWith('get_databases', { id: '1' });
       expect(result).toEqual(databases);
     });
 
-    it('getCollections fetches collections for database', async () => {
+    it('getCollections invokes get_collections', async () => {
       const collections = [
         {
           name: 'users',
@@ -337,21 +352,34 @@ describe('API client', () => {
           indexes: 2,
         },
       ];
-      mockResponse(collections);
+      mockInvoke.mockResolvedValueOnce(collections);
 
       const result = await getCollections('1', 'testdb');
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/connections/1/databases/testdb/collections',
-        expect.any(Object)
-      );
+      expect(mockInvoke).toHaveBeenCalledWith('get_collections', {
+        id: '1',
+        database: 'testdb',
+      });
       expect(result).toEqual(collections);
+    });
+
+    it('getCollectionSchema invokes get_schema', async () => {
+      const schema = { fields: [{ name: '_id', types: ['ObjectId'], count: 10 }] };
+      mockInvoke.mockResolvedValueOnce(schema);
+
+      const result = await getCollectionSchema('1', 'testdb', 'users');
+
+      expect(mockInvoke).toHaveBeenCalledWith('get_schema', {
+        id: '1',
+        database: 'testdb',
+        collection: 'users',
+      });
+      expect(result).toEqual(schema);
     });
   });
 
-  describe('query', () => {
-    it('executeQuery sends POST request with query', async () => {
-      const queryData = { query: 'db.users.find({})', database: 'test' };
+  describe('query (Tauri)', () => {
+    it('executeQuery parses and invokes execute_query', async () => {
       const queryResult = {
         documents: [{ _id: '1', name: 'Alice' }],
         totalCount: 1,
@@ -360,22 +388,80 @@ describe('API client', () => {
         hasMore: false,
         executionTimeMs: 5,
       };
-      mockResponse(queryResult);
+      mockInvoke.mockResolvedValueOnce(queryResult);
 
-      const result = await executeQuery('1', queryData);
+      const result = await executeQuery('conn1', {
+        query: 'db.users.find({})',
+        database: 'test',
+      });
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/connections/1/query',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify(queryData),
-        })
-      );
+      expect(mockInvoke).toHaveBeenCalledWith('execute_query', {
+        id: 'conn1',
+        request: expect.objectContaining({
+          database: 'test',
+          page: 1,
+          pageSize: 50,
+        }),
+      });
+      // Verify the query was parsed (sent as parsed object, not raw string)
+      const invokeArgs = mockInvoke.mock.calls[0][1];
+      expect(invokeArgs.request.query).toHaveProperty('type', 'collection');
       expect(result).toEqual(queryResult);
+    });
+
+    it('executeQuery throws ApiError on parse failure', async () => {
+      try {
+        await executeQuery('conn1', {
+          query: 'invalid query syntax!!!',
+          database: 'test',
+        });
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).statusCode).toBe(400);
+        expect((error as ApiError).errorType).toBe('QueryParseError');
+      }
+    });
+
+    it('executeQuery throws QueryCancelledError on cancellation', async () => {
+      mockInvoke.mockRejectedValueOnce('Query was cancelled');
+
+      await expect(
+        executeQuery('conn1', { query: 'db.users.find({})', database: 'test' })
+      ).rejects.toThrow(QueryCancelledError);
+    });
+
+    it('executeQuery passes tabId in request', async () => {
+      const queryResult = {
+        documents: [],
+        totalCount: 0,
+        page: 1,
+        pageSize: 50,
+        hasMore: false,
+        executionTimeMs: 1,
+      };
+      mockInvoke.mockResolvedValueOnce(queryResult);
+
+      await executeQuery(
+        'conn1',
+        { query: 'db.users.find({})', database: 'test' },
+        { tabId: 'tab-1' }
+      );
+
+      const invokeArgs = mockInvoke.mock.calls[0][1];
+      expect(invokeArgs.request.tabId).toBe('tab-1');
+    });
+
+    it('cancelQuery invokes cancel_query', async () => {
+      mockInvoke.mockResolvedValueOnce(undefined);
+
+      await cancelQuery('tab-1');
+
+      expect(mockInvoke).toHaveBeenCalledWith('cancel_query', { tabId: 'tab-1' });
     });
   });
 
-  describe('files', () => {
+  describe('files (fetch)', () => {
     it('readFile fetches file content', async () => {
       const fileData = { content: 'file content', path: '/test.js' };
       mockResponse(fileData);
