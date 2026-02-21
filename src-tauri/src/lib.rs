@@ -1,4 +1,5 @@
 mod commands;
+mod credentials;
 mod error;
 mod state;
 
