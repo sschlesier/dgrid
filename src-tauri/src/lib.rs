@@ -1,6 +1,7 @@
 mod commands;
 mod credentials;
 mod error;
+mod keyring;
 mod state;
 mod storage;
 
