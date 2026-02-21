@@ -31,14 +31,15 @@ dgrid/
       main.rs
       lib.rs                        # Command registration
       commands/                     # Tauri command handlers (thin layer)
-      db/
-        pool.rs                     # Connection pool
-        executor.rs                 # Query execution against driver
-        bson_ser.rs                 # BSON ↔ JSON tagged serialization
-        csv.rs                      # CSV flattening/escaping
-      storage/
-        connections.rs              # JSON file CRUD (~/.dgrid/connections.json)
-        keyring.rs                  # OS keyring via `keyring` crate
+        connections.rs              # Connection CRUD + test/connect/disconnect
+        databases.rs                # Database/collection browsing + schema
+        query.rs                    # Query execution + cancellation
+        version.rs                  # Version command
+      pool.rs                       # Connection pool
+      executor.rs                   # Query execution against driver
+      bson_ser.rs                   # BSON ↔ JSON tagged serialization
+      storage.rs                    # JSON file CRUD (~/.dgrid/connections.json)
+      keyring.rs                    # OS keyring via `keyring` crate
       credentials.rs                # URI credential strip/inject
       error.rs                      # Unified error enum
       state.rs                      # AppState (managed state)
@@ -112,7 +113,7 @@ Verify: connection dialog CRUD works, can connect to MongoDB, sidebar tree popul
 - `client.ts` — migrated to invoke() for all connection/database/version endpoints; fetch() kept for Phase 3+ endpoints
 - 64 Rust tests passing (10 error, 16 credentials, 18 storage, 7 keyring, 7 pool, 6 database helpers)
 
-### Phase 3: Query Execution — [ ] TODO
+### Phase 3: Query Execution — [x] COMPLETE
 
 Move the parser from `src/backend/db/queries.ts` to `src/shared/queries.ts`, stripping out the executor (which had the `mongodb` driver dependency). The parser is pure string manipulation — no backend imports.
 
@@ -121,6 +122,20 @@ Update `client.ts` so `executeQuery()` calls `parseQuery()` on the frontend, the
 Build the Rust executor: define serde structs matching `ParsedCollectionQuery` / `ParsedDbCommand`, match on the operation enum, dispatch to the MongoDB Rust driver. Add BSON serialization (type-tagged `{ _type, _value }` format).
 
 Verify: run queries from the UI, see results in the grid, pagination works.
+
+**Done:**
+
+- `src/shared/queries.ts` — parser extracted from backend, uses `Record<string, unknown>` instead of MongoDB `Document` type
+- `src/backend/db/queries.ts` — re-exports parser from shared, keeps executor code with `as Document` casts
+- `src/shared/__tests__/queries.test.ts` — 111 parser tests moved from backend
+- `src-tauri/src/bson_ser.rs` — BSON ↔ JSON with 6 tagged types (ObjectId, Date, Binary, Decimal128, Long, UUID), json_to_bson reverse conversion, 20 unit tests
+- `src-tauri/src/executor.rs` — full query executor: 18 collection operations (find, aggregate, count, distinct, insert, update, delete, findOneAnd\*, index, bulkWrite), 14 db commands (stats, serverStatus, createCollection, etc.), pagination logic, 72 deserialization/unit tests
+- `src-tauri/src/commands/query.rs` — execute_query and cancel_query Tauri commands with CancellationToken + tokio::select!
+- `src-tauri/src/state.rs` — added cancellation_tokens HashMap
+- `src/frontend/src/api/client.ts` — parseQuery() on frontend, invoke('execute_query') with parsed query, cancelQuery via invoke
+- `src/frontend/src/stores/query.svelte.ts` — replaced AbortController pattern with runningTabs Set + api.cancelQuery()
+- API client tests updated: mock invoke for Tauri endpoints, mock fetch for remaining endpoints (exportCsv, files)
+- 92 Rust tests, 716 TypeScript tests all passing
 
 ### Phase 4: Document Operations + CSV Export — [ ] TODO
 
