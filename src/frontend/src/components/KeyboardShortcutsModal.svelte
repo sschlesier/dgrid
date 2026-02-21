@@ -1,7 +1,7 @@
 <script lang="ts">
   import { keybindingsStore, SHORTCUT_DEFINITIONS } from '../stores/keybindings.svelte';
   import type { ShortcutBinding } from '../stores/keybindings.svelte';
-  import { isMac } from '../utils/keyboard';
+  import { isMac, resolveKey } from '../utils/keyboard';
 
   interface Props {
     onclose: () => void;
@@ -52,7 +52,7 @@
       }
 
       const binding: ShortcutBinding = {
-        key: event.key,
+        key: resolveKey(event),
         ...(event.metaKey || event.ctrlKey ? { meta: true } : {}),
         ...(event.shiftKey && (event.metaKey || event.ctrlKey) ? { shift: true } : {}),
         ...(event.altKey ? { alt: true } : {}),

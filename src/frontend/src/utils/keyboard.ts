@@ -14,6 +14,23 @@ export interface KeyboardShortcut {
 
 type ShortcutId = string;
 
+/**
+ * Resolve the logical key from a keyboard event.
+ * On macOS, Alt+key produces special characters (e.g. Alt+T → †),
+ * so event.key won't match the physical key. Use event.code as fallback.
+ */
+export function resolveKey(event: KeyboardEvent): string {
+  if (event.altKey && event.code) {
+    if (event.code.startsWith('Key')) {
+      return event.code.slice(3).toLowerCase();
+    }
+    if (event.code.startsWith('Digit')) {
+      return event.code.slice(5);
+    }
+  }
+  return event.key;
+}
+
 const shortcuts = new Map<ShortcutId, KeyboardShortcut>();
 let isListenerRegistered = false;
 
@@ -58,7 +75,7 @@ export function matchesModifier(
  * Check if an event matches a shortcut
  */
 export function matchesShortcut(event: KeyboardEvent, shortcut: KeyboardShortcut): boolean {
-  if (event.key.toLowerCase() !== shortcut.key.toLowerCase()) {
+  if (resolveKey(event).toLowerCase() !== shortcut.key.toLowerCase()) {
     return false;
   }
   return matchesModifier(event, shortcut);
@@ -68,7 +85,7 @@ export function matchesShortcut(event: KeyboardEvent, shortcut: KeyboardShortcut
  * Check if an event matches a binding (no handler required)
  */
 export function matchesBinding(event: KeyboardEvent, binding: ShortcutBinding): boolean {
-  if (event.key.toLowerCase() !== binding.key.toLowerCase()) {
+  if (resolveKey(event).toLowerCase() !== binding.key.toLowerCase()) {
     return false;
   }
   return matchesModifier(event, binding);

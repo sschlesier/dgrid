@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   isMac,
+  resolveKey,
   matchesShortcut,
   matchesBinding,
   bindingToCodeMirrorKey,
@@ -36,6 +37,34 @@ describe('keyboard utilities', () => {
     it('returns false for Linux platform', () => {
       vi.stubGlobal('navigator', { platform: 'Linux x86_64' });
       expect(isMac()).toBe(false);
+    });
+  });
+
+  describe('resolveKey', () => {
+    it('returns event.key for normal keys', () => {
+      const event = new KeyboardEvent('keydown', { key: 't' });
+      expect(resolveKey(event)).toBe('t');
+    });
+
+    it('returns event.key when alt is not pressed', () => {
+      const event = new KeyboardEvent('keydown', { key: 't', metaKey: true });
+      expect(resolveKey(event)).toBe('t');
+    });
+
+    it('resolves letter key from event.code when alt is pressed (macOS dead key)', () => {
+      // On macOS, Alt+T produces † as event.key but code is still KeyT
+      const event = new KeyboardEvent('keydown', { key: '†', altKey: true, code: 'KeyT' });
+      expect(resolveKey(event)).toBe('t');
+    });
+
+    it('resolves digit key from event.code when alt is pressed', () => {
+      const event = new KeyboardEvent('keydown', { key: '¡', altKey: true, code: 'Digit1' });
+      expect(resolveKey(event)).toBe('1');
+    });
+
+    it('returns event.key for non-letter/digit codes when alt is pressed', () => {
+      const event = new KeyboardEvent('keydown', { key: 'Enter', altKey: true, code: 'Enter' });
+      expect(resolveKey(event)).toBe('Enter');
     });
   });
 
@@ -77,6 +106,18 @@ describe('keyboard utilities', () => {
     it('matches alt modifier', () => {
       const event = new KeyboardEvent('keydown', { key: 't', altKey: true });
       expect(matchesShortcut(event, { key: 't', alt: true, handler: () => {} })).toBe(true);
+    });
+
+    it('matches alt modifier when macOS produces dead key character', () => {
+      // On macOS, Alt+T produces † but code is KeyT
+      const event = new KeyboardEvent('keydown', { key: '†', altKey: true, code: 'KeyT' });
+      expect(matchesShortcut(event, { key: 't', alt: true, handler: () => {} })).toBe(true);
+    });
+
+    it('matches alt modifier when macOS produces dead key for W', () => {
+      // On macOS, Alt+W produces ∑ but code is KeyW
+      const event = new KeyboardEvent('keydown', { key: '∑', altKey: true, code: 'KeyW' });
+      expect(matchesShortcut(event, { key: 'w', alt: true, handler: () => {} })).toBe(true);
     });
 
     it('does not match when modifier missing', () => {
@@ -209,6 +250,22 @@ describe('keyboard utilities', () => {
       expect(handler).toHaveBeenCalledTimes(1);
     });
 
+    it('triggers alt shortcut with macOS dead key character', () => {
+      const handler = vi.fn();
+      registerShortcut('alt-test', { key: 't', alt: true, alwaysGlobal: true, handler });
+
+      // Simulate macOS Alt+T producing †
+      const event = new KeyboardEvent('keydown', {
+        key: '†',
+        altKey: true,
+        code: 'KeyT',
+        bubbles: true,
+      });
+      window.dispatchEvent(event);
+
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+
     it('does not fire non-global shortcut from input elements', () => {
       const handler = vi.fn();
       registerShortcut('local-test', { key: 'x', ctrl: true, handler });
@@ -244,6 +301,11 @@ describe('keyboard utilities', () => {
       vi.stubGlobal('navigator', { platform: 'MacIntel' });
       const event = new KeyboardEvent('keydown', { key: 'e' });
       expect(matchesBinding(event, { key: 'e', meta: true })).toBe(false);
+    });
+
+    it('matches alt binding when macOS produces dead key character', () => {
+      const event = new KeyboardEvent('keydown', { key: '†', altKey: true, code: 'KeyT' });
+      expect(matchesBinding(event, { key: 't', alt: true })).toBe(true);
     });
   });
 
