@@ -2,11 +2,12 @@
 
 ## Context
 
-DGrid currently ships as a Node.js SEA with a Fastify backend, systray integration, and Svelte 5 frontend served over localhost. Migrating to Tauri v2 with a Rust backend eliminates the Node.js runtime, HTTP server, and custom build pipeline. The frontend loads in the OS webview, backend logic runs via direct IPC, and Tauri's bundler produces signed native installers. Bundle size drops from ~50MB to ~10MB, RAM usage from ~200MB to ~50MB.
+DGrid currently ships as a Node.js SEA with a Fastify backend and Svelte 5 frontend served over localhost. Migrating to Tauri v2 with a Rust backend eliminates the Node.js runtime, HTTP server, and custom build pipeline. The frontend loads in the OS webview, backend logic runs via direct IPC, and Tauri's bundler produces signed native installers. Bundle size drops from ~50MB to ~10MB, RAM usage from ~200MB to ~50MB. The system tray is not needed — the app runs as a normal window application.
 
 ## Scope
 
-**Replace**: `src/backend/` (~4,700 lines TypeScript), build scripts, SEA pipeline, systray2
+**Replace**: `src/backend/` (~4,700 lines TypeScript), build scripts, SEA pipeline
+**Remove**: systray (not needed — app runs as a normal window)
 **Keep**: `src/frontend/` (Svelte 5), `src/shared/contracts.ts`, E2E test structure
 **Move to shared**: `src/backend/db/queries.ts` → `src/shared/queries.ts` (parser stays in TypeScript)
 **Modify**: `src/frontend/src/api/client.ts` (fetch → invoke), `src/frontend/src/api/websocket.ts` (WebSocket → Tauri events)
@@ -158,9 +159,9 @@ Verify: edit field values, delete documents, export CSV with progress bar.
 
 Port file read/write with path validation. Add file watching via the `notify` crate, emitting Tauri events. Replace `websocket.ts` with a Tauri event listener wrapper.
 
-### Phase 6: System Tray + Packaging — [ ] TODO
+### Phase 6: Packaging — [ ] TODO
 
-Configure Tauri tray (menu, icon, click behavior). Add update checker. Set up `tauri.conf.json` bundle targets for macOS (.dmg), Windows (.msi), Linux (.deb + .AppImage). Update the GitHub Actions release workflow.
+Add update checker. Set up `tauri.conf.json` bundle targets for macOS (.dmg), Windows (.msi), Linux (.deb + .AppImage). Update the GitHub Actions release workflow. No system tray — app runs as a normal window application.
 
 ### Phase 7: Cleanup — [ ] TODO
 
