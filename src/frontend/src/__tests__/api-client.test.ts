@@ -15,6 +15,7 @@ import {
   getCollections,
   getCollectionSchema,
   getVersion,
+  checkForUpdates,
   executeQuery,
   cancelQuery,
   updateField,
@@ -138,6 +139,36 @@ describe('API client', () => {
 
       expect(mockInvoke).toHaveBeenCalledWith('get_version');
       expect(result).toEqual({ version: '1.0.0' });
+    });
+
+    it('checkForUpdates returns version without update', async () => {
+      mockInvoke.mockResolvedValueOnce({ version: '1.0.0' });
+
+      const result = await checkForUpdates();
+
+      expect(mockInvoke).toHaveBeenCalledWith('check_for_updates');
+      expect(result).toEqual({ version: '1.0.0' });
+    });
+
+    it('checkForUpdates returns version with update info', async () => {
+      mockInvoke.mockResolvedValueOnce({
+        version: '1.0.0',
+        update: { version: '1.1.0', url: 'https://example.com/release' },
+      });
+
+      const result = await checkForUpdates();
+
+      expect(mockInvoke).toHaveBeenCalledWith('check_for_updates');
+      expect(result).toEqual({
+        version: '1.0.0',
+        update: { version: '1.1.0', url: 'https://example.com/release' },
+      });
+    });
+
+    it('checkForUpdates wraps invoke errors', async () => {
+      mockInvoke.mockRejectedValueOnce('Network error');
+
+      await expect(checkForUpdates()).rejects.toThrow(ApiError);
     });
   });
 

@@ -554,7 +554,7 @@ class AppStore {
   // Update check
   async checkForUpdates(): Promise<void> {
     try {
-      const data = await api.getVersion();
+      const data = await api.checkForUpdates();
       if (data.update) {
         this.updateAvailable = data.update;
       }

@@ -9,6 +9,7 @@ mod keyring;
 mod pool;
 mod state;
 mod storage;
+mod updater;
 
 use state::AppState;
 
@@ -18,6 +19,7 @@ pub fn run() {
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             commands::version::get_version,
+            commands::version::check_for_updates,
             commands::connections::list_connections,
             commands::connections::get_connection,
             commands::connections::create_connection,

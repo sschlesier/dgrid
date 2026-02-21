@@ -25,13 +25,27 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg", "nsis", "deb", "appimage"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "Modern MongoDB GUI",
+    "longDescription": "DGrid is a clean, modern MongoDB GUI for browsing databases, running queries, and managing documents.",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "timestampUrl": null
+    },
+    "linux": {
+      "deb": {},
+      "appimage": {}
+    }
   }
 }

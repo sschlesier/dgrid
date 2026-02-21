@@ -59,7 +59,7 @@ export class QueryCancelledError extends Error {
   }
 }
 
-// Version endpoint (Tauri)
+// Version endpoints (Tauri)
 
 export async function getVersion(): Promise<{
   version: string;
@@ -68,6 +68,19 @@ export async function getVersion(): Promise<{
   try {
     const version = await invoke<string>('get_version');
     return { version };
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
+}
+
+export async function checkForUpdates(): Promise<{
+  version: string;
+  update?: { version: string; url: string };
+}> {
+  try {
+    return await invoke<{ version: string; update?: { version: string; url: string } }>(
+      'check_for_updates'
+    );
   } catch (e) {
     throw wrapInvokeError(e);
   }

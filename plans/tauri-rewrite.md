@@ -171,9 +171,22 @@ Port file read/write with path validation. Add file watching via the `notify` cr
 - `src/frontend/src/__tests__/api-client.test.ts` — file tests migrated from mockFetch to mockInvoke; fetch-based error handling tests removed; 28 tests
 - 158 Rust tests, 714 TypeScript tests all passing
 
-### Phase 6: Packaging — [ ] TODO
+### Phase 6: Packaging — [x] COMPLETE
 
-Add update checker. Set up `tauri.conf.json` bundle targets for macOS (.dmg), Windows (.msi), Linux (.deb + .AppImage). Update the GitHub Actions release workflow. No system tray — app runs as a normal window application.
+Add update checker. Set up `tauri.conf.json` bundle targets for macOS (.dmg), Windows (.nsis), Linux (.deb + .AppImage). Update the GitHub Actions release workflow. No system tray — app runs as a normal window application.
+
+**Done:**
+
+- `src-tauri/src/updater.rs` — update checker module: fetches latest release from GitHub API (`sschlesier/dgrid`), semantic version comparison (`is_newer`), returns `Option<UpdateInfo>` with version and URL; 10 unit tests
+- `src-tauri/src/commands/version.rs` — added `check_for_updates` Tauri command with 1-hour cache (via `AppState.update_cache`); returns `VersionResponse { version, update? }` matching the shared contract; 3 unit tests (version string, serialization with/without update)
+- `src-tauri/src/state.rs` — added `CachedUpdateCheck` struct and `update_cache: RwLock<Option<CachedUpdateCheck>>` to AppState
+- `reqwest` crate added to Cargo.toml for HTTP requests to GitHub API
+- `src/frontend/src/api/client.ts` — added `checkForUpdates()` function invoking `check_for_updates` command
+- `src/frontend/src/stores/app.svelte.ts` — `checkForUpdates()` now calls `api.checkForUpdates()` instead of `api.getVersion()`
+- `src-tauri/tauri.conf.json` — bundle targets configured: app, dmg (macOS), nsis (Windows), deb + appimage (Linux); added category, descriptions, platform-specific sections
+- `.github/workflows/release.yml` — replaced SEA build pipeline with Tauri bundler; added macOS (macos-14), Windows, and Linux (ubuntu-22.04) build jobs with Rust toolchain, caching, and `pnpm tauri build`; artifacts uploaded as dmg/exe/deb/AppImage with SHA256 checksums; Homebrew cask update preserved
+- `@tauri-apps/cli` added to devDependencies; `tauri` script added to package.json
+- 170 Rust tests, 717 TypeScript tests all passing
 
 ### Phase 7: Cleanup — [ ] TODO
 
