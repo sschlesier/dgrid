@@ -13,7 +13,6 @@ import type {
   CollectionSchemaResponse,
   ExecuteQueryRequest,
   ExecuteQueryResponse,
-  ExportCsvRequest,
   UpdateFieldRequest,
   UpdateFieldResponse,
   DeleteDocumentRequest,
@@ -297,27 +296,6 @@ export async function cancelQuery(tabId: string): Promise<void> {
   } catch (e) {
     throw wrapInvokeError(e);
   }
-}
-
-// Export endpoints (fetch — Phase 4)
-
-export async function exportCsv(
-  connectionId: string,
-  data: ExportCsvRequest,
-  options?: { signal?: AbortSignal }
-): Promise<Response> {
-  const response = await fetch(`${API_BASE}/connections/${connectionId}/export-csv`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-    signal: options?.signal,
-  });
-
-  if (!response.ok) {
-    throw await parseApiError(response);
-  }
-
-  return response;
 }
 
 // Document endpoints (Tauri)

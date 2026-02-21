@@ -1,16 +1,24 @@
 // Export Store - Per-tab CSV export state management with Svelte 5 runes
+// Uses Tauri dialog for save picker, invoke for export, and events for progress.
 
-import * as api from '../api/client';
-
-// eslint-disable-next-line no-undef
-const CSV_FILE_TYPES: FilePickerAcceptType[] = [
-  { description: 'CSV Files', accept: { 'text/csv': ['.csv'] } },
-];
+import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { save } from '@tauri-apps/plugin-dialog';
+import { parseQuery } from '../../../shared/queries.js';
+import { ApiError } from '../api/client';
 
 interface ExportTabState {
   isExporting: boolean;
   exportedCount: number;
   totalCount: number;
+  error: string | null;
+}
+
+interface ExportProgress {
+  tabId: string;
+  exportedCount: number;
+  totalCount: number;
+  done: boolean;
   error: string | null;
 }
 
@@ -23,7 +31,6 @@ const DEFAULT_STATE: ExportTabState = {
 
 class ExportStore {
   states = $state<Map<string, ExportTabState>>(new Map());
-  private abortControllers: Map<string, AbortController> = new Map();
 
   getState(tabId: string): ExportTabState {
     return this.states.get(tabId) ?? DEFAULT_STATE;
@@ -42,24 +49,23 @@ class ExportStore {
     query: string,
     suggestedName: string
   ): Promise<void> {
-    // Open file picker FIRST (before HTTP request, so cancel is free)
-    let fileHandle: FileSystemFileHandle;
-    try {
-      fileHandle = await window.showSaveFilePicker({
-        types: CSV_FILE_TYPES,
-        suggestedName,
-      });
-    } catch (err) {
-      // User cancelled the picker
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      throw err;
+    // Parse the query on the frontend
+    const parsed = parseQuery(query);
+    if (!parsed.ok) {
+      throw new ApiError(400, 'QueryParseError', parsed.error.message);
     }
 
-    // Cancel any existing export for this tab
-    this.cancelExport(tabId);
+    // Open native save dialog
+    const filePath = await save({
+      defaultPath: suggestedName,
+      filters: [{ name: 'CSV Files', extensions: ['csv'] }],
+    });
 
-    const abortController = new AbortController();
-    this.abortControllers.set(tabId, abortController);
+    // User cancelled the picker
+    if (!filePath) return;
+
+    // Cancel any existing export for this tab
+    await this.cancelExport(tabId);
 
     this.setState(tabId, {
       isExporting: true,
@@ -68,93 +74,54 @@ class ExportStore {
       error: null,
     });
 
+    // Listen for progress events
+    let unlisten: UnlistenFn | undefined;
     try {
-      const response = await api.exportCsv(
-        connectionId,
-        { query, database },
-        { signal: abortController.signal }
-      );
+      unlisten = await listen<ExportProgress>('export-progress', (event) => {
+        const progress = event.payload;
+        if (progress.tabId !== tabId) return;
 
-      const totalCount = parseInt(response.headers.get('X-Total-Count') ?? '0', 10);
-      this.setState(tabId, {
-        isExporting: true,
-        exportedCount: 0,
-        totalCount,
-        error: null,
+        this.setState(tabId, {
+          isExporting: !progress.done,
+          exportedCount: progress.exportedCount,
+          totalCount: progress.totalCount,
+          error: progress.error,
+        });
       });
 
-      if (!response.body) {
-        throw new Error('No response body');
-      }
-
-      // Pipe response body to file via writable stream
-      const writable = await fileHandle.createWritable();
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      let exportedCount = 0;
-      let lastUpdate = 0;
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          await writable.write(value);
-
-          // Count newlines for progress (each newline = one row, minus header)
-          const text = decoder.decode(value, { stream: true });
-          for (let i = 0; i < text.length; i++) {
-            if (text[i] === '\n') exportedCount++;
-          }
-
-          // Throttle state updates to every ~200ms
-          const now = Date.now();
-          if (now - lastUpdate > 200) {
-            // Subtract 1 for header row
-            const docCount = Math.max(0, exportedCount - 1);
-            this.setState(tabId, {
-              isExporting: true,
-              exportedCount: docCount,
-              totalCount,
-              error: null,
-            });
-            lastUpdate = now;
-          }
-        }
-      } finally {
-        await writable.close();
-      }
-
-      // Final state update
-      this.setState(tabId, {
-        isExporting: false,
-        exportedCount: Math.max(0, exportedCount - 1),
-        totalCount,
-        error: null,
+      await invoke('export_csv', {
+        id: connectionId,
+        request: {
+          query: parsed.value,
+          database,
+          filePath,
+          tabId,
+        },
       });
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
+      // Check if this was a cancellation
+      if (typeof err === 'string' && err.includes('cancelled')) {
         this.setState(tabId, { ...DEFAULT_STATE });
         return;
       }
 
+      const message = err instanceof Error ? err.message : String(err);
       this.setState(tabId, {
         isExporting: false,
         exportedCount: 0,
         totalCount: 0,
-        error: (err as Error).message,
+        error: message,
       });
     } finally {
-      this.abortControllers.delete(tabId);
+      unlisten?.();
     }
   }
 
-  cancelExport(tabId: string): void {
-    const controller = this.abortControllers.get(tabId);
-    if (controller) {
-      controller.abort();
-      this.abortControllers.delete(tabId);
+  async cancelExport(tabId: string): Promise<void> {
+    try {
+      await invoke('cancel_export', { tabId });
+    } catch {
+      // Ignore errors from cancelling (e.g. no active export)
     }
   }
 
