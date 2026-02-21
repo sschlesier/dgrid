@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use notify::RecommendedWatcher;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
@@ -14,6 +15,7 @@ pub struct AppState {
     pub passwords: Box<dyn PasswordStorage>,
     pub pool: ConnectionPool,
     pub cancellation_tokens: RwLock<HashMap<String, CancellationToken>>,
+    pub file_watchers: Mutex<HashMap<String, RecommendedWatcher>>,
 }
 
 impl AppState {
@@ -27,6 +29,7 @@ impl AppState {
             passwords: Box::new(KeyringPasswordStorage::new()),
             pool: ConnectionPool::new(),
             cancellation_tokens: RwLock::new(HashMap::new()),
+            file_watchers: Mutex::new(HashMap::new()),
         }
     }
 }

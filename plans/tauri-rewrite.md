@@ -155,9 +155,21 @@ Verify: edit field values, delete documents, export CSV with progress bar.
 - `@tauri-apps/plugin-dialog` added to frontend dependencies
 - 138 Rust tests, 715 TypeScript tests all passing
 
-### Phase 5: File Operations — [ ] TODO
+### Phase 5: File Operations — [x] COMPLETE
 
 Port file read/write with path validation. Add file watching via the `notify` crate, emitting Tauri events. Replace `websocket.ts` with a Tauri event listener wrapper.
+
+**Done:**
+
+- `src-tauri/src/file_validation.rs` — is_path_safe and is_allowed_extension ported from TypeScript, matching same blocked patterns, temp dir allowlist, and extension rules; 9 unit tests
+- `src-tauri/src/commands/files.rs` — read_file, write_file, watch_file, unwatch_file Tauri commands with path validation, size limits (1MB), parent directory creation; 11 unit tests
+- `src-tauri/src/state.rs` — added file_watchers HashMap<String, RecommendedWatcher> to AppState
+- `notify` crate added to Cargo.toml for filesystem watching; watch_file emits `file-changed` Tauri events with path and content on file modification
+- `src/frontend/src/api/client.ts` — readFile/writeFile migrated to invoke(); removed all fetch infrastructure (request, parseApiError, handleResponse, API_BASE) as no fetch-based endpoints remain
+- `src/frontend/src/api/websocket.ts` — completely rewritten from WebSocket to Tauri events; uses listen('file-changed') + invoke('watch_file'/'unwatch_file'); no reconnection logic needed (IPC is in-process)
+- `src/frontend/src/__tests__/websocket.test.ts` — rewritten for Tauri event API; mocks @tauri-apps/api/core and @tauri-apps/api/event; 15 tests
+- `src/frontend/src/__tests__/api-client.test.ts` — file tests migrated from mockFetch to mockInvoke; fetch-based error handling tests removed; 28 tests
+- 158 Rust tests, 714 TypeScript tests all passing
 
 ### Phase 6: Packaging — [ ] TODO
 

@@ -1,4 +1,4 @@
-// Typed API client wrapper — Tauri IPC for connections/databases, fetch for the rest
+// Typed API client wrapper — all endpoints use Tauri IPC
 
 import { invoke } from '@tauri-apps/api/core';
 import type {
@@ -17,10 +17,7 @@ import type {
   UpdateFieldResponse,
   DeleteDocumentRequest,
   DeleteDocumentResponse,
-  ErrorResponse,
 } from '../../../shared/contracts';
-
-const API_BASE = '/api';
 
 /**
  * Custom API error with typed properties
@@ -50,60 +47,6 @@ function wrapInvokeError(error: unknown): ApiError {
     return new ApiError(500, 'InvokeError', error.message);
   }
   return new ApiError(500, 'InvokeError', String(error));
-}
-
-/**
- * Parse an error response from the API into an ApiError
- */
-async function parseApiError(response: Response): Promise<ApiError> {
-  let errorData: ErrorResponse;
-  try {
-    errorData = await response.json();
-  } catch {
-    return new ApiError(response.status, 'UnknownError', response.statusText);
-  }
-  const apiError = new ApiError(
-    errorData.statusCode,
-    errorData.error,
-    errorData.message,
-    errorData.details
-  );
-  // Propagate backend disconnection signal
-  if ('isConnected' in errorData && errorData.isConnected === false) {
-    apiError.isConnected = false;
-  }
-  return apiError;
-}
-
-/**
- * Transform a fetch response error into an ApiError
- */
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    throw await parseApiError(response);
-  }
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  return response.json();
-}
-
-/**
- * Make a typed fetch request (for endpoints not yet ported to Tauri)
- */
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = { ...options.headers } as Record<string, string>;
-
-  // Only set Content-Type for requests with a body
-  if (options.body) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
-  return handleResponse<T>(response);
 }
 
 /**
@@ -325,11 +268,12 @@ export async function deleteDocument(
   }
 }
 
-// File endpoints (fetch — Phase 5)
+// File endpoints (Tauri)
 
 export interface FileReadResponse {
   content: string;
   path: string;
+  name: string;
 }
 
 export interface FileWriteRequest {
@@ -343,12 +287,17 @@ export interface FileWriteResponse {
 }
 
 export async function readFile(path: string): Promise<FileReadResponse> {
-  return request<FileReadResponse>(`/files/read?path=${encodeURIComponent(path)}`);
+  try {
+    return await invoke<FileReadResponse>('read_file', { path });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
 export async function writeFile(data: FileWriteRequest): Promise<FileWriteResponse> {
-  return request<FileWriteResponse>('/files/write', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
+  try {
+    return await invoke<FileWriteResponse>('write_file', { request: data });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }

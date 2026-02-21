@@ -30,109 +30,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 describe('API client', () => {
-  const mockFetch = vi.fn();
-
   beforeEach(() => {
-    vi.stubGlobal('fetch', mockFetch);
-    mockFetch.mockReset();
     mockInvoke.mockReset();
-  });
-
-  function mockResponse(data: unknown, status = 200) {
-    mockFetch.mockResolvedValueOnce({
-      ok: status >= 200 && status < 300,
-      status,
-      statusText: status === 200 ? 'OK' : 'Error',
-      json: () => Promise.resolve(data),
-    });
-  }
-
-  describe('error handling (fetch-based)', () => {
-    it('throws ApiError on 4xx response with details', async () => {
-      mockResponse(
-        {
-          error: 'ValidationError',
-          message: 'Invalid input',
-          statusCode: 400,
-          details: { field: 'name' },
-        },
-        400
-      );
-
-      try {
-        await readFile('/test.js');
-        expect.fail('Should have thrown');
-      } catch (error) {
-        expect(error).toBeInstanceOf(ApiError);
-        expect((error as ApiError).statusCode).toBe(400);
-        expect((error as ApiError).errorType).toBe('ValidationError');
-        expect((error as ApiError).message).toBe('Invalid input');
-        expect((error as ApiError).details).toEqual({ field: 'name' });
-      }
-    });
-
-    it('throws ApiError on 5xx response', async () => {
-      mockResponse(
-        {
-          error: 'InternalError',
-          message: 'Server error',
-          statusCode: 500,
-        },
-        500
-      );
-
-      await expect(readFile('/test.js')).rejects.toThrow(ApiError);
-    });
-
-    it('handles non-JSON error response', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        statusText: 'Internal Server Error',
-        json: () => Promise.reject(new Error('Invalid JSON')),
-      });
-
-      await expect(readFile('/test.js')).rejects.toThrow('Internal Server Error');
-    });
-
-    it('propagates isConnected: false from error response', async () => {
-      mockResponse(
-        {
-          error: 'DatabaseError',
-          message: 'Connection lost',
-          statusCode: 500,
-          isConnected: false,
-        },
-        500
-      );
-
-      try {
-        await readFile('/test.js');
-        expect.fail('Should have thrown');
-      } catch (error) {
-        expect(error).toBeInstanceOf(ApiError);
-        expect((error as ApiError).isConnected).toBe(false);
-      }
-    });
-
-    it('does not set isConnected when not present in error response', async () => {
-      mockResponse(
-        {
-          error: 'DatabaseError',
-          message: 'Generic error',
-          statusCode: 500,
-        },
-        500
-      );
-
-      try {
-        await readFile('/test.js');
-        expect.fail('Should have thrown');
-      } catch (error) {
-        expect(error).toBeInstanceOf(ApiError);
-        expect((error as ApiError).isConnected).toBeUndefined();
-      }
-    });
   });
 
   describe('error handling (Tauri invoke)', () => {
@@ -474,32 +373,38 @@ describe('API client', () => {
     });
   });
 
-  describe('files (fetch)', () => {
-    it('readFile fetches file content', async () => {
-      const fileData = { content: 'file content', path: '/test.js' };
-      mockResponse(fileData);
+  describe('files (Tauri)', () => {
+    it('readFile invokes read_file', async () => {
+      const fileData = { content: 'file content', path: '/test.js', name: 'test.js' };
+      mockInvoke.mockResolvedValueOnce(fileData);
 
       const result = await readFile('/test.js');
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/files/read?path=%2Ftest.js', expect.any(Object));
+      expect(mockInvoke).toHaveBeenCalledWith('read_file', { path: '/test.js' });
       expect(result).toEqual(fileData);
     });
 
-    it('writeFile sends POST request', async () => {
+    it('writeFile invokes write_file', async () => {
       const writeData = { path: '/test.js', content: 'new content' };
       const writeResult = { success: true, path: '/test.js' };
-      mockResponse(writeResult);
+      mockInvoke.mockResolvedValueOnce(writeResult);
 
       const result = await writeFile(writeData);
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/files/write',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify(writeData),
-        })
-      );
+      expect(mockInvoke).toHaveBeenCalledWith('write_file', { request: writeData });
       expect(result).toEqual(writeResult);
+    });
+
+    it('readFile wraps invoke errors', async () => {
+      mockInvoke.mockRejectedValueOnce('File not found');
+
+      await expect(readFile('/test.js')).rejects.toThrow(ApiError);
+    });
+
+    it('writeFile wraps invoke errors', async () => {
+      mockInvoke.mockRejectedValueOnce('Permission denied');
+
+      await expect(writeFile({ path: '/test.js', content: 'x' })).rejects.toThrow(ApiError);
     });
   });
 });

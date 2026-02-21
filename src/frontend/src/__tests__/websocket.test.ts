@@ -1,174 +1,97 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FileWatcher, getFileWatcher, watchFile, cleanup } from '../api/websocket';
 
-// Mock WebSocket that tracks instances
-const mockInstances: MockWebSocket[] = [];
+// Mock Tauri APIs
+const mockInvoke = vi.fn();
+const mockListen = vi.fn();
+let mockUnlisten = vi.fn();
 
-class MockWebSocket {
-  static CONNECTING = 0;
-  static OPEN = 1;
-  static CLOSING = 2;
-  static CLOSED = 3;
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (...args: unknown[]) => mockInvoke(...args),
+}));
 
-  readyState = MockWebSocket.OPEN; // Start as OPEN for simplicity
-  url: string;
-  onopen: (() => void) | null = null;
-  onclose: (() => void) | null = null;
-  onmessage: ((event: { data: string }) => void) | null = null;
-  onerror: (() => void) | null = null;
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: (...args: unknown[]) => mockListen(...args),
+}));
 
-  private sentMessages: string[] = [];
-
-  constructor(url: string) {
-    this.url = url;
-    mockInstances.push(this);
-    // Immediately trigger onopen
-    queueMicrotask(() => {
-      this.onopen?.();
-    });
-  }
-
-  send(data: string): void {
-    if (this.readyState !== MockWebSocket.OPEN) {
-      throw new Error('WebSocket not open');
-    }
-    this.sentMessages.push(data);
-  }
-
-  close(): void {
-    this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.();
-  }
-
-  getSentMessages(): string[] {
-    return this.sentMessages;
-  }
-
-  simulateMessage(data: unknown): void {
-    this.onmessage?.({ data: JSON.stringify(data) });
-  }
-}
-
-function getLastMockWebSocket(): MockWebSocket | undefined {
-  return mockInstances[mockInstances.length - 1];
-}
-
-describe('FileWatcher', () => {
+describe('FileWatcher (Tauri events)', () => {
   beforeEach(() => {
     cleanup();
-    mockInstances.length = 0;
-    vi.stubGlobal('WebSocket', MockWebSocket);
+    mockInvoke.mockReset();
+    mockListen.mockReset();
+    mockUnlisten = vi.fn();
+    mockListen.mockResolvedValue(mockUnlisten);
+    mockInvoke.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     cleanup();
-    vi.restoreAllMocks();
-  });
-
-  describe('connection', () => {
-    it('connects to WebSocket server', async () => {
-      const watcher = new FileWatcher('ws://localhost:3001/ws');
-      watcher.connect();
-
-      // Wait for microtask (onopen callback)
-      await Promise.resolve();
-
-      expect(watcher.isConnected).toBe(true);
-      expect(getLastMockWebSocket()?.url).toBe('ws://localhost:3001/ws');
-    });
-
-    it('disconnects from WebSocket server', async () => {
-      const watcher = new FileWatcher();
-      watcher.connect();
-      await Promise.resolve();
-
-      watcher.disconnect();
-
-      expect(watcher.isConnected).toBe(false);
-    });
-
-    it('does not reconnect when no watches exist', async () => {
-      const watcher = new FileWatcher();
-      watcher.connect();
-      await Promise.resolve();
-
-      const initialInstanceCount = mockInstances.length;
-
-      // Simulate disconnect
-      getLastMockWebSocket()?.close();
-
-      // Should not create new WebSocket
-      expect(mockInstances.length).toBe(initialInstanceCount);
-    });
   });
 
   describe('watching', () => {
-    it('sends watch message when connected', async () => {
+    it('invokes watch_file on the backend', async () => {
       const watcher = new FileWatcher();
       const callback = vi.fn();
 
-      watcher.connect();
-      await Promise.resolve();
+      await watcher.watch('/test.js', callback);
 
-      watcher.watch('/test.js', callback);
-
-      const messages = getLastMockWebSocket()?.getSentMessages();
-      expect(messages).toContainEqual(JSON.stringify({ type: 'watch', path: '/test.js' }));
+      expect(mockInvoke).toHaveBeenCalledWith('watch_file', { path: '/test.js' });
     });
 
-    it('connects automatically when watching', async () => {
+    it('sets up Tauri event listener on first watch', async () => {
       const watcher = new FileWatcher();
       const callback = vi.fn();
 
-      // Watch without explicit connect
-      watcher.watch('/test.js', callback);
-      await Promise.resolve();
+      await watcher.watch('/test.js', callback);
 
-      expect(watcher.isConnected).toBe(true);
+      expect(mockListen).toHaveBeenCalledWith('file-changed', expect.any(Function));
     });
 
-    it('sends unwatch message', async () => {
+    it('only sets up listener once for multiple watches', async () => {
+      const watcher = new FileWatcher();
+
+      await watcher.watch('/test1.js', vi.fn());
+      await watcher.watch('/test2.js', vi.fn());
+
+      expect(mockListen).toHaveBeenCalledTimes(1);
+    });
+
+    it('invokes unwatch_file on the backend', async () => {
       const watcher = new FileWatcher();
       const callback = vi.fn();
 
-      watcher.connect();
-      await Promise.resolve();
+      await watcher.watch('/test.js', callback);
+      mockInvoke.mockClear();
 
-      watcher.watch('/test.js', callback);
-      watcher.unwatch('/test.js');
+      await watcher.unwatch('/test.js');
 
-      const messages = getLastMockWebSocket()?.getSentMessages();
-      expect(messages).toContainEqual(JSON.stringify({ type: 'unwatch', path: '/test.js' }));
+      expect(mockInvoke).toHaveBeenCalledWith('unwatch_file', { path: '/test.js' });
     });
 
     it('tracks watched files', async () => {
       const watcher = new FileWatcher();
       const callback = vi.fn();
 
-      watcher.watch('/test.js', callback);
-      await Promise.resolve();
+      await watcher.watch('/test.js', callback);
 
       expect(watcher.isWatching('/test.js')).toBe(true);
       expect(watcher.isWatching('/other.js')).toBe(false);
 
-      watcher.unwatch('/test.js');
+      await watcher.unwatch('/test.js');
       expect(watcher.isWatching('/test.js')).toBe(false);
     });
 
-    it('calls callback on file change', async () => {
+    it('calls callback on file change event', async () => {
       const watcher = new FileWatcher();
       const callback = vi.fn();
 
-      watcher.connect();
-      await Promise.resolve();
+      await watcher.watch('/test.js', callback);
 
-      watcher.watch('/test.js', callback);
+      // Get the event handler that was passed to listen()
+      const eventHandler = mockListen.mock.calls[0][1];
 
-      getLastMockWebSocket()?.simulateMessage({
-        type: 'file-changed',
-        path: '/test.js',
-        content: 'new content',
-      });
+      // Simulate a file-changed event
+      eventHandler({ payload: { path: '/test.js', content: 'new content' } });
 
       expect(callback).toHaveBeenCalledWith('new content', '/test.js');
     });
@@ -177,45 +100,72 @@ describe('FileWatcher', () => {
       const watcher = new FileWatcher();
       const callback = vi.fn();
 
-      watcher.connect();
-      await Promise.resolve();
+      await watcher.watch('/test.js', callback);
 
-      watcher.watch('/test.js', callback);
+      const eventHandler = mockListen.mock.calls[0][1];
 
-      getLastMockWebSocket()?.simulateMessage({
-        type: 'file-changed',
-        path: '/other.js',
-        content: 'new content',
-      });
+      eventHandler({ payload: { path: '/other.js', content: 'new content' } });
 
       expect(callback).not.toHaveBeenCalled();
     });
 
-    it('handles multiple watches', async () => {
+    it('handles multiple watches with independent callbacks', async () => {
       const watcher = new FileWatcher();
       const callback1 = vi.fn();
       const callback2 = vi.fn();
 
-      watcher.connect();
-      await Promise.resolve();
+      await watcher.watch('/test1.js', callback1);
+      await watcher.watch('/test2.js', callback2);
 
-      watcher.watch('/test1.js', callback1);
-      watcher.watch('/test2.js', callback2);
+      const eventHandler = mockListen.mock.calls[0][1];
 
-      getLastMockWebSocket()?.simulateMessage({
-        type: 'file-changed',
-        path: '/test1.js',
-        content: 'content1',
-      });
-
-      getLastMockWebSocket()?.simulateMessage({
-        type: 'file-changed',
-        path: '/test2.js',
-        content: 'content2',
-      });
+      eventHandler({ payload: { path: '/test1.js', content: 'content1' } });
+      eventHandler({ payload: { path: '/test2.js', content: 'content2' } });
 
       expect(callback1).toHaveBeenCalledWith('content1', '/test1.js');
       expect(callback2).toHaveBeenCalledWith('content2', '/test2.js');
+    });
+
+    it('removes local entry if backend watch fails', async () => {
+      const watcher = new FileWatcher();
+      mockInvoke.mockRejectedValueOnce('File not found');
+
+      await watcher.watch('/test.js', vi.fn());
+
+      expect(watcher.isWatching('/test.js')).toBe(false);
+    });
+  });
+
+  describe('disconnect', () => {
+    it('unwatches all files on disconnect', async () => {
+      const watcher = new FileWatcher();
+
+      await watcher.watch('/test1.js', vi.fn());
+      await watcher.watch('/test2.js', vi.fn());
+      mockInvoke.mockClear();
+
+      await watcher.disconnect();
+
+      expect(mockInvoke).toHaveBeenCalledWith('unwatch_file', { path: '/test1.js' });
+      expect(mockInvoke).toHaveBeenCalledWith('unwatch_file', { path: '/test2.js' });
+    });
+
+    it('calls unlisten on disconnect', async () => {
+      const watcher = new FileWatcher();
+
+      await watcher.watch('/test.js', vi.fn());
+      await watcher.disconnect();
+
+      expect(mockUnlisten).toHaveBeenCalled();
+    });
+
+    it('clears all watches on disconnect', async () => {
+      const watcher = new FileWatcher();
+
+      await watcher.watch('/test.js', vi.fn());
+      await watcher.disconnect();
+
+      expect(watcher.isWatching('/test.js')).toBe(false);
     });
   });
 
@@ -230,19 +180,21 @@ describe('FileWatcher', () => {
       const callback = vi.fn();
 
       const unwatch = watchFile('/test.js', callback);
-      await Promise.resolve();
-
-      const watcher = getFileWatcher();
-      expect(watcher.isWatching('/test.js')).toBe(true);
+      // Allow the async watch to complete
+      await vi.waitFor(() => {
+        expect(getFileWatcher().isWatching('/test.js')).toBe(true);
+      });
 
       unwatch();
-      expect(watcher.isWatching('/test.js')).toBe(false);
+      // Allow the async unwatch to complete
+      await vi.waitFor(() => {
+        expect(getFileWatcher().isWatching('/test.js')).toBe(false);
+      });
     });
 
     it('cleanup resets singleton', async () => {
       const watcher1 = getFileWatcher();
-      watcher1.connect();
-      await Promise.resolve();
+      await watcher1.watch('/test.js', vi.fn());
 
       cleanup();
 

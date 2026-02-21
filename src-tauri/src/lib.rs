@@ -4,6 +4,7 @@ mod credentials;
 mod csv;
 mod error;
 mod executor;
+mod file_validation;
 mod keyring;
 mod pool;
 mod state;
@@ -36,6 +37,10 @@ pub fn run() {
             commands::documents::delete_document,
             commands::export::export_csv,
             commands::export::cancel_export,
+            commands::files::read_file,
+            commands::files::write_file,
+            commands::files::watch_file,
+            commands::files::unwatch_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
