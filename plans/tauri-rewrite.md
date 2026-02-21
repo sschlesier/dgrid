@@ -137,11 +137,22 @@ Verify: run queries from the UI, see results in the grid, pagination works.
 - API client tests updated: mock invoke for Tauri endpoints, mock fetch for remaining endpoints (exportCsv, files)
 - 92 Rust tests, 716 TypeScript tests all passing
 
-### Phase 4: Document Operations + CSV Export — [ ] TODO
+### Phase 4: Document Operations + CSV Export — [x] COMPLETE
 
 Port document field updates and deletes. Port CSV utilities (flatten, collect columns, escape, build rows). CSV export uses the Tauri dialog plugin for the save picker, writes directly to file in Rust, and emits progress events.
 
 Verify: edit field values, delete documents, export CSV with progress bar.
+
+**Done:**
+
+- `src-tauri/src/commands/documents.rs` — update_field and delete_document Tauri commands with tagged BSON deserialization for document IDs and values
+- `src-tauri/src/csv.rs` — flatten_document, escape_csv_field, collect_columns, build_csv_row ported from TypeScript, handling all BSON special types (ObjectId, DateTime, UUID, Binary, Decimal128, Int64)
+- `src-tauri/src/commands/export.rs` — export_csv and cancel_export commands; writes CSV directly to file with CancellationToken support, emits export-progress events for real-time progress
+- `tauri-plugin-dialog` added for native save dialog, capabilities updated with `dialog:default`
+- `src/frontend/src/api/client.ts` — updateField/deleteDocument migrated to invoke(); exportCsv removed
+- `src/frontend/src/stores/export.svelte.ts` — rewritten to use Tauri save dialog, invoke('export_csv'), and listen('export-progress') events
+- `@tauri-apps/plugin-dialog` added to frontend dependencies
+- 138 Rust tests, 715 TypeScript tests all passing
 
 ### Phase 5: File Operations — [ ] TODO
 
