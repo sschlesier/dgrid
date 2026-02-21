@@ -1,12 +1,12 @@
 import { test, expect, createConnection, deleteAllConnections } from '../fixtures';
 
 test.describe('Connection Edit and Delete', () => {
-  test.beforeEach(async ({ request }) => {
-    await deleteAllConnections(request);
+  test.beforeEach(async () => {
+    await deleteAllConnections();
   });
 
-  test.afterEach(async ({ request }) => {
-    await deleteAllConnections(request);
+  test.afterEach(async () => {
+    await deleteAllConnections();
   });
 
   test('edit connection name', async ({ page, s, mongoInfo }) => {

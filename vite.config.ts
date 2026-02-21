@@ -12,12 +12,6 @@ export default defineConfig({
   },
   server: {
     port: parseInt(process.env.DGRID_FRONTEND_PORT || '5173', 10),
-    proxy: {
-      '/api': {
-        target: `http://127.0.0.1:${process.env.DGRID_PORT || '3001'}`,
-        changeOrigin: true,
-      },
-    },
   },
   build: {
     outDir: '../../dist/frontend',

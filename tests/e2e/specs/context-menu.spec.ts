@@ -41,14 +41,14 @@ async function setupQueryTab(
 }
 
 test.describe('Grid Context Menu', () => {
-  test.beforeEach(async ({ request, mongoInfo }) => {
-    await deleteAllConnections(request);
+  test.beforeEach(async ({ mongoInfo }) => {
+    await deleteAllConnections();
     await cleanupDatabase(mongoInfo, TEST_DB);
   });
 
-  test.afterEach(async ({ request, mongoInfo }) => {
+  test.afterEach(async ({ mongoInfo }) => {
     await cleanupDatabase(mongoInfo, TEST_DB);
-    await deleteAllConnections(request);
+    await deleteAllConnections();
   });
 
   test('right-clicking a cell shows all context menu items', async ({ page, s, mongoInfo }) => {

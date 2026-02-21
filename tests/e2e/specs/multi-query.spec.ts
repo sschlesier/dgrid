@@ -22,14 +22,14 @@ const COLLECTION_A = 'users';
 const COLLECTION_B = 'orders';
 
 test.describe('Multi-Query Execution', () => {
-  test.beforeEach(async ({ request, mongoInfo }) => {
-    await deleteAllConnections(request);
+  test.beforeEach(async ({ mongoInfo }) => {
+    await deleteAllConnections();
     await cleanupDatabase(mongoInfo, TEST_DB);
   });
 
-  test.afterEach(async ({ request, mongoInfo }) => {
+  test.afterEach(async ({ mongoInfo }) => {
     await cleanupDatabase(mongoInfo, TEST_DB);
-    await deleteAllConnections(request);
+    await deleteAllConnections();
   });
 
   async function setupAndNavigate(page: Page, s: Selectors, mongoInfo: MongoInfo) {

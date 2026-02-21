@@ -13,14 +13,14 @@ const TEST_DB = 'e2e_autocomplete_test';
 const TEST_COLLECTION = 'people';
 
 test.describe('Field Autocomplete', () => {
-  test.beforeEach(async ({ request, mongoInfo }) => {
-    await deleteAllConnections(request);
+  test.beforeEach(async ({ mongoInfo }) => {
+    await deleteAllConnections();
     await cleanupDatabase(mongoInfo, TEST_DB);
   });
 
-  test.afterEach(async ({ request, mongoInfo }) => {
+  test.afterEach(async ({ mongoInfo }) => {
     await cleanupDatabase(mongoInfo, TEST_DB);
-    await deleteAllConnections(request);
+    await deleteAllConnections();
   });
 
   test('Tab opens autocomplete after navigating to a seeded collection', async ({

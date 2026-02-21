@@ -12,14 +12,14 @@ import {
 const TEST_DB = 'e2e_tabs_test';
 
 test.describe('Tab Management', () => {
-  test.beforeEach(async ({ request, mongoInfo }) => {
-    await deleteAllConnections(request);
+  test.beforeEach(async ({ mongoInfo }) => {
+    await deleteAllConnections();
     await cleanupDatabase(mongoInfo, TEST_DB);
   });
 
-  test.afterEach(async ({ request, mongoInfo }) => {
+  test.afterEach(async ({ mongoInfo }) => {
     await cleanupDatabase(mongoInfo, TEST_DB);
-    await deleteAllConnections(request);
+    await deleteAllConnections();
   });
 
   test('click collection creates a tab', async ({ page, s, mongoInfo }) => {

@@ -37,14 +37,14 @@ async function setupQueryTab(
 }
 
 test.describe('Field Editing', () => {
-  test.beforeEach(async ({ request, mongoInfo }) => {
-    await deleteAllConnections(request);
+  test.beforeEach(async ({ mongoInfo }) => {
+    await deleteAllConnections();
     await cleanupDatabase(mongoInfo, TEST_DB);
   });
 
-  test.afterEach(async ({ request, mongoInfo }) => {
+  test.afterEach(async ({ mongoInfo }) => {
     await cleanupDatabase(mongoInfo, TEST_DB);
-    await deleteAllConnections(request);
+    await deleteAllConnections();
   });
 
   test('edit a string field value', async ({ page, s, mongoInfo }) => {

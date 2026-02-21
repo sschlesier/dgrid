@@ -13,14 +13,14 @@ const TEST_DB = 'e2e_sidebar_test';
 const TEST_COLLECTION = 'items';
 
 test.describe('Sidebar Navigation', () => {
-  test.beforeEach(async ({ request, mongoInfo }) => {
-    await deleteAllConnections(request);
+  test.beforeEach(async ({ mongoInfo }) => {
+    await deleteAllConnections();
     await cleanupDatabase(mongoInfo, TEST_DB);
   });
 
-  test.afterEach(async ({ request, mongoInfo }) => {
+  test.afterEach(async ({ mongoInfo }) => {
     await cleanupDatabase(mongoInfo, TEST_DB);
-    await deleteAllConnections(request);
+    await deleteAllConnections();
   });
 
   test('expand database to see collections', async ({ page, s, mongoInfo }) => {
