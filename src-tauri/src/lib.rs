@@ -1,6 +1,7 @@
 mod bson_ser;
 mod commands;
 mod credentials;
+mod csv;
 mod error;
 mod executor;
 mod keyring;
