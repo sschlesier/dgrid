@@ -320,26 +320,31 @@ export async function exportCsv(
   return response;
 }
 
-// Document endpoints (fetch — Phase 4)
+// Document endpoints (Tauri)
 
 export async function updateField(
   connectionId: string,
   data: UpdateFieldRequest
 ): Promise<UpdateFieldResponse> {
-  return request<UpdateFieldResponse>(`/connections/${connectionId}/documents/field`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  });
+  try {
+    return await invoke<UpdateFieldResponse>('update_field', { id: connectionId, request: data });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
 export async function deleteDocument(
   connectionId: string,
   data: DeleteDocumentRequest
 ): Promise<DeleteDocumentResponse> {
-  return request<DeleteDocumentResponse>(`/connections/${connectionId}/documents`, {
-    method: 'DELETE',
-    body: JSON.stringify(data),
-  });
+  try {
+    return await invoke<DeleteDocumentResponse>('delete_document', {
+      id: connectionId,
+      request: data,
+    });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
 }
 
 // File endpoints (fetch — Phase 5)

@@ -17,7 +17,8 @@ import {
   getVersion,
   executeQuery,
   cancelQuery,
-  exportCsv,
+  updateField,
+  deleteDocument,
   readFile,
   writeFile,
 } from '../api/client';
@@ -162,59 +163,71 @@ describe('API client', () => {
     });
   });
 
-  describe('exportCsv error handling', () => {
-    it('throws ApiError on export failure', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        statusText: 'Error',
-        json: () =>
-          Promise.resolve({
-            error: 'ExportError',
-            message: 'Export failed',
-            statusCode: 500,
-          }),
+  describe('documents (Tauri)', () => {
+    it('updateField invokes update_field', async () => {
+      const updateResult = { success: true, modifiedCount: 1 };
+      mockInvoke.mockResolvedValueOnce(updateResult);
+
+      const data = {
+        database: 'testdb',
+        collection: 'users',
+        documentId: { _type: 'ObjectId', _value: '507f1f77bcf86cd799439011' },
+        fieldPath: 'name',
+        value: 'Alice',
+        type: 'string',
+      };
+      const result = await updateField('conn1', data);
+
+      expect(mockInvoke).toHaveBeenCalledWith('update_field', {
+        id: 'conn1',
+        request: data,
       });
+      expect(result).toEqual(updateResult);
+    });
+
+    it('deleteDocument invokes delete_document', async () => {
+      const deleteResult = { success: true, deletedCount: 1 };
+      mockInvoke.mockResolvedValueOnce(deleteResult);
+
+      const data = {
+        database: 'testdb',
+        collection: 'users',
+        documentId: { _type: 'ObjectId', _value: '507f1f77bcf86cd799439011' },
+      };
+      const result = await deleteDocument('conn1', data);
+
+      expect(mockInvoke).toHaveBeenCalledWith('delete_document', {
+        id: 'conn1',
+        request: data,
+      });
+      expect(result).toEqual(deleteResult);
+    });
+
+    it('updateField wraps invoke errors', async () => {
+      mockInvoke.mockRejectedValueOnce('Database error');
 
       await expect(
-        exportCsv('1', { query: 'db.users.find({})', database: 'test' })
+        updateField('conn1', {
+          database: 'testdb',
+          collection: 'users',
+          documentId: 1,
+          fieldPath: 'name',
+          value: 'Alice',
+          type: 'string',
+        })
       ).rejects.toThrow(ApiError);
     });
 
-    it('propagates isConnected: false from export error', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        statusText: 'Error',
-        json: () =>
-          Promise.resolve({
-            error: 'ExportError',
-            message: 'Connection lost',
-            statusCode: 500,
-            isConnected: false,
-          }),
-      });
-
-      try {
-        await exportCsv('1', { query: 'db.users.find({})', database: 'test' });
-        expect.fail('Should have thrown');
-      } catch (error) {
-        expect(error).toBeInstanceOf(ApiError);
-        expect((error as ApiError).isConnected).toBe(false);
-      }
-    });
-
-    it('handles non-JSON export error response', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        statusText: 'Internal Server Error',
-        json: () => Promise.reject(new Error('Invalid JSON')),
-      });
+    it('deleteDocument wraps invoke errors', async () => {
+      mockInvoke.mockRejectedValueOnce('Database error');
 
       await expect(
-        exportCsv('1', { query: 'db.users.find({})', database: 'test' })
-      ).rejects.toThrow('Internal Server Error');
+        deleteDocument('conn1', {
+          database: 'testdb',
+          collection: 'users',
+          documentId: 1,
+        })
+      ).rejects.toThrow(ApiError);
     });
   });
 
