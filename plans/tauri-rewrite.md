@@ -51,6 +51,8 @@ dgrid/
 
 ## Agent Workflow
 
+**Keep this plan updated.** When you complete a phase (or a significant chunk of one), update the status markers below. Mark phases `[x]` when done, add notes about what was built, and note any deviations from the original plan. Future agents should be able to read this file and immediately know what's done and what's next.
+
 **Before starting each phase**, the agent must explore the relevant existing code and plan its approach. Break the phase into logical steps and commit each step independently with a clear commit message.
 
 **TDD porting loop** for each Rust module:
@@ -77,17 +79,27 @@ Every REST endpoint becomes a Tauri command. The full mapping is in `src/backend
 
 ## Phased Implementation
 
-### Phase 1: Scaffold
+### Phase 1: Scaffold — [x] COMPLETE
 
 Set up Tauri v2 in the project. Configure `tauri.conf.json` to serve the existing Svelte frontend. Define `AppState` and `DgridError`. Register a `get_version` placeholder command. Verify `cargo tauri dev` opens a window showing the Svelte UI.
 
-### Phase 2: Connection Storage + Connectivity
+**Done (commit `158a4a2`):**
+
+- `src-tauri/` created with Cargo.toml (tauri 2, serde, thiserror, tokio), build.rs, tauri.conf.json
+- `tauri.conf.json` points dev URL at `http://localhost:5173`, build output at `dist/frontend`
+- `AppState` placeholder in `state.rs`, `DgridError` enum in `error.rs` with `Serialize` impl
+- `get_version` command in `commands/version.rs` returning `CARGO_PKG_VERSION`
+- Default capabilities (`core:default`), app icons generated from `assets/dgrid.icns`
+- 3 Rust tests passing (error serialization, error display, version command)
+- `.gitignore` updated for `src-tauri/target/` and `src-tauri/gen/`
+
+### Phase 2: Connection Storage + Connectivity — [ ] TODO
 
 Port connection storage (JSON file CRUD with atomic writes), keyring integration, and credential handling. Then add the MongoDB connection pool and database browsing commands. Wire up `client.ts` to use `invoke()` instead of `fetch()`.
 
 Verify: connection dialog CRUD works, can connect to MongoDB, sidebar tree populates.
 
-### Phase 3: Query Execution
+### Phase 3: Query Execution — [ ] TODO
 
 Move the parser from `src/backend/db/queries.ts` to `src/shared/queries.ts`, stripping out the executor (which had the `mongodb` driver dependency). The parser is pure string manipulation — no backend imports.
 
@@ -97,31 +109,31 @@ Build the Rust executor: define serde structs matching `ParsedCollectionQuery` /
 
 Verify: run queries from the UI, see results in the grid, pagination works.
 
-### Phase 4: Document Operations + CSV Export
+### Phase 4: Document Operations + CSV Export — [ ] TODO
 
 Port document field updates and deletes. Port CSV utilities (flatten, collect columns, escape, build rows). CSV export uses the Tauri dialog plugin for the save picker, writes directly to file in Rust, and emits progress events.
 
 Verify: edit field values, delete documents, export CSV with progress bar.
 
-### Phase 5: File Operations
+### Phase 5: File Operations — [ ] TODO
 
 Port file read/write with path validation. Add file watching via the `notify` crate, emitting Tauri events. Replace `websocket.ts` with a Tauri event listener wrapper.
 
-### Phase 6: System Tray + Packaging
+### Phase 6: System Tray + Packaging — [ ] TODO
 
 Configure Tauri tray (menu, icon, click behavior). Add update checker. Set up `tauri.conf.json` bundle targets for macOS (.dmg), Windows (.msi), Linux (.deb + .AppImage). Update the GitHub Actions release workflow.
 
-### Phase 7: Cleanup
+### Phase 7: Cleanup — [ ] TODO
 
 Delete `src/backend/`, build scripts, SEA pipeline, and unused npm dependencies. Update `CLAUDE.md` and project documentation. Verify the full E2E suite passes against the Tauri app.
 
 ## Risks
 
-| Risk | Mitigation |
-|---|---|
+| Risk                                                                 | Mitigation                                                                      |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | **ParsedQuery type drift** (Rust structs diverge from TS interfaces) | Rust tests that deserialize JSON fixtures exported from TypeScript parser tests |
-| **MongoDB Rust driver API differences** | Read docs per operation. Most map 1:1. Official driver is mature |
-| **Tauri cross-platform quirks** (WebKit on macOS/Linux) | Test on all platforms early in Phase 6 |
+| **MongoDB Rust driver API differences**                              | Read docs per operation. Most map 1:1. Official driver is mature                |
+| **Tauri cross-platform quirks** (WebKit on macOS/Linux)              | Test on all platforms early in Phase 6                                          |
 
 ## Reference
 
