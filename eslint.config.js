@@ -9,7 +9,7 @@ import globals from 'globals';
 export default [
   js.configs.recommended,
   {
-    ignores: ['dist/**', 'build/**', 'node_modules/**', '.svelte-kit/**'],
+    ignores: ['dist/**', 'build/**', 'node_modules/**', '.svelte-kit/**', 'src-tauri/**'],
   },
   // Config files and scripts (no project checking)
   {
