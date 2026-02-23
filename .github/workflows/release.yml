@@ -175,11 +175,13 @@ jobs:
             artifacts/**/*.AppImage
             artifacts/**/*.sha256
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   update-homebrew:
     name: Update Homebrew Tap
+    if: ${{ !contains(github.ref_name, '-') }}
     needs: release
     runs-on: ubuntu-latest
 
