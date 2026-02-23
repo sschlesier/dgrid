@@ -21,6 +21,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify": "pnpm type-check && pnpm lint && pnpm test run && pnpm build:frontend",
+    "version": "tsx scripts/sync-version.ts",
     "release": "tsx scripts/release.ts",
     "prepare": "husky",
     "tauri": "tauri",
