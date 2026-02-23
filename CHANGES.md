@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-beta1
+
+- Rewrite backend from Node.js/Fastify to Tauri v2 (Rust)
+- Replace HTTP API with Tauri IPC commands (no network exposure)
+- Add native DMG/EXE/deb/AppImage packaging via Tauri bundler
+- Add configurable keyboard shortcuts with editing UI
+- Add delayed loading spinner on sidebar tree nodes
+- Prerelease GitHub Releases are now marked as such; Homebrew stays on stable
+
 ## 0.6.0
 
 - Add multi-query execution: write multiple queries in a single editor buffer
