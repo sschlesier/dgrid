@@ -1,7 +1,7 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../tsconfig.json",
   "compilerOptions": {
-    "outDir": "../../dist/frontend",
+    "outDir": "../dist/frontend",
     "types": ["vite/client", "svelte", "vitest", "@testing-library/jest-dom"],
     "target": "ES2020",
     "module": "ESNext",
@@ -10,6 +10,6 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src/**/*", "../shared/**/*", "../../tests/**/*"],
-  "exclude": ["node_modules", "../shared/__tests__"]
+  "include": ["./**/*", "../tests/**/*"],
+  "exclude": ["node_modules", "./__tests__/queries.test.ts", "./__tests__/querySplitter.test.ts"]
 }

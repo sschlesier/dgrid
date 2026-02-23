@@ -5,8 +5,7 @@ A clean, modern MongoDB GUI built with Tauri (Rust backend) and Svelte 5 fronten
 ## Project Structure
 
 - `src-tauri/` - Tauri v2 Rust backend (commands, executor, storage, keyring)
-- `src/frontend/` - Svelte 5 UI (Vite build)
-- `src/shared/` - Shared types, contracts, and query parser (TypeScript)
+- `src/` - Svelte 5 frontend (Vite build)
 - `.claude/` - Claude Code configuration (agents, skills, rules)
 
 ## Development Stack
@@ -67,11 +66,11 @@ pnpm build:frontend   # Build frontend only
 - **Connection Pool**: `src-tauri/src/pool.rs` (MongoDB connection management)
 - **Storage**: `src-tauri/src/storage.rs` (JSON file CRUD for connections)
 - **Keyring**: `src-tauri/src/keyring.rs` (OS keyring via `keyring` crate)
-- **Frontend Stores**: `src/frontend/src/stores/{domain}.svelte.ts` (Svelte 5 runes)
-- **Frontend Components**: `src/frontend/src/components/{Component}.svelte`
-- **API Client**: `src/frontend/src/api/client.ts` (Tauri invoke wrappers)
-- **API Contracts**: `src/shared/contracts.ts` (single source of truth)
-- **Query Parser**: `src/shared/queries.ts` (frontend-side mongo shell parser)
+- **Frontend Stores**: `src/stores/{domain}.svelte.ts` (Svelte 5 runes)
+- **Frontend Components**: `src/components/{Component}.svelte`
+- **API Client**: `src/api/client.ts` (Tauri invoke wrappers)
+- **API Contracts**: `src/lib/contracts.ts` (single source of truth)
+- **Query Parser**: `src/lib/queries.ts` (frontend-side mongo shell parser)
 - **E2E Tests**: `tests/e2e/specs/{feature}.spec.ts`
 - **E2E Fixtures**: `tests/e2e/fixtures.ts`
 - **E2E Selectors**: `tests/e2e/helpers/selectors.ts`

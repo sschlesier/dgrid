@@ -2,7 +2,7 @@
  * Test utilities for Svelte 5 component testing
  */
 import { vi } from 'vitest';
-import type { ConnectionResponse, DatabaseInfo, CollectionInfo } from '../../../shared/contracts';
+import type { ConnectionResponse, DatabaseInfo, CollectionInfo } from '../lib/contracts';
 import type { Tab, Notification, UIState, TreeNodeData } from '../types';
 
 // Mock connection data

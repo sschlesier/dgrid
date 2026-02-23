@@ -1,6 +1,6 @@
 // App Store - Svelte 5 runes-based state management
 
-import type { ConnectionResponse, DatabaseInfo, CollectionInfo } from '../../../shared/contracts';
+import type { ConnectionResponse, DatabaseInfo, CollectionInfo } from '../lib/contracts';
 import type { Tab, Notification, UIState, Theme, TreeNodeData } from '../types';
 import * as api from '../api/client';
 import { ApiError } from '../api/client';

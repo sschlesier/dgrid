@@ -4,7 +4,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { save } from '@tauri-apps/plugin-dialog';
-import { parseQuery } from '../../../shared/queries.js';
+import { parseQuery } from '../lib/queries.js';
 import { ApiError } from '../api/client';
 
 interface ExportTabState {

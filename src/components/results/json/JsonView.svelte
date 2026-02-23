@@ -5,7 +5,7 @@
   import { json } from '@codemirror/lang-json';
   import { foldGutter, foldKeymap, foldAll, unfoldAll } from '@codemirror/language';
   import { editorHighlighting } from '../../../lib/editorHighlighting';
-  import type { ExecuteQueryResponse } from '../../../../../shared/contracts';
+  import type { ExecuteQueryResponse } from '../../../lib/contracts';
   import type { JsonFormat } from './formatters';
   import { formatDocuments, loadJsonFormat, saveJsonFormat } from './formatters';
   import JsonToolbar from './JsonToolbar.svelte';

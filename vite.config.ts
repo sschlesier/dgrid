@@ -6,7 +6,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
 
 export default defineConfig({
   plugins: [svelte()],
-  root: 'src/frontend',
+  root: 'src',
   define: {
     DGRID_VERSION: JSON.stringify(pkg.version),
   },
@@ -14,7 +14,7 @@ export default defineConfig({
     port: parseInt(process.env.DGRID_FRONTEND_PORT || '5173', 10),
   },
   build: {
-    outDir: '../../dist/frontend',
+    outDir: '../dist/frontend',
     emptyOutDir: true,
   },
 });

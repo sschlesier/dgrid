@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parseQuery, parseDbCommand, detectQueryType, DB_COMMAND_SIGNATURES } from '../queries.js';
+import {
+  parseQuery,
+  parseDbCommand,
+  detectQueryType,
+  DB_COMMAND_SIGNATURES,
+} from '../lib/queries.js';
 
 describe('Query Parser', () => {
   describe('find queries', () => {

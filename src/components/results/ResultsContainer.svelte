@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ExecuteQueryResponse } from '../../../../shared/contracts';
+  import type { ExecuteQueryResponse } from '../../lib/contracts';
   import { gridStore } from '../../stores/grid.svelte';
   import { exportStore } from '../../stores/export.svelte';
   import type { ViewMode } from '../grid/types';

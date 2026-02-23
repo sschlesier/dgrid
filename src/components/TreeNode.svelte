@@ -13,8 +13,14 @@
     onNodeContextMenu?: (_node: TreeNodeData, _event: MouseEvent) => void;
   }
 
-  let { node, depth = 0, onNodeClick, onNodeExpand, onRefresh, onNodeContextMenu }: Props =
-    $props();
+  let {
+    node,
+    depth = 0,
+    onNodeClick,
+    onNodeExpand,
+    onRefresh,
+    onNodeContextMenu,
+  }: Props = $props();
 
   // Node types that support refresh action
   const supportsRefresh = $derived(node.type === 'database' || node.type === 'collection-group');

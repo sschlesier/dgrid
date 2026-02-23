@@ -17,7 +17,7 @@ All backend functionality is exposed via Tauri commands (IPC), not REST endpoint
 ### Request/Response Types
 
 ```typescript
-// Define in src/shared/contracts.ts (single source of truth)
+// Define in src/lib/contracts.ts (single source of truth)
 // Rust structs in src-tauri/ mirror these interfaces via serde
 
 export interface CreateConnectionRequest {

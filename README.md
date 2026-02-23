@@ -159,8 +159,7 @@ The workflow:
 
 ```
 src-tauri/          Tauri v2 Rust backend (commands, executor, storage, keyring)
-src/frontend/       Svelte 5 UI (Vite build)
-src/shared/         Shared TypeScript types and query parser
+src/                Svelte 5 frontend (Vite build)
 tests/e2e/          Playwright E2E tests
 ```
 

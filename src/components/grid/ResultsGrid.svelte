@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import type { ExecuteQueryResponse } from '../../../../shared/contracts';
+  import type { ExecuteQueryResponse } from '../../lib/contracts';
   import { gridStore } from '../../stores/grid.svelte';
   import { queryStore } from '../../stores/query.svelte';
   import {

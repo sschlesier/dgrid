@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitQueries, findSliceAtOffset, findSlicesInSelection } from '../querySplitter';
+import { splitQueries, findSliceAtOffset, findSlicesInSelection } from '../lib/querySplitter';
 
 describe('splitQueries', () => {
   it('returns empty array for empty input', () => {

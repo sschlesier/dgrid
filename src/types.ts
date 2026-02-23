@@ -62,7 +62,7 @@ export type ExecuteMode = 'all' | 'current' | 'selected';
 export interface SubQueryResult {
   index: number;
   query: string;
-  result: import('../../shared/contracts').ExecuteQueryResponse | null;
+  result: import('./lib/contracts').ExecuteQueryResponse | null;
   error: string | null;
   isExecuting: boolean;
 }

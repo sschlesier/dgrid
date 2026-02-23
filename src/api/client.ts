@@ -17,7 +17,7 @@ import type {
   UpdateFieldResponse,
   DeleteDocumentRequest,
   DeleteDocumentResponse,
-} from '../../../shared/contracts';
+} from '../lib/contracts';
 
 /**
  * Custom API error with typed properties
@@ -210,7 +210,7 @@ export async function getCollectionSchema(
 
 // Query endpoints (Tauri)
 
-import { parseQuery } from '../../../shared/queries.js';
+import { parseQuery } from '../lib/queries.js';
 
 export interface ExecuteQueryOptions {
   tabId?: string;

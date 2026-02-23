@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import type { ExecuteQueryResponse } from '../../../../../shared/contracts';
+  import type { ExecuteQueryResponse } from '../../../lib/contracts';
   import { searchDocument, getAncestorPaths, getAllPaths, getDocumentSummary } from './tree-utils';
   import { detectValueType } from './tree-utils';
   import TreeField from './TreeField.svelte';

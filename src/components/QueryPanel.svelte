@@ -6,12 +6,8 @@
   import { gridStore } from '../stores/grid.svelte';
   import { schemaStore } from '../stores/schema.svelte';
   import { keybindingsStore } from '../stores/keybindings.svelte';
-  import {
-    splitQueries,
-    findSliceAtOffset,
-    findSlicesInSelection,
-  } from '../../../shared/querySplitter';
-  import type { QuerySlice } from '../../../shared/querySplitter';
+  import { splitQueries, findSliceAtOffset, findSlicesInSelection } from '../lib/querySplitter';
+  import type { QuerySlice } from '../lib/querySplitter';
   import { matchesBinding } from '../utils/keyboard';
   import { watchFile } from '../api/websocket';
   import * as api from '../api/client';

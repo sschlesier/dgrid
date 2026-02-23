@@ -93,7 +93,12 @@
   }
 
   function getContextMenuItems(node: TreeNodeData) {
-    const items: { label: string; onclick: () => void; destructive?: boolean; separator?: boolean }[] = [];
+    const items: {
+      label: string;
+      onclick: () => void;
+      destructive?: boolean;
+      separator?: boolean;
+    }[] = [];
 
     switch (node.type) {
       case 'connection': {

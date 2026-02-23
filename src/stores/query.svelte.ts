@@ -1,8 +1,8 @@
 // Query Store - Per-tab query state management with Svelte 5 runes
 
-import type { ExecuteQueryResponse } from '../../../shared/contracts';
+import type { ExecuteQueryResponse } from '../lib/contracts';
 import type { QueryHistoryItem, SubQueryResult, ExecuteMode } from '../types';
-import type { QuerySlice } from '../../../shared/querySplitter';
+import type { QuerySlice } from '../lib/querySplitter';
 import * as api from '../api/client';
 import { ApiError, QueryCancelledError } from '../api/client';
 
