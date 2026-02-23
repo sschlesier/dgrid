@@ -13,7 +13,7 @@ A clean, modern MongoDB GUI built with Tauri (Rust backend) and Svelte 5 fronten
 - **Backend**: Tauri 2 (Rust), MongoDB Rust driver, tokio async runtime
 - **Frontend**: Svelte 5 (runes), Vite 7, CodeMirror 6
 - **IPC**: Tauri commands (invoke) — no HTTP server
-- **Testing**: Vitest 3 (TypeScript), cargo test (Rust), Playwright (E2E)
+- **Testing**: Vitest 3 (TypeScript), cargo test (Rust), Playwright (E2E — currently disabled)
 - **Package Manager**: pnpm (required)
 
 ## Code Style
@@ -38,10 +38,10 @@ pnpm lint             # ESLint check
 pnpm test             # Run TypeScript test suite (Vitest)
 cargo test            # Run Rust test suite (in src-tauri/)
 
-# E2E Testing
-pnpm e2e              # Run Playwright E2E tests
-pnpm e2e:headed       # Run E2E tests with visible browser
-pnpm e2e:ui           # Playwright interactive UI mode
+# E2E Testing (currently disabled — see tests/e2e/README.md)
+# pnpm e2e            # Disabled — needs Tauri-compatible approach
+# pnpm e2e:headed     # Disabled
+# pnpm e2e:ui         # Disabled
 
 # Building
 pnpm build            # Build Tauri app (Rust + frontend)
@@ -55,8 +55,7 @@ pnpm build:frontend   # Build frontend only
 - Focus on behavior, not implementation details
 - Rust tests use `#[cfg(test)]` modules with `cargo test`
 - Component tests use @testing-library/svelte
-- E2E tests use Playwright with real Tauri app
-- E2E test MongoDB is provided by mongodb-memory-server (no external DB needed)
+- E2E tests (Playwright) are currently disabled — see `tests/e2e/README.md`
 
 ## Architecture Patterns
 
@@ -77,7 +76,7 @@ pnpm build:frontend   # Build frontend only
 
 ## Workflow
 
-1. Implement changes with tests (unit/integration AND E2E — see below)
+1. Implement changes with tests (unit/integration)
 2. Run `pnpm verify` to validate (types, lint, tests, build)
 3. Run `cargo test` in `src-tauri/` for Rust changes
 4. Commit to git after successful verification
@@ -104,9 +103,7 @@ A bad E2E test: "Password field disables when save-password checkbox is unchecke
 
 ### When adding a feature
 
-1. Add selectors to `tests/e2e/helpers/selectors.ts` for any new UI elements
-2. Add or extend a spec in `tests/e2e/specs/{feature}.spec.ts`
-3. Run `pnpm e2e` to verify before committing
+> E2E tests are currently disabled. When re-enabled, follow the patterns in `.claude/rules/e2e-testing.md`.
 
 ## Security Principles
 

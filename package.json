@@ -24,10 +24,10 @@
     "release": "tsx scripts/release.ts",
     "prepare": "husky",
     "tauri": "tauri",
-    "e2e": "playwright test",
-    "e2e:headed": "playwright test --headed",
-    "e2e:ui": "playwright test --ui",
-    "e2e:report": "playwright show-report"
+    "e2e": "echo 'E2E tests disabled — need migration to Tauri-compatible approach (see tests/e2e/README.md)' && exit 1",
+    "e2e:headed": "echo 'E2E tests disabled' && exit 1",
+    "e2e:ui": "echo 'E2E tests disabled' && exit 1",
+    "e2e:report": "echo 'E2E tests disabled' && exit 1"
   },
   "keywords": [
     "mongodb",
