@@ -1,6 +1,6 @@
 [package]
 name = "dgrid"
-version = "0.6.0"
+version = "1.0.0-beta1"
 edition = "2021"
 
 [lib]
