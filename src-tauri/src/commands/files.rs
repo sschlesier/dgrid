@@ -2,7 +2,7 @@ use std::path::Path;
 
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::error::DgridError;
 use crate::file_validation::{allowed_extensions_display, is_allowed_extension, is_path_safe, MAX_FILE_SIZE};

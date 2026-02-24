@@ -4,9 +4,6 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum DgridError {
     #[error("{0}")]
-    NotImplemented(String),
-
-    #[error("{0}")]
     Storage(String),
 
     #[error("{0}")]
@@ -58,14 +55,14 @@ mod tests {
 
     #[test]
     fn error_serializes_to_string() {
-        let err = DgridError::NotImplemented("test".into());
+        let err = DgridError::Validation("test".into());
         let json = serde_json::to_string(&err).unwrap();
         assert_eq!(json, "\"test\"");
     }
 
     #[test]
     fn error_display() {
-        let err = DgridError::NotImplemented("not ready".into());
+        let err = DgridError::Validation("not ready".into());
         assert_eq!(err.to_string(), "not ready");
     }
 

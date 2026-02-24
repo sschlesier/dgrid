@@ -101,7 +101,10 @@ impl ConnectionPool {
         let conns = self.connections.read().await;
         conns.contains_key(id)
     }
+}
 
+#[cfg(test)]
+impl ConnectionPool {
     pub async fn list_connections(&self) -> Vec<String> {
         let conns = self.connections.read().await;
         conns.keys().cloned().collect()

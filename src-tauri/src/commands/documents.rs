@@ -16,6 +16,7 @@ pub struct UpdateFieldRequest {
     pub field_path: String,
     pub value: Value,
     #[serde(rename = "type")]
+    #[allow(dead_code)]
     pub value_type: String,
 }
 

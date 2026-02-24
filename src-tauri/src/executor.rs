@@ -87,7 +87,6 @@ pub struct ExecuteQueryResponse {
 pub struct QueryOptions {
     pub page: i64,
     pub page_size: i64,
-    pub timeout_ms: u64,
 }
 
 impl Default for QueryOptions {
@@ -95,7 +94,6 @@ impl Default for QueryOptions {
         Self {
             page: 1,
             page_size: 50,
-            timeout_ms: 30000,
         }
     }
 }
@@ -574,9 +572,6 @@ async fn execute_collection_query(
         CollectionOperation::CreateIndex => {
             let index_spec = value_to_doc(&query.index_spec)?;
             let opts_val = query.options.as_ref();
-
-            let mut index_opts = mongodb::options::CreateIndexOptions::default();
-            let _ = index_opts; // options are on IndexModel, not CreateIndexOptions
 
             let mut idx_model_opts = mongodb::options::IndexOptions::default();
             if let Some(o) = opts_val {
