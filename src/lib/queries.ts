@@ -251,12 +251,141 @@ function convertRegexLiterals(str: string): string {
   return result;
 }
 
+// Shell helper arg utilities
+function stripQuotes(s: string): string {
+  const trimmed = s.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function isIdentChar(ch: string): boolean {
+  return /[a-zA-Z0-9_$]/.test(ch);
+}
+
+// Helpers that match with or without `new` prefix
+type HelperHandler = (argsStr: string) => string;
+
+const SHELL_HELPERS: Record<string, HelperHandler> = {
+  ObjectId: (args) => `{"_type":"ObjectId","_value":"${stripQuotes(args)}"}`,
+  ISODate: (args) => `{"_type":"Date","_value":"${stripQuotes(args)}"}`,
+  NumberLong: (args) => `{"_type":"Long","_value":"${stripQuotes(args)}"}`,
+  NumberInt: (args) => stripQuotes(args),
+  NumberDecimal: (args) => `{"_type":"Decimal128","_value":"${stripQuotes(args)}"}`,
+  UUID: (args) => `{"_type":"UUID","_value":"${stripQuotes(args)}"}`,
+  BinData: (args) => {
+    const commaIdx = args.indexOf(',');
+    if (commaIdx === -1) return `{"_type":"Binary","_value":""}`;
+    const b64 = stripQuotes(args.slice(commaIdx + 1));
+    return `{"_type":"Binary","_value":"${b64}"}`;
+  },
+};
+
+// Helpers that only match with `new` prefix
+const NEW_ONLY_HELPERS: Record<string, HelperHandler> = {
+  Date: (args) => `{"_type":"Date","_value":"${stripQuotes(args)}"}`,
+};
+
+interface HelperMatch {
+  replacement: string;
+  end: number;
+}
+
+function tryMatchHelper(str: string, i: number): HelperMatch | null {
+  // Must be at a word boundary
+  if (i > 0 && isIdentChar(str[i - 1])) return null;
+
+  let j = i;
+  let hasNew = false;
+
+  // Check for `new` prefix
+  if (str.slice(j, j + 3) === 'new' && (j + 3 >= str.length || !isIdentChar(str[j + 3]))) {
+    hasNew = true;
+    j += 3;
+    while (j < str.length && /\s/.test(str[j])) j++;
+  }
+
+  // Read identifier
+  const identStart = j;
+  while (j < str.length && isIdentChar(str[j])) j++;
+  const ident = str.slice(identStart, j);
+  if (!ident) return null;
+
+  // Skip whitespace before (
+  while (j < str.length && (str[j] === ' ' || str[j] === '\t')) j++;
+  if (j >= str.length || str[j] !== '(') return null;
+
+  // Check if this is a known helper
+  const handler = SHELL_HELPERS[ident] ?? (hasNew ? NEW_ONLY_HELPERS[ident] : undefined);
+  if (!handler) return null;
+
+  // Find matching close paren
+  const closeParen = findMatchingBracket(str, j);
+  if (closeParen === -1) return null;
+
+  const argsStr = str.slice(j + 1, closeParen);
+  return {
+    replacement: handler(argsStr),
+    end: closeParen + 1,
+  };
+}
+
+// Convert MongoDB shell helper calls to tagged JSON format
+// e.g., ObjectId("hex") -> {"_type":"ObjectId","_value":"hex"}
+export function convertShellHelpers(str: string): string {
+  let result = '';
+  let i = 0;
+
+  while (i < str.length) {
+    // Skip strings
+    if (str[i] === '"' || str[i] === "'") {
+      const quote = str[i];
+      result += str[i];
+      i++;
+      while (i < str.length && str[i] !== quote) {
+        if (str[i] === '\\' && i + 1 < str.length) {
+          result += str[i] + str[i + 1];
+          i += 2;
+        } else {
+          result += str[i];
+          i++;
+        }
+      }
+      if (i < str.length) {
+        result += str[i];
+        i++;
+      }
+      continue;
+    }
+
+    // Try to match a shell helper (with optional `new` prefix)
+    const helperMatch = tryMatchHelper(str, i);
+    if (helperMatch) {
+      result += helperMatch.replacement;
+      i = helperMatch.end;
+      continue;
+    }
+
+    result += str[i];
+    i++;
+  }
+
+  return result;
+}
+
 function parseJavaScriptObject(str: string): Document {
   // Handle MongoDB shell syntax like { field: 1 } -> { "field": 1 }
   // This is a simplified parser - handles common cases
 
-  // First, convert regex literals to $regex format (before other transformations)
-  let normalized = convertRegexLiterals(str);
+  // First, convert shell helpers like ObjectId("...") to tagged JSON format
+  let normalized = convertShellHelpers(str);
+
+  // Convert regex literals to $regex format (before other transformations)
+  normalized = convertRegexLiterals(normalized);
 
   // Replace unquoted keys with quoted keys
   // Matches: key: or 'key': at start, after { or after ,

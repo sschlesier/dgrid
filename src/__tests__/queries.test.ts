@@ -4,6 +4,7 @@ import {
   parseDbCommand,
   detectQueryType,
   DB_COMMAND_SIGNATURES,
+  convertShellHelpers,
 } from '../lib/queries.js';
 
 describe('Query Parser', () => {
@@ -304,6 +305,317 @@ describe('Query Parser', () => {
       if (result.ok) {
         expect(result.value.filter).toEqual({ pattern: '/not-a-regex/' });
       }
+    });
+  });
+
+  describe('shell helpers', () => {
+    describe('convertShellHelpers', () => {
+      it('converts ObjectId', () => {
+        expect(convertShellHelpers('ObjectId("5553a998e4b02cf7151190ba")')).toBe(
+          '{"_type":"ObjectId","_value":"5553a998e4b02cf7151190ba"}'
+        );
+      });
+
+      it('converts ISODate', () => {
+        expect(convertShellHelpers('ISODate("2024-01-15T10:30:00Z")')).toBe(
+          '{"_type":"Date","_value":"2024-01-15T10:30:00Z"}'
+        );
+      });
+
+      it('converts new Date', () => {
+        expect(convertShellHelpers('new Date("2024-01-15T10:30:00Z")')).toBe(
+          '{"_type":"Date","_value":"2024-01-15T10:30:00Z"}'
+        );
+      });
+
+      it('does NOT convert Date without new', () => {
+        expect(convertShellHelpers('Date("2024-01-15")')).toBe('Date("2024-01-15")');
+      });
+
+      it('converts NumberLong with string arg', () => {
+        expect(convertShellHelpers('NumberLong("12345678901234")')).toBe(
+          '{"_type":"Long","_value":"12345678901234"}'
+        );
+      });
+
+      it('converts NumberLong with numeric arg', () => {
+        expect(convertShellHelpers('NumberLong(42)')).toBe('{"_type":"Long","_value":"42"}');
+      });
+
+      it('converts NumberInt to plain number', () => {
+        expect(convertShellHelpers('NumberInt(42)')).toBe('42');
+      });
+
+      it('converts NumberDecimal', () => {
+        expect(convertShellHelpers('NumberDecimal("1.23456789")')).toBe(
+          '{"_type":"Decimal128","_value":"1.23456789"}'
+        );
+      });
+
+      it('converts UUID', () => {
+        expect(convertShellHelpers('UUID("550e8400-e29b-41d4-a716-446655440000")')).toBe(
+          '{"_type":"UUID","_value":"550e8400-e29b-41d4-a716-446655440000"}'
+        );
+      });
+
+      it('converts BinData', () => {
+        expect(convertShellHelpers('BinData(0, "SGVsbG8=")')).toBe(
+          '{"_type":"Binary","_value":"SGVsbG8="}'
+        );
+      });
+
+      it('handles new prefix on all helpers', () => {
+        expect(convertShellHelpers('new ObjectId("abc")')).toBe(
+          '{"_type":"ObjectId","_value":"abc"}'
+        );
+        expect(convertShellHelpers('new ISODate("2024-01-01")')).toBe(
+          '{"_type":"Date","_value":"2024-01-01"}'
+        );
+        expect(convertShellHelpers('new NumberLong(1)')).toBe('{"_type":"Long","_value":"1"}');
+      });
+
+      it('does not convert helper-like text inside strings', () => {
+        const input = '"ObjectId(\\"abc\\")"';
+        expect(convertShellHelpers(input)).toBe(input);
+      });
+
+      it('handles whitespace variations', () => {
+        expect(convertShellHelpers('ObjectId ( "abc123" )')).toBe(
+          '{"_type":"ObjectId","_value":"abc123"}'
+        );
+        expect(convertShellHelpers('new  Date ( "2024-01-01" )')).toBe(
+          '{"_type":"Date","_value":"2024-01-01"}'
+        );
+      });
+
+      it('converts multiple helpers in one string', () => {
+        const input = '{_id: ObjectId("aaa"), date: ISODate("2024-01-01")}';
+        const result = convertShellHelpers(input);
+        expect(result).toContain('{"_type":"ObjectId","_value":"aaa"}');
+        expect(result).toContain('{"_type":"Date","_value":"2024-01-01"}');
+      });
+    });
+
+    describe('integration with parseQuery', () => {
+      it('parses find with ObjectId filter', () => {
+        const result = parseQuery('db.data.find({_id: ObjectId("5553a998e4b02cf7151190ba")})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            _id: { _type: 'ObjectId', _value: '5553a998e4b02cf7151190ba' },
+          });
+        }
+      });
+
+      it('parses find with ISODate filter', () => {
+        const result = parseQuery('db.events.find({created: ISODate("2024-01-15T10:30:00Z")})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            created: { _type: 'Date', _value: '2024-01-15T10:30:00Z' },
+          });
+        }
+      });
+
+      it('parses find with new Date filter', () => {
+        const result = parseQuery('db.events.find({created: new Date("2024-01-15T10:30:00Z")})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            created: { _type: 'Date', _value: '2024-01-15T10:30:00Z' },
+          });
+        }
+      });
+
+      it('parses find with NumberLong filter', () => {
+        const result = parseQuery('db.data.find({count: NumberLong("9999999999999")})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            count: { _type: 'Long', _value: '9999999999999' },
+          });
+        }
+      });
+
+      it('parses find with NumberInt filter', () => {
+        const result = parseQuery('db.data.find({status: NumberInt(1)})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({ status: 1 });
+        }
+      });
+
+      it('parses find with NumberDecimal filter', () => {
+        const result = parseQuery('db.prices.find({amount: NumberDecimal("19.99")})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            amount: { _type: 'Decimal128', _value: '19.99' },
+          });
+        }
+      });
+
+      it('parses find with UUID filter', () => {
+        const result = parseQuery(
+          'db.sessions.find({sessionId: UUID("550e8400-e29b-41d4-a716-446655440000")})'
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            sessionId: { _type: 'UUID', _value: '550e8400-e29b-41d4-a716-446655440000' },
+          });
+        }
+      });
+
+      it('parses find with BinData filter', () => {
+        const result = parseQuery('db.files.find({data: BinData(0, "SGVsbG8=")})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            data: { _type: 'Binary', _value: 'SGVsbG8=' },
+          });
+        }
+      });
+
+      it('parses ObjectId in $in array', () => {
+        const result = parseQuery('db.data.find({_id: {$in: [ObjectId("aaa"), ObjectId("bbb")]}})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            _id: {
+              $in: [
+                { _type: 'ObjectId', _value: 'aaa' },
+                { _type: 'ObjectId', _value: 'bbb' },
+              ],
+            },
+          });
+        }
+      });
+
+      it('parses helpers in $or array', () => {
+        const result = parseQuery(
+          'db.data.find({$or: [{_id: ObjectId("aaa")}, {date: ISODate("2024-01-01")}]})'
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            $or: [
+              { _id: { _type: 'ObjectId', _value: 'aaa' } },
+              { date: { _type: 'Date', _value: '2024-01-01' } },
+            ],
+          });
+        }
+      });
+
+      it('parses ISODate in $gt/$lt range', () => {
+        const result = parseQuery(
+          'db.events.find({created: {$gt: ISODate("2024-01-01"), $lt: ISODate("2024-12-31")}})'
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            created: {
+              $gt: { _type: 'Date', _value: '2024-01-01' },
+              $lt: { _type: 'Date', _value: '2024-12-31' },
+            },
+          });
+        }
+      });
+
+      it('parses helpers in aggregation pipeline', () => {
+        const result = parseQuery('db.data.aggregate([{$match: {_id: ObjectId("aaa")}}])');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.pipeline).toEqual([
+            { $match: { _id: { _type: 'ObjectId', _value: 'aaa' } } },
+          ]);
+        }
+      });
+
+      it('parses helpers in updateOne', () => {
+        const result = parseQuery(
+          'db.data.updateOne({_id: ObjectId("aaa")}, {$set: {updated: ISODate("2024-06-15")}})'
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            _id: { _type: 'ObjectId', _value: 'aaa' },
+          });
+          expect(result.value.update).toEqual({
+            $set: { updated: { _type: 'Date', _value: '2024-06-15' } },
+          });
+        }
+      });
+
+      it('parses helpers in insertOne', () => {
+        const result = parseQuery(
+          'db.data.insertOne({_id: ObjectId("aaa"), created: ISODate("2024-01-01")})'
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.document).toEqual({
+            _id: { _type: 'ObjectId', _value: 'aaa' },
+            created: { _type: 'Date', _value: '2024-01-01' },
+          });
+        }
+      });
+
+      it('does not convert helper-like text inside string values', () => {
+        const result = parseQuery('db.data.find({name: "ObjectId(123)"})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({ name: 'ObjectId(123)' });
+        }
+      });
+
+      it('handles mixed helpers and regex literals', () => {
+        const result = parseQuery('db.data.find({_id: ObjectId("aaa"), name: /^B/i})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            _id: { _type: 'ObjectId', _value: 'aaa' },
+            name: { $regex: '^B', $options: 'i' },
+          });
+        }
+      });
+
+      it('parses new ObjectId prefix', () => {
+        const result = parseQuery('db.data.find({_id: new ObjectId("5553a998e4b02cf7151190ba")})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            _id: { _type: 'ObjectId', _value: '5553a998e4b02cf7151190ba' },
+          });
+        }
+      });
+
+      it('handles whitespace around helper args', () => {
+        const result = parseQuery('db.data.find({_id: ObjectId ( "abc123" )})');
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.filter).toEqual({
+            _id: { _type: 'ObjectId', _value: 'abc123' },
+          });
+        }
+      });
     });
   });
 
