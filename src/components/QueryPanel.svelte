@@ -11,11 +11,12 @@
   import { matchesBinding } from '../utils/keyboard';
   import { watchFile } from '../api/websocket';
   import * as api from '../api/client';
-  import { supportsFileSystemAccess, openFile, saveFile } from '../lib/file-access';
+  import { open, save } from '@tauri-apps/plugin-dialog';
   import Editor from './Editor.svelte';
   import QueryHistory from './QueryHistory.svelte';
-  import FileDialog from './FileDialog.svelte';
   import Spinner from './Spinner.svelte';
+
+  const QUERY_FILE_FILTERS = [{ name: 'MongoDB Scripts', extensions: ['js', 'mongodb', 'json'] }];
   import { ResultsContainer } from './results';
 
   interface Props {
@@ -94,14 +95,9 @@
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   }
-  let fileDialogMode = $state<'save' | 'load' | null>(null);
   let currentFilePath = $state<string | null>(null);
-  let fileHandle = $state<FileSystemFileHandle | null>(null);
   let currentFileName = $state<string | null>(null);
-  let fileError = $state<string | null>(null);
   let unwatchFile = $state<(() => void) | null>(null);
-
-  const useNativePicker = supportsFileSystemAccess();
 
   function handleQueryChange(value: string) {
     queryStore.setQueryText(tab.id, value);
@@ -394,107 +390,50 @@
     queryStore.clearHistory();
   }
 
-  // File dialog handlers - native picker or fallback dialog
+  // File dialog handlers - native Tauri dialog
   async function handleOpen() {
-    if (useNativePicker) {
-      try {
-        const result = await openFile();
-        queryStore.setQueryText(tab.id, result.content);
-        fileHandle = result.handle;
-        currentFileName = result.name;
-        currentFilePath = null;
-      } catch (e) {
-        // User cancelled the picker - not an error
-        if ((e as DOMException).name === 'AbortError') return;
-        console.error('Failed to open file:', e);
-      }
-    } else {
-      fileDialogMode = 'load';
-      fileError = null;
+    const selected = await open({ multiple: false, filters: QUERY_FILE_FILTERS });
+    if (!selected) return;
+    const path = typeof selected === 'string' ? selected : selected[0];
+    if (!path) return;
+    try {
+      const result = await api.readFile(path);
+      queryStore.setQueryText(tab.id, result.content);
+      currentFilePath = path;
+      currentFileName = result.name;
+      editorStore.addRecentPath(path);
+      startWatching(path);
+    } catch (e) {
+      console.error('Failed to open file:', e);
     }
   }
 
   async function handleSave() {
-    if (useNativePicker) {
+    if (currentFilePath) {
       try {
-        const content = queryStore.getQueryText(tab.id);
-        fileHandle = await saveFile(content, fileHandle, currentFileName ?? 'query.js');
-        currentFileName = (await fileHandle.getFile()).name;
-        currentFilePath = null;
+        await api.writeFile({ path: currentFilePath, content: queryStore.getQueryText(tab.id) });
       } catch (e) {
-        if ((e as DOMException).name === 'AbortError') return;
         console.error('Failed to save file:', e);
       }
-    } else if (currentFilePath) {
-      // Fallback: save directly to known path
-      try {
-        const content = queryStore.getQueryText(tab.id);
-        await api.writeFile({ path: currentFilePath, content });
-      } catch (e) {
-        fileError = (e as Error).message;
-        fileDialogMode = 'save';
-      }
     } else {
-      fileDialogMode = 'save';
-      fileError = null;
+      await handleSaveAs();
     }
   }
 
   async function handleSaveAs() {
-    if (useNativePicker) {
-      try {
-        const content = queryStore.getQueryText(tab.id);
-        fileHandle = await saveFile(content, null, currentFileName ?? 'query.js');
-        currentFileName = (await fileHandle.getFile()).name;
-        currentFilePath = null;
-      } catch (e) {
-        if ((e as DOMException).name === 'AbortError') return;
-        console.error('Failed to save file:', e);
-      }
-    } else {
-      fileDialogMode = 'save';
-      fileError = null;
-    }
-  }
-
-  function closeFileDialog() {
-    fileDialogMode = null;
-    fileError = null;
-  }
-
-  async function handleFileLoad(path: string) {
+    const filePath = await save({
+      defaultPath: currentFileName ?? 'query.js',
+      filters: QUERY_FILE_FILTERS,
+    });
+    if (!filePath) return;
     try {
-      const result = await api.readFile(path);
-      queryStore.setQueryText(tab.id, result.content);
-      editorStore.addRecentPath(path);
-      currentFilePath = path;
-      currentFileName = path.split('/').pop() ?? null;
-      fileHandle = null;
-      fileDialogMode = null;
-      fileError = null;
-
-      // Start watching the file
-      startWatching(path);
+      await api.writeFile({ path: filePath, content: queryStore.getQueryText(tab.id) });
+      currentFilePath = filePath;
+      currentFileName = filePath.split('/').pop() ?? null;
+      editorStore.addRecentPath(filePath);
+      startWatching(filePath);
     } catch (e) {
-      fileError = (e as Error).message;
-    }
-  }
-
-  async function handleFileSave(path: string) {
-    try {
-      const content = queryStore.getQueryText(tab.id);
-      await api.writeFile({ path, content });
-      editorStore.addRecentPath(path);
-      currentFilePath = path;
-      currentFileName = path.split('/').pop() ?? null;
-      fileHandle = null;
-      fileDialogMode = null;
-      fileError = null;
-
-      // Start watching the file
-      startWatching(path);
-    } catch (e) {
-      fileError = (e as Error).message;
+      console.error('Failed to save file:', e);
     }
   }
 
@@ -839,16 +778,6 @@
     onselect={selectHistoryItem}
     onclear={clearHistory}
     onclose={closeHistory}
-  />
-{/if}
-
-{#if fileDialogMode}
-  <FileDialog
-    mode={fileDialogMode}
-    initialPath={currentFilePath ?? ''}
-    apiError={fileError}
-    onconfirm={fileDialogMode === 'load' ? handleFileLoad : handleFileSave}
-    oncancel={closeFileDialog}
   />
 {/if}
 
