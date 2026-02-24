@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2
+
+- Use native OS file dialogs for open/save instead of browser-based pickers
+
 ## 1.0.1
 
 - Support MongoDB shell helpers (ObjectId, ISODate, new Date, NumberLong, NumberInt, NumberDecimal, UUID, BinData) in query parser
