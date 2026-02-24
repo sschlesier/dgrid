@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Support MongoDB shell helpers (ObjectId, ISODate, new Date, NumberLong, NumberInt, NumberDecimal, UUID, BinData) in query parser
+
 ## 1.0.0
 
 - Rewrite backend from Node.js/Fastify to Tauri v2 (Rust)
