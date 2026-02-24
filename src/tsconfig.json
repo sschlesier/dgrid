@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../dist/frontend",
+    "types": ["vite/client", "svelte", "vitest", "@testing-library/jest-dom"],
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["./**/*", "../tests/**/*"],
+  "exclude": ["node_modules", "./__tests__/queries.test.ts", "./__tests__/querySplitter.test.ts"]
+}

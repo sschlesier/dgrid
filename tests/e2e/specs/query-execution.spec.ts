@@ -13,14 +13,14 @@ const TEST_DB = 'e2e_query_test';
 const TEST_COLLECTION = 'users';
 
 test.describe('Query Execution', () => {
-  test.beforeEach(async ({ request, mongoInfo }) => {
-    await deleteAllConnections(request);
+  test.beforeEach(async ({ mongoInfo }) => {
+    await deleteAllConnections();
     await cleanupDatabase(mongoInfo, TEST_DB);
   });
 
-  test.afterEach(async ({ request, mongoInfo }) => {
+  test.afterEach(async ({ mongoInfo }) => {
     await cleanupDatabase(mongoInfo, TEST_DB);
-    await deleteAllConnections(request);
+    await deleteAllConnections();
   });
 
   test('execute a find query and see results in grid', async ({ page, s, mongoInfo }) => {

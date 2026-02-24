@@ -8,8 +8,8 @@ import {
 } from '../fixtures';
 
 test.describe('Connection Management', () => {
-  test.beforeEach(async ({ request }) => {
-    await deleteAllConnections(request);
+  test.beforeEach(async () => {
+    await deleteAllConnections();
   });
 
   test('create a new connection via form tab', async ({ page, s, mongoInfo }) => {

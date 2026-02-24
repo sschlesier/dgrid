@@ -1,12 +1,13 @@
 # Changelog
 
-## 0.7.0
+## 1.0.0-beta1
 
+- Rewrite backend from Node.js/Fastify to Tauri v2 (Rust)
+- Replace HTTP API with Tauri IPC commands (no network exposure)
+- Add native DMG/EXE/deb/AppImage packaging via Tauri bundler
 - Add configurable keyboard shortcuts with editing UI
-- New tab inherits active tab's database
-- Show loading spinner on sidebar tree nodes during expansion
-- Fix Alt+key shortcuts on macOS where Option key produces dead keys
-- Change new-tab/close-tab shortcuts to Alt+T/Alt+W to avoid browser conflicts
+- Add delayed loading spinner on sidebar tree nodes
+- Prerelease GitHub Releases are now marked as such; Homebrew stays on stable
 
 ## 0.6.0
 

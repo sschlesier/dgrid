@@ -1,50 +1,51 @@
 # DGrid v2 - MongoDB GUI Application
 
-A clean, modern MongoDB GUI built with Fastify and Svelte, optimized for AI-assisted development.
+A clean, modern MongoDB GUI built with Tauri (Rust backend) and Svelte 5 frontend, optimized for AI-assisted development.
 
 ## Project Structure
 
-- `src/backend/` - Fastify API server (Node.js/TypeScript)
-- `src/frontend/` - Svelte 5 UI (Vite build)
-- `src/shared/` - Shared types and contracts
+- `src-tauri/` - Tauri v2 Rust backend (commands, executor, storage, keyring)
+- `src/` - Svelte 5 frontend (Vite build)
 - `.claude/` - Claude Code configuration (agents, skills, rules)
 
 ## Development Stack
 
-- **Backend**: Fastify 5.x, MongoDB driver, TypeScript 5.7
+- **Backend**: Tauri 2 (Rust), MongoDB Rust driver, tokio async runtime
 - **Frontend**: Svelte 5 (runes), Vite 7, CodeMirror 6
-- **Testing**: Vitest 3, mongodb-memory-server
-- **E2E Testing**: Playwright (Chromium)
+- **IPC**: Tauri commands (invoke) — no HTTP server
+- **Testing**: Vitest 3 (TypeScript), cargo test (Rust), Playwright (E2E — currently disabled)
 - **Package Manager**: pnpm (required)
 
 ## Code Style
 
-- ES modules only (no CommonJS)
+- ES modules only (no CommonJS) for TypeScript
 - TypeScript strict mode enabled
 - Named exports preferred over default exports
 - camelCase for variables/functions, PascalCase for classes/types
+- Rust follows standard conventions (snake_case, clippy)
 
 ## Important Commands
 
 ```bash
 # Development
-pnpm dev              # Start both backend and frontend
-pnpm dev:backend      # Backend only (http://localhost:3001)
+pnpm dev              # Start Tauri dev (Rust backend + Vite frontend)
 pnpm dev:frontend     # Frontend only (http://localhost:5173)
 
 # Verification (use after changes)
-pnpm verify           # Run all checks (types, lint, tests, build, e2e)
+pnpm verify           # Run all checks (types, lint, tests, build)
 pnpm type-check       # TypeScript compilation check
 pnpm lint             # ESLint check
-pnpm test             # Run test suite
+pnpm test             # Run TypeScript test suite (Vitest)
+cargo test            # Run Rust test suite (in src-tauri/)
 
-# E2E Testing
-pnpm e2e              # Run Playwright E2E tests
-pnpm e2e:headed       # Run E2E tests with visible browser
-pnpm e2e:ui           # Playwright interactive UI mode
+# E2E Testing (currently disabled — see tests/e2e/README.md)
+# pnpm e2e            # Disabled — needs Tauri-compatible approach
+# pnpm e2e:headed     # Disabled
+# pnpm e2e:ui         # Disabled
 
 # Building
-pnpm build            # Build both backend and frontend
+pnpm build            # Build Tauri app (Rust + frontend)
+pnpm build:frontend   # Build frontend only
 ```
 
 ## Testing Standards
@@ -52,29 +53,34 @@ pnpm build            # Build both backend and frontend
 - Write tests alongside implementation (TDD encouraged)
 - Use `describe` and `it` for organization
 - Focus on behavior, not implementation details
-- Integration tests use mongodb-memory-server for real MongoDB
+- Rust tests use `#[cfg(test)]` modules with `cargo test`
 - Component tests use @testing-library/svelte
-- E2E tests use Playwright with real backend/frontend servers
-- E2E test MongoDB is provided by mongodb-memory-server (no external DB needed)
+- E2E tests (Playwright) are currently disabled — see `tests/e2e/README.md`
 
 ## Architecture Patterns
 
-- **Backend Routes**: `src/backend/routes/{resource}.ts`
-- **Backend Services**: `src/backend/services/{domain}.ts`
-- **Database Layer**: `src/backend/db/mongodb.ts`, `src/backend/db/queries.ts`
-- **Frontend Stores**: `src/frontend/src/stores/{domain}.svelte.ts` (Svelte 5 runes)
-- **Frontend Components**: `src/frontend/src/components/{Component}.svelte`
-- **API Contracts**: `src/shared/contracts.ts` (single source of truth)
+- **Tauri Commands**: `src-tauri/src/commands/{resource}.rs` (thin IPC handlers)
+- **Executor**: `src-tauri/src/executor.rs` (MongoDB query execution)
+- **BSON Serialization**: `src-tauri/src/bson_ser.rs` (BSON <-> JSON tagged format)
+- **Connection Pool**: `src-tauri/src/pool.rs` (MongoDB connection management)
+- **Storage**: `src-tauri/src/storage.rs` (JSON file CRUD for connections)
+- **Keyring**: `src-tauri/src/keyring.rs` (OS keyring via `keyring` crate)
+- **Frontend Stores**: `src/stores/{domain}.svelte.ts` (Svelte 5 runes)
+- **Frontend Components**: `src/components/{Component}.svelte`
+- **API Client**: `src/api/client.ts` (Tauri invoke wrappers)
+- **API Contracts**: `src/lib/contracts.ts` (single source of truth)
+- **Query Parser**: `src/lib/queries.ts` (frontend-side mongo shell parser)
 - **E2E Tests**: `tests/e2e/specs/{feature}.spec.ts`
 - **E2E Fixtures**: `tests/e2e/fixtures.ts`
 - **E2E Selectors**: `tests/e2e/helpers/selectors.ts`
 
 ## Workflow
 
-1. Implement changes with tests (unit/integration AND E2E — see below)
-2. Run `pnpm verify` to validate (types, lint, tests, build, **E2E**)
-3. Commit to git after successful verification
-4. Only push to remote when explicitly requested
+1. Implement changes with tests (unit/integration)
+2. Run `pnpm verify` to validate (types, lint, tests, build)
+3. Run `cargo test` in `src-tauri/` for Rust changes
+4. Commit to git after successful verification
+5. Only push to remote when explicitly requested
 
 ## Testing Strategy
 
@@ -82,7 +88,8 @@ Choose the right test level for what you're verifying:
 
 | Level                                   | Use for                                                             | Speed  |
 | --------------------------------------- | ------------------------------------------------------------------- | ------ |
-| **Unit/Integration** (Vitest)           | Pure logic, services, data transforms, API routes                   | Fast   |
+| **Rust unit** (cargo test)              | Backend logic, BSON serialization, query execution, storage         | Fast   |
+| **TS unit/integration** (Vitest)        | Query parser, frontend stores, data transforms                      | Fast   |
 | **Component** (@testing-library/svelte) | UI widget behavior: toggles, form validation, conditional rendering | Medium |
 | **E2E** (Playwright)                    | Complete user journeys that cross frontend and backend              | Slow   |
 
@@ -96,17 +103,14 @@ A bad E2E test: "Password field disables when save-password checkbox is unchecke
 
 ### When adding a feature
 
-1. Add selectors to `tests/e2e/helpers/selectors.ts` for any new UI elements
-2. Add or extend a spec in `tests/e2e/specs/{feature}.spec.ts`
-3. Run `pnpm e2e` to verify before committing
+> E2E tests are currently disabled. When re-enabled, follow the patterns in `.claude/rules/e2e-testing.md`.
 
 ## Security Principles
 
-- Localhost-only (127.0.0.1 binding)
+- No network exposure — Tauri IPC is in-process (no HTTP server)
 - Passwords stored in OS keyring only
-- Input validation on all API endpoints
-- Rate limiting enabled
-- Helmet security headers
+- Input validation on all Tauri commands
+- File path validation for read/write operations
 
 ## Sub-agent Usage
 
@@ -158,7 +162,6 @@ git push origin main && git push origin <tag>   # triggers release workflow
 
 See `.claude/rules/` for detailed guidelines on:
 
-- API endpoint design
 - Svelte component structure
 - Testing patterns
 - TypeScript conventions

@@ -1,13 +1,9 @@
 import { test, expect } from '../fixtures';
 
 test.describe('Smoke Tests', () => {
-  test('backend health check returns ok', async ({ request }) => {
-    const port = process.env.DGRID_PORT || '3001';
-    const response = await request.get(`http://127.0.0.1:${port}/health`);
-    expect(response.ok()).toBeTruthy();
-
-    const body = await response.json();
-    expect(body.status).toBe('ok');
+  test('app loads and shows header', async ({ page, s }) => {
+    await page.goto('/');
+    await expect(s.header.root()).toBeVisible();
   });
 
   test('help button opens keyboard shortcuts modal', async ({ page, s }) => {

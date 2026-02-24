@@ -13,14 +13,14 @@ const TEST_DB = 'e2e_ctx_menu_test';
 const TEST_COLLECTION = 'users';
 
 test.describe('Sidebar Context Menu', () => {
-  test.beforeEach(async ({ request, mongoInfo }) => {
-    await deleteAllConnections(request);
+  test.beforeEach(async ({ mongoInfo }) => {
+    await deleteAllConnections();
     await cleanupDatabase(mongoInfo, TEST_DB);
   });
 
-  test.afterEach(async ({ request, mongoInfo }) => {
+  test.afterEach(async ({ mongoInfo }) => {
     await cleanupDatabase(mongoInfo, TEST_DB);
-    await deleteAllConnections(request);
+    await deleteAllConnections();
   });
 
   test.describe('Disconnected Connection', () => {
@@ -119,11 +119,7 @@ test.describe('Sidebar Context Menu', () => {
       await expect(s.contextMenu.separator()).toBeVisible();
     });
 
-    test('Disconnect via context menu disconnects from server', async ({
-      page,
-      s,
-      mongoInfo,
-    }) => {
+    test('Disconnect via context menu disconnects from server', async ({ page, s, mongoInfo }) => {
       await seedDatabase(mongoInfo, TEST_DB, TEST_COLLECTION, [{ name: 'Alice' }]);
       await page.goto('/');
       await createConnection(page, {

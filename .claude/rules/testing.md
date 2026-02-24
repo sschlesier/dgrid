@@ -2,8 +2,8 @@
 
 ## File Organization
 
-- Backend tests: `src/backend/__tests__/{module}.test.ts`
-- Frontend tests: `src/frontend/src/__tests__/{component}.test.ts`
+- Backend tests: `src-tauri/src/` (Rust `#[cfg(test)]` modules)
+- Frontend tests: `src/__tests__/{component}.test.ts`
 - Integration tests: `tests/integration/{feature}.test.ts`
 
 ## Structure

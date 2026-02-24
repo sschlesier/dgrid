@@ -1,13 +1,11 @@
-import { test as base, expect, type Page, type APIRequestContext } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 import { MongoClient } from 'mongodb';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { selectors, type Selectors } from './helpers/selectors';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-const API_BASE = `http://127.0.0.1:${process.env.DGRID_PORT || '3001'}/api`;
 
 interface MongoInfo {
   host: string;
@@ -55,14 +53,12 @@ export async function cleanupDatabase(mongoInfo: MongoInfo, database: string): P
   }
 }
 
-/** Delete all connections via the API. Call in beforeEach for test isolation. */
-export async function deleteAllConnections(request: APIRequestContext): Promise<void> {
-  const response = await request.get(`${API_BASE}/connections`);
-  if (!response.ok()) return;
-  const body = await response.json();
-  const connections = Array.isArray(body) ? (body as { id: string }[]) : [];
-  for (const conn of connections) {
-    await request.delete(`${API_BASE}/connections/${conn.id}`);
+/** Delete all connections by clearing the connections.json file in the data dir. */
+export async function deleteAllConnections(): Promise<void> {
+  const mongoInfo = readMongoInfo();
+  const connectionsPath = join(mongoInfo.tempDir, 'connections.json');
+  if (existsSync(connectionsPath)) {
+    writeFileSync(connectionsPath, '[]');
   }
 }
 

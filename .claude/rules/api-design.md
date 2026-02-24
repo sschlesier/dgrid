@@ -1,17 +1,24 @@
 # API Design Conventions
 
-## RESTful Patterns
+## Tauri IPC Commands
 
-- `GET /api/connections` - List connections
-- `POST /api/connections` - Create connection
-- `GET /api/connections/:id` - Get connection
-- `PUT /api/connections/:id` - Update connection
-- `DELETE /api/connections/:id` - Delete connection
+All backend functionality is exposed via Tauri commands (IPC), not REST endpoints.
 
-## Request/Response
+### Command Naming
+
+- `list_connections` - List all connections
+- `get_connection` - Get a single connection
+- `create_connection` - Create a new connection
+- `update_connection` - Update an existing connection
+- `delete_connection` - Delete a connection
+- `execute_query` - Run a parsed query
+- `cancel_query` - Cancel a running query
+
+### Request/Response Types
 
 ```typescript
-// Define in src/shared/contracts.ts
+// Define in src/lib/contracts.ts (single source of truth)
+// Rust structs in src-tauri/ mirror these interfaces via serde
 
 export interface CreateConnectionRequest {
   name: string;
@@ -34,22 +41,22 @@ export interface ConnectionResponse {
 }
 ```
 
-## Error Handling
+### Frontend Usage
 
 ```typescript
-// Standard error response
-{
-  error: 'ValidationError',
-  message: 'Invalid email format',
-  statusCode: 400,
-  details?: { ... }  // Optional additional context
-}
+import { invoke } from '@tauri-apps/api/core';
+
+// All API calls use invoke()
+const connections = await invoke<ConnectionResponse[]>('list_connections');
 ```
 
-## Validation
+### Error Handling
 
-- Use Fastify schema validation
-- Validate all inputs
-- Return 400 for validation errors
-- Return 404 for not found
-- Return 500 for server errors
+Tauri commands return `Result<T, DgridError>`. Errors are serialized as strings by Tauri's IPC layer. The frontend `wrapInvokeError()` in `client.ts` converts them to typed `ApiError` instances.
+
+### Validation
+
+- Validate inputs in Rust command handlers
+- Use `DgridError::Validation` for input errors
+- Use `DgridError::NotFound` for missing resources
+- Frontend-side query parsing catches syntax errors before IPC

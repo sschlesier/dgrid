@@ -1,5 +1,11 @@
 # E2E Testing Conventions (Playwright)
 
+> **Status: DISABLED** — E2E tests are currently disabled pending migration to a
+> Tauri-compatible approach. The Playwright tests were written for the pre-Tauri
+> Node.js backend and fail because `invoke()` requires the Tauri webview runtime.
+> See `tests/e2e/README.md` for details. The specs, fixtures, and selectors below
+> are preserved as reference for when E2E tests are re-enabled.
+
 ## File Organization
 
 - Test specs: `tests/e2e/specs/{feature}.spec.ts`
