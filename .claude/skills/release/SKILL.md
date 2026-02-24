@@ -10,11 +10,19 @@ Follow these steps in order. Use `AskUserQuestion` to confirm choices before mak
 
 ## 1. Collect Changes
 
-Run `git log` to find all commits since the last version tag:
+Find all commits since the last version tag. First get the latest tag, then use it to list commits:
 
 ```bash
-git log $(git describe --tags --abbrev=0)..HEAD --oneline
+git describe --tags --abbrev=0
 ```
+
+Then use the returned tag value directly:
+
+```bash
+git log <tag>..HEAD --oneline
+```
+
+**Important:** Do not use `$()` subshell substitution — it triggers extra permission prompts. Always run the inner command first, read its output, then use the literal value in the next call.
 
 Summarize each user-facing change as a bullet point. Omit internal-only changes (CI tweaks, refactors with no behavior change, test-only changes) unless they are significant.
 
