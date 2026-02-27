@@ -75,7 +75,6 @@ describe('queryStore', () => {
     it('executes query and stores results', async () => {
       const mockResult = {
         documents: [{ _id: '1', name: 'Alice' }],
-        totalCount: 1,
         page: 1,
         pageSize: 50,
         hasMore: false,
@@ -98,7 +97,6 @@ describe('queryStore', () => {
         executingDuringCall = queryStore.getIsExecuting('tab1');
         return {
           documents: [],
-          totalCount: 0,
           page: 1,
           pageSize: 50,
           hasMore: false,
@@ -131,7 +129,6 @@ describe('queryStore', () => {
       // Second query succeeds
       mockedApi.executeQuery.mockResolvedValueOnce({
         documents: [],
-        totalCount: 0,
         page: 1,
         pageSize: 50,
         hasMore: false,
@@ -144,7 +141,6 @@ describe('queryStore', () => {
     it('adds to history on successful query', async () => {
       mockedApi.executeQuery.mockResolvedValue({
         documents: [],
-        totalCount: 0,
         page: 1,
         pageSize: 50,
         hasMore: false,
@@ -162,7 +158,6 @@ describe('queryStore', () => {
     it('does not add to history on pagination', async () => {
       mockedApi.executeQuery.mockResolvedValue({
         documents: [],
-        totalCount: 100,
         page: 2,
         pageSize: 50,
         hasMore: true,
@@ -179,7 +174,6 @@ describe('queryStore', () => {
     it('clearResults removes results and errors', async () => {
       mockedApi.executeQuery.mockResolvedValue({
         documents: [{ _id: '1' }],
-        totalCount: 1,
         page: 1,
         pageSize: 50,
         hasMore: false,
@@ -201,7 +195,6 @@ describe('queryStore', () => {
       queryStore.setQueryText('tab1', 'some query');
       mockedApi.executeQuery.mockResolvedValue({
         documents: [],
-        totalCount: 0,
         page: 1,
         pageSize: 50,
         hasMore: false,

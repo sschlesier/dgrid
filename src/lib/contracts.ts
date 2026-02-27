@@ -66,7 +66,6 @@ export interface ExecuteQueryRequest {
 
 export interface ExecuteQueryResponse {
   documents: Record<string, unknown>[];
-  totalCount: number;
   page: number;
   pageSize: number;
   hasMore: boolean;

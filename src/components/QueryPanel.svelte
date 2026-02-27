@@ -654,7 +654,7 @@
             {:else if sub.isExecuting}
               <Spinner size="xs" />
             {:else if sub.result}
-              <span class="sub-tab-count">{sub.result.totalCount}</span>
+              <span class="sub-tab-count">{sub.result.documents.length}</span>
             {/if}
           </button>
         {/each}

@@ -448,7 +448,7 @@
   {/if}
 
   <GridPagination
-    totalCount={results.totalCount}
+    docCount={results.documents.length}
     page={results.page}
     pageSize={gridState.pageSize}
     hasMore={results.hasMore}

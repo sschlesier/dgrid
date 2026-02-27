@@ -77,7 +77,6 @@ pub struct ParsedDbCommand {
 #[serde(rename_all = "camelCase")]
 pub struct ExecuteQueryResponse {
     pub documents: Vec<Map<String, Value>>,
-    pub total_count: i64,
     pub page: i64,
     pub page_size: i64,
     pub has_more: bool,
@@ -127,26 +126,22 @@ async fn execute_collection_query(
             let projection = optional_doc(&query.projection)?;
             let sort = optional_doc(&query.sort)?;
 
-            let total_count = collection
-                .count_documents(filter.clone())
-                .await
-                .map_err(|e| e.to_string())? as i64;
-
             let query_skip = query.skip.unwrap_or(0);
             let effective_limit = match query.limit {
                 Some(l) if l < options.page_size => l,
                 _ => options.page_size,
             };
 
+            // Fetch one extra doc to detect if there are more pages
             let mut find_opts = FindOptions::builder()
                 .skip((query_skip + page_skip) as u64)
-                .limit(effective_limit)
+                .limit(effective_limit + 1)
                 .build();
             find_opts.projection = projection;
             find_opts.sort = sort;
 
             use futures_util::TryStreamExt;
-            let docs: Vec<Document> = collection
+            let mut docs: Vec<Document> = collection
                 .find(filter)
                 .with_options(find_opts)
                 .await
@@ -155,12 +150,13 @@ async fn execute_collection_query(
                 .await
                 .map_err(|e| e.to_string())?;
 
-            let has_more = query_skip + page_skip + docs.len() as i64 > 0
-                && (query_skip + page_skip + docs.len() as i64) < total_count;
+            let has_more = docs.len() as i64 > effective_limit;
+            if has_more {
+                docs.truncate(effective_limit as usize);
+            }
 
             Ok(ExecuteQueryResponse {
                 documents: serialize_docs(&docs),
-                total_count,
                 page: options.page,
                 page_size: options.page_size,
                 has_more,
@@ -175,12 +171,12 @@ async fn execute_collection_query(
                 .map(|v| bson_ser::json_to_document(v))
                 .collect::<Result<Vec<_>, _>>()?;
 
-            // Add pagination stages
+            // Add pagination stages; fetch one extra doc to detect if there are more pages
             pipeline.push(doc! { "$skip": page_skip as i64 });
-            pipeline.push(doc! { "$limit": options.page_size as i64 });
+            pipeline.push(doc! { "$limit": options.page_size as i64 + 1 });
 
             use futures_util::TryStreamExt;
-            let docs: Vec<Document> = collection
+            let mut docs: Vec<Document> = collection
                 .aggregate(pipeline.clone())
                 .await
                 .map_err(|e| e.to_string())?
@@ -188,38 +184,16 @@ async fn execute_collection_query(
                 .await
                 .map_err(|e| e.to_string())?;
 
-            // Count pipeline (remove our pagination stages)
-            let count_pipeline: Vec<Document> = pipeline_vals
-                .iter()
-                .map(|v| bson_ser::json_to_document(v))
-                .collect::<Result<Vec<_>, _>>()?;
-            let mut count_pipe = count_pipeline;
-            count_pipe.push(doc! { "$count": "total" });
-
-            let count_result: Vec<Document> = collection
-                .aggregate(count_pipe)
-                .await
-                .map_err(|e| e.to_string())?
-                .try_collect()
-                .await
-                .map_err(|e| e.to_string())?;
-
-            let total_count = count_result
-                .first()
-                .and_then(|d| match d.get("total") {
-                    Some(Bson::Int32(n)) => Some(*n as i64),
-                    Some(Bson::Int64(n)) => Some(*n),
-                    _ => None,
-                })
-                .unwrap_or(docs.len() as i64);
+            let has_more = docs.len() as i64 > options.page_size;
+            if has_more {
+                docs.truncate(options.page_size as usize);
+            }
 
             Ok(ExecuteQueryResponse {
                 documents: serialize_docs(&docs),
-                total_count,
                 page: options.page,
                 page_size: options.page_size,
-                has_more: page_skip + docs.len() as i64 > 0
-                    && (page_skip + docs.len() as i64) < total_count,
+                has_more,
                 execution_time_ms: start.elapsed().as_millis() as u64,
             })
         }
@@ -236,7 +210,6 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents: vec![result_doc],
-                total_count: 1,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -262,10 +235,8 @@ async fn execute_collection_query(
                 })
                 .collect();
 
-            let total = documents.len() as i64;
             Ok(ExecuteQueryResponse {
                 documents,
-                total_count: total,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -286,14 +257,13 @@ async fn execute_collection_query(
                 .await
                 .map_err(|e| e.to_string())?;
 
-            let (documents, total_count) = match doc {
-                Some(d) => (vec![bson_ser::serialize_document(&d)], 1),
-                None => (vec![], 0),
+            let documents = match doc {
+                Some(d) => vec![bson_ser::serialize_document(&d)],
+                None => vec![],
             };
 
             Ok(ExecuteQueryResponse {
                 documents,
-                total_count,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -317,7 +287,6 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents: vec![m],
-                total_count: 1,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -352,7 +321,6 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents: vec![m],
-                total_count: 1,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -392,7 +360,6 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents: vec![m],
-                total_count: 1,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -433,7 +400,6 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents: vec![m],
-                total_count: 1,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -456,7 +422,6 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents: vec![m],
-                total_count: 1,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -495,7 +460,6 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents,
-                total_count: 1,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -534,7 +498,6 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents,
-                total_count: 1,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -561,7 +524,6 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents,
-                total_count: 1,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -595,7 +557,6 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents: vec![m],
-                total_count: 1,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -619,7 +580,6 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents: vec![m],
-                total_count: 1,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -657,10 +617,8 @@ async fn execute_collection_query(
                 })
                 .collect();
 
-            let total = documents.len() as i64;
             Ok(ExecuteQueryResponse {
                 documents,
-                total_count: total,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -728,7 +686,6 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents: vec![m],
-                total_count: 1,
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -994,10 +951,8 @@ async fn execute_db_command(
         other => return Err(format!("Unsupported database command: {other}")),
     };
 
-    let total = result.len() as i64;
     Ok(ExecuteQueryResponse {
         documents: result,
-        total_count: total,
         page: options.page,
         page_size: options.page_size,
         has_more: false,

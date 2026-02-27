@@ -22,20 +22,23 @@
       const idx = queryStore.getActiveResultIndex(tabId);
       const sub = subs[idx];
       if (!sub?.result) return '';
-      const { totalCount, page, pageSize, executionTimeMs } = sub.result;
+      const { documents, page, pageSize, executionTimeMs } = sub.result;
+      if (documents.length === 0)
+        return `[${idx + 1}/${subs.length}] 0 documents (${executionTimeMs}ms)`;
       const start = (page - 1) * pageSize + 1;
-      const end = Math.min(page * pageSize, totalCount);
-      return `[${idx + 1}/${subs.length}] ${start}-${end} of ${totalCount} documents (${executionTimeMs}ms)`;
+      const end = start + documents.length - 1;
+      return `[${idx + 1}/${subs.length}] Docs ${start}–${end} (${executionTimeMs}ms)`;
     }
 
     const results = queryStore.getResults(tabId);
     if (!results) return '';
 
-    const { totalCount, page, pageSize, executionTimeMs } = results;
+    const { documents, page, pageSize, executionTimeMs } = results;
+    if (documents.length === 0) return `0 documents (${executionTimeMs}ms)`;
     const start = (page - 1) * pageSize + 1;
-    const end = Math.min(page * pageSize, totalCount);
+    const end = start + documents.length - 1;
 
-    return `${start}-${end} of ${totalCount} documents (${executionTimeMs}ms)`;
+    return `Docs ${start}–${end} (${executionTimeMs}ms)`;
   }
 
   function cycleTheme() {

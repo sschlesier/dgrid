@@ -325,7 +325,6 @@ describe('API client', () => {
     it('executeQuery parses and invokes execute_query', async () => {
       const queryResult = {
         documents: [{ _id: '1', name: 'Alice' }],
-        totalCount: 1,
         page: 1,
         pageSize: 50,
         hasMore: false,
@@ -377,7 +376,6 @@ describe('API client', () => {
     it('executeQuery passes tabId in request', async () => {
       const queryResult = {
         documents: [],
-        totalCount: 0,
         page: 1,
         pageSize: 50,
         hasMore: false,

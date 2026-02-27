@@ -1,6 +1,6 @@
 <script lang="ts">
   interface Props {
-    totalCount: number;
+    docCount: number;
     page: number;
     pageSize: 50 | 100 | 250 | 500;
     hasMore: boolean;
@@ -8,9 +8,11 @@
     onpagesizechange?: (_size: 50 | 100 | 250 | 500) => void;
   }
 
-  let { totalCount, page, pageSize, hasMore, onpagechange, onpagesizechange }: Props = $props();
+  let { docCount, page, pageSize, hasMore, onpagechange, onpagesizechange }: Props = $props();
 
-  const totalPages = $derived(Math.ceil(totalCount / pageSize));
+  const start = $derived((page - 1) * pageSize + 1);
+  const end = $derived(start + docCount - 1);
+  const showControls = $derived(hasMore || page > 1);
 
   function handlePrevious() {
     if (page > 1 && onpagechange) {
@@ -35,10 +37,14 @@
 
 <div class="pagination">
   <span class="count">
-    {totalCount.toLocaleString()} document{totalCount !== 1 ? 's' : ''}
+    {#if docCount === 0}
+      0 documents
+    {:else}
+      Docs {start.toLocaleString()}–{end.toLocaleString()}
+    {/if}
   </span>
 
-  {#if totalCount > 50}
+  {#if showControls}
     <div class="page-size">
       <label for="page-size-select">Per page:</label>
       <select id="page-size-select" value={pageSize} onchange={handlePageSizeChange}>
@@ -48,9 +54,7 @@
         <option value={500}>500</option>
       </select>
     </div>
-  {/if}
 
-  {#if totalPages > 1}
     <div class="page-nav">
       <button class="nav-btn" onclick={handlePrevious} disabled={page === 1} title="Previous page">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
@@ -62,7 +66,7 @@
       </button>
 
       <span class="page-info">
-        Page {page} of {totalPages}
+        Page {page}
       </span>
 
       <button class="nav-btn" onclick={handleNext} disabled={!hasMore} title="Next page">

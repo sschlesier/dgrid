@@ -3,37 +3,11 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import GridPagination from '../../components/grid/GridPagination.svelte';
 
 describe('GridPagination', () => {
-  describe('document count display', () => {
-    it('displays singular "document" for count of 1', () => {
+  describe('document range display', () => {
+    it('displays "0 documents" when docCount is 0', () => {
       render(GridPagination, {
         props: {
-          totalCount: 1,
-          page: 1,
-          pageSize: 50,
-          hasMore: false,
-        },
-      });
-
-      expect(screen.getByText('1 document')).toBeInTheDocument();
-    });
-
-    it('displays plural "documents" for count > 1', () => {
-      render(GridPagination, {
-        props: {
-          totalCount: 100,
-          page: 1,
-          pageSize: 50,
-          hasMore: true,
-        },
-      });
-
-      expect(screen.getByText('100 documents')).toBeInTheDocument();
-    });
-
-    it('displays zero documents correctly', () => {
-      render(GridPagination, {
-        props: {
-          totalCount: 0,
+          docCount: 0,
           page: 1,
           pageSize: 50,
           hasMore: false,
@@ -43,26 +17,51 @@ describe('GridPagination', () => {
       expect(screen.getByText('0 documents')).toBeInTheDocument();
     });
 
-    it('formats large numbers with locale separators', () => {
+    it('displays range "Docs 1–50" for first page with 50 docs', () => {
       render(GridPagination, {
         props: {
-          totalCount: 1000000,
+          docCount: 50,
           page: 1,
           pageSize: 50,
           hasMore: true,
         },
       });
 
-      // Locale-formatted number (e.g., 1,000,000)
-      expect(screen.getByText(/1,000,000 documents/)).toBeInTheDocument();
+      expect(screen.getByText('Docs 1–50')).toBeInTheDocument();
+    });
+
+    it('displays range "Docs 51–100" for second page with 50 docs', () => {
+      render(GridPagination, {
+        props: {
+          docCount: 50,
+          page: 2,
+          pageSize: 50,
+          hasMore: false,
+        },
+      });
+
+      expect(screen.getByText('Docs 51–100')).toBeInTheDocument();
+    });
+
+    it('displays partial page range correctly', () => {
+      render(GridPagination, {
+        props: {
+          docCount: 10,
+          page: 3,
+          pageSize: 50,
+          hasMore: false,
+        },
+      });
+
+      expect(screen.getByText('Docs 101–110')).toBeInTheDocument();
     });
   });
 
   describe('page size selector', () => {
-    it('is hidden when totalCount <= 50', () => {
+    it('is hidden when on first page with no more results', () => {
       render(GridPagination, {
         props: {
-          totalCount: 50,
+          docCount: 30,
           page: 1,
           pageSize: 50,
           hasMore: false,
@@ -72,10 +71,10 @@ describe('GridPagination', () => {
       expect(screen.queryByLabelText('Per page:')).not.toBeInTheDocument();
     });
 
-    it('is visible when totalCount > 50', () => {
+    it('is visible when hasMore is true', () => {
       render(GridPagination, {
         props: {
-          totalCount: 100,
+          docCount: 50,
           page: 1,
           pageSize: 50,
           hasMore: true,
@@ -85,10 +84,23 @@ describe('GridPagination', () => {
       expect(screen.getByText('Per page:')).toBeInTheDocument();
     });
 
+    it('is visible when on page > 1', () => {
+      render(GridPagination, {
+        props: {
+          docCount: 50,
+          page: 2,
+          pageSize: 50,
+          hasMore: false,
+        },
+      });
+
+      expect(screen.getByText('Per page:')).toBeInTheDocument();
+    });
+
     it('displays all page size options', () => {
       render(GridPagination, {
         props: {
-          totalCount: 1000,
+          docCount: 50,
           page: 1,
           pageSize: 50,
           hasMore: true,
@@ -111,7 +123,7 @@ describe('GridPagination', () => {
 
       render(GridPagination, {
         props: {
-          totalCount: 1000,
+          docCount: 50,
           page: 1,
           pageSize: 50,
           hasMore: true,
@@ -127,10 +139,10 @@ describe('GridPagination', () => {
   });
 
   describe('navigation buttons', () => {
-    it('hides navigation when totalPages is 1', () => {
+    it('hides navigation when on first page with no more results', () => {
       render(GridPagination, {
         props: {
-          totalCount: 30,
+          docCount: 30,
           page: 1,
           pageSize: 50,
           hasMore: false,
@@ -141,10 +153,10 @@ describe('GridPagination', () => {
       expect(screen.queryByTitle('Next page')).not.toBeInTheDocument();
     });
 
-    it('shows navigation when totalPages > 1', () => {
+    it('shows navigation when hasMore is true', () => {
       render(GridPagination, {
         props: {
-          totalCount: 100,
+          docCount: 50,
           page: 1,
           pageSize: 50,
           hasMore: true,
@@ -155,10 +167,24 @@ describe('GridPagination', () => {
       expect(screen.getByTitle('Next page')).toBeInTheDocument();
     });
 
+    it('shows navigation when on page > 1', () => {
+      render(GridPagination, {
+        props: {
+          docCount: 50,
+          page: 2,
+          pageSize: 50,
+          hasMore: false,
+        },
+      });
+
+      expect(screen.getByTitle('Previous page')).toBeInTheDocument();
+      expect(screen.getByTitle('Next page')).toBeInTheDocument();
+    });
+
     it('disables Previous button on first page', () => {
       render(GridPagination, {
         props: {
-          totalCount: 100,
+          docCount: 50,
           page: 1,
           pageSize: 50,
           hasMore: true,
@@ -172,7 +198,7 @@ describe('GridPagination', () => {
     it('enables Previous button on page > 1', () => {
       render(GridPagination, {
         props: {
-          totalCount: 100,
+          docCount: 50,
           page: 2,
           pageSize: 50,
           hasMore: false,
@@ -186,7 +212,7 @@ describe('GridPagination', () => {
     it('disables Next button when hasMore is false', () => {
       render(GridPagination, {
         props: {
-          totalCount: 100,
+          docCount: 50,
           page: 2,
           pageSize: 50,
           hasMore: false,
@@ -200,7 +226,7 @@ describe('GridPagination', () => {
     it('enables Next button when hasMore is true', () => {
       render(GridPagination, {
         props: {
-          totalCount: 100,
+          docCount: 50,
           page: 1,
           pageSize: 50,
           hasMore: true,
@@ -211,17 +237,17 @@ describe('GridPagination', () => {
       expect(nextButton).not.toBeDisabled();
     });
 
-    it('displays page info correctly', () => {
+    it('displays page number without total', () => {
       render(GridPagination, {
         props: {
-          totalCount: 100,
-          page: 1,
+          docCount: 50,
+          page: 3,
           pageSize: 50,
           hasMore: true,
         },
       });
 
-      expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+      expect(screen.getByText('Page 3')).toBeInTheDocument();
     });
   });
 
@@ -231,7 +257,7 @@ describe('GridPagination', () => {
 
       render(GridPagination, {
         props: {
-          totalCount: 100,
+          docCount: 50,
           page: 2,
           pageSize: 50,
           hasMore: false,
@@ -250,7 +276,7 @@ describe('GridPagination', () => {
 
       render(GridPagination, {
         props: {
-          totalCount: 100,
+          docCount: 50,
           page: 1,
           pageSize: 50,
           hasMore: true,
@@ -269,7 +295,7 @@ describe('GridPagination', () => {
 
       render(GridPagination, {
         props: {
-          totalCount: 100,
+          docCount: 50,
           page: 1,
           pageSize: 50,
           hasMore: true,
@@ -288,7 +314,7 @@ describe('GridPagination', () => {
 
       render(GridPagination, {
         props: {
-          totalCount: 100,
+          docCount: 50,
           page: 2,
           pageSize: 50,
           hasMore: false,
