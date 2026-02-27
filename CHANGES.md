@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3
+
+- Improved query performance by eliminating redundant count scan on find/aggregate queries
+
 ## 1.0.2
 
 - Use native OS file dialogs for open/save instead of browser-based pickers
