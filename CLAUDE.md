@@ -126,15 +126,6 @@ A bad E2E test: "Password field disables when save-password checkbox is unchecke
 - Commit regularly as you progress through tasks
 - Each commit should leave the codebase in a working state
 
-**IMPORTANT: No Attribution**
-
-Do NOT add any attribution to commits. This means:
-
-- No `Co-Authored-By` lines
-- No `Signed-off-by` lines
-- No mentions of AI, Claude, or any contributor in commit messages
-- Just the commit message itself, nothing else
-
 ## Releasing
 
 Follow [semver](https://semver.org/) when choosing the increment:
