@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.5
+
+- Faster sidebar expansion with two-phase collection loading
+- Remove index nodes from sidebar tree
+
 ## 1.0.4
 
 - Use native system file dialogs everywhere
