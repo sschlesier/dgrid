@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4
+
+- Use native system file dialogs everywhere
+- Internal code quality improvements and build tooling updates
+
 ## 1.0.3
 
 - Improved query performance by eliminating redundant count scan on find/aggregate queries
