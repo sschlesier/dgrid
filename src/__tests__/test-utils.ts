@@ -39,7 +39,6 @@ export function createMockCollection(overrides: Partial<CollectionInfo> = {}): C
     documentCount: 0,
     avgDocumentSize: 0,
     totalSize: 0,
-    indexes: 1,
     ...overrides,
   };
 }

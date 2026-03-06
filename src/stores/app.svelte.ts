@@ -349,7 +349,6 @@ class AppStore {
           documentCount: stat.documentCount,
           avgDocumentSize: stat.avgDocumentSize,
           totalSize: stat.totalSize,
-          indexes: stat.indexes,
         };
       });
       const newMap = new Map(this.collections);
@@ -544,20 +543,6 @@ class AppStore {
                         connectionId: connection.id,
                         databaseName: db.name,
                         collectionName: coll.name,
-                        children:
-                          coll.indexes > 0
-                            ? [
-                                {
-                                  id: `idx-group:${connection.id}:${db.name}:${coll.name}`,
-                                  type: 'index-group',
-                                  label: 'Indexes',
-                                  count: coll.indexes,
-                                  connectionId: connection.id,
-                                  databaseName: db.name,
-                                  collectionName: coll.name,
-                                },
-                              ]
-                            : undefined,
                       };
                     }),
                   },

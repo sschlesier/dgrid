@@ -37,14 +37,11 @@
         return treeIcons.database;
       case 'collection-group':
       case 'view-group':
-      case 'index-group':
         return treeIcons.folder;
       case 'collection':
         return treeIcons.collection;
       case 'view':
         return treeIcons.view;
-      case 'index':
-        return treeIcons.index;
       default:
         return treeIcons.folder;
     }

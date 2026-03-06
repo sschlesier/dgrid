@@ -292,7 +292,6 @@ describe('API client', () => {
           documentCount: 100,
           avgDocumentSize: 256,
           totalSize: 25600,
-          indexes: 2,
         },
       ];
       mockInvoke.mockResolvedValueOnce(collections);

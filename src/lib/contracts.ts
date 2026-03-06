@@ -53,7 +53,6 @@ export interface CollectionInfo {
   documentCount: number;
   avgDocumentSize: number;
   totalSize: number;
-  indexes: number;
 }
 
 // Query Execution

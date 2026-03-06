@@ -200,19 +200,6 @@ pub async fn get_collections(
     for coll in &collections {
         let (count, avg_size, total_size) = get_collection_stats(&db, &coll.name).await;
 
-        let indexes = if let Ok(cursor) = db
-            .collection::<Document>(&coll.name)
-            .list_indexes()
-            .await
-        {
-            use futures_util::StreamExt;
-            let index_results: Vec<Result<mongodb::IndexModel, mongodb::error::Error>> =
-                cursor.collect().await;
-            index_results.into_iter().filter(|r| r.is_ok()).count()
-        } else {
-            0
-        };
-
         let coll_type = match coll.collection_type {
             mongodb::results::CollectionType::View => "view",
             _ => "collection",
@@ -224,7 +211,7 @@ pub async fn get_collections(
             document_count: count,
             avg_document_size: avg_size,
             total_size,
-            indexes,
+            indexes: 0,
         });
     }
 
@@ -305,28 +292,13 @@ pub async fn get_all_collection_stats(
             async move {
                 let (count, avg_size, total_size) = get_collection_stats(&db, &name).await;
 
-                let indexes = if let Ok(cursor) = db
-                    .collection::<Document>(&name)
-                    .list_indexes()
-                    .await
-                {
-                    cursor
-                        .collect::<Vec<_>>()
-                        .await
-                        .into_iter()
-                        .filter_map(|r| r.ok())
-                        .count()
-                } else {
-                    0
-                };
-
                 CollectionInfo {
                     name,
                     collection_type: "collection".to_string(),
                     document_count: count,
                     avg_document_size: avg_size,
                     total_size,
-                    indexes,
+                    indexes: 0,
                 }
             }
         })
@@ -357,29 +329,13 @@ pub async fn get_collection_stats_cmd(
     let db = client.database(&database);
     let (count, avg_size, total_size) = get_collection_stats(&db, &collection).await;
 
-    let indexes = if let Ok(cursor) = db
-        .collection::<Document>(&collection)
-        .list_indexes()
-        .await
-    {
-        use futures_util::StreamExt;
-        cursor
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .filter_map(|r| r.ok())
-            .count()
-    } else {
-        0
-    };
-
     Ok(CollectionInfo {
         name: collection,
         collection_type: "collection".to_string(),
         document_count: count,
         avg_document_size: avg_size,
         total_size,
-        indexes,
+        indexes: 0,
     })
 }
 
