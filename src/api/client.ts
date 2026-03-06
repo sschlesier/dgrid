@@ -190,6 +190,33 @@ export async function getCollections(
   }
 }
 
+export async function getCollectionsFast(
+  connectionId: string,
+  database: string
+): Promise<CollectionInfo[]> {
+  try {
+    return await invoke<CollectionInfo[]>('get_collections_fast', { id: connectionId, database });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
+}
+
+export async function getAllCollectionStats(
+  connectionId: string,
+  database: string,
+  collectionNames: string[]
+): Promise<CollectionInfo[]> {
+  try {
+    return await invoke<CollectionInfo[]>('get_all_collection_stats', {
+      id: connectionId,
+      database,
+      collectionNames,
+    });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
+}
+
 // Schema endpoints (Tauri)
 
 export async function getCollectionSchema(

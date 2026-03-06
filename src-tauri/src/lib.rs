@@ -31,6 +31,8 @@ pub fn run() {
             commands::connections::disconnect_from_connection,
             commands::databases::get_databases,
             commands::databases::get_collections,
+            commands::databases::get_collections_fast,
+            commands::databases::get_all_collection_stats,
             commands::databases::get_collection_stats_cmd,
             commands::databases::get_schema,
             commands::query::execute_query,

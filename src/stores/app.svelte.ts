@@ -309,10 +309,16 @@ class AppStore {
     const nodeId = `db:${connectionId}:${database}`;
     this.startNodeLoading(nodeId);
     try {
-      const collections = await api.getCollections(connectionId, database);
+      const collections = await api.getCollectionsFast(connectionId, database);
       const newMap = new Map(this.collections);
       newMap.set(database, collections);
       this.collections = newMap;
+      // Fire off stats enrichment in the background — tree updates reactively when it lands
+      void this.loadCollectionStats(
+        connectionId,
+        database,
+        collections.map((c) => c.name)
+      );
     } catch (error) {
       this.handlePossibleDisconnect(error, connectionId);
       if (!(error instanceof ApiError && error.isConnected === false)) {
@@ -321,6 +327,36 @@ class AppStore {
       throw error;
     } finally {
       this.stopNodeLoading(nodeId);
+    }
+  }
+
+  private async loadCollectionStats(
+    connectionId: string,
+    database: string,
+    collectionNames: string[]
+  ): Promise<void> {
+    if (collectionNames.length === 0) return;
+    try {
+      const stats = await api.getAllCollectionStats(connectionId, database, collectionNames);
+      const existing = this.collections.get(database);
+      if (!existing) return;
+      const statsMap = new Map(stats.map((s) => [s.name, s]));
+      const updated = existing.map((coll) => {
+        const stat = statsMap.get(coll.name);
+        if (!stat) return coll;
+        return {
+          ...coll,
+          documentCount: stat.documentCount,
+          avgDocumentSize: stat.avgDocumentSize,
+          totalSize: stat.totalSize,
+          indexes: stat.indexes,
+        };
+      });
+      const newMap = new Map(this.collections);
+      newMap.set(database, updated);
+      this.collections = newMap;
+    } catch {
+      // Stats enrichment is non-critical — silently ignore errors
     }
   }
 

@@ -233,6 +233,112 @@ pub async fn get_collections(
 }
 
 #[tauri::command]
+pub async fn get_collections_fast(
+    state: State<'_, AppState>,
+    id: String,
+    database: String,
+) -> Result<Vec<CollectionInfo>, DgridError> {
+    let client = state
+        .pool
+        .get_client(&id)
+        .await
+        .ok_or_else(|| DgridError::NotFound {
+            entity: "Connection".into(),
+            id: id.clone(),
+        })?;
+
+    let db = client.database(&database);
+
+    use futures_util::TryStreamExt;
+    let collections: Vec<mongodb::results::CollectionSpecification> = db
+        .list_collections()
+        .await
+        .map_err(|e| DgridError::Database(e.to_string()))?
+        .try_collect()
+        .await
+        .map_err(|e| DgridError::Database(e.to_string()))?;
+
+    let mut infos: Vec<CollectionInfo> = collections
+        .iter()
+        .map(|coll| {
+            let coll_type = match coll.collection_type {
+                mongodb::results::CollectionType::View => "view",
+                _ => "collection",
+            };
+            CollectionInfo {
+                name: coll.name.clone(),
+                collection_type: coll_type.to_string(),
+                document_count: 0,
+                avg_document_size: 0.0,
+                total_size: 0,
+                indexes: 0,
+            }
+        })
+        .collect();
+
+    infos.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(infos)
+}
+
+#[tauri::command]
+pub async fn get_all_collection_stats(
+    state: State<'_, AppState>,
+    id: String,
+    database: String,
+    collection_names: Vec<String>,
+) -> Result<Vec<CollectionInfo>, DgridError> {
+    let client = state
+        .pool
+        .get_client(&id)
+        .await
+        .ok_or_else(|| DgridError::NotFound {
+            entity: "Connection".into(),
+            id: id.clone(),
+        })?;
+
+    let db = client.database(&database);
+
+    use futures_util::stream::{self, StreamExt};
+    let mut results: Vec<CollectionInfo> = stream::iter(collection_names)
+        .map(|name| {
+            let db = db.clone();
+            async move {
+                let (count, avg_size, total_size) = get_collection_stats(&db, &name).await;
+
+                let indexes = if let Ok(cursor) = db
+                    .collection::<Document>(&name)
+                    .list_indexes()
+                    .await
+                {
+                    cursor
+                        .collect::<Vec<_>>()
+                        .await
+                        .into_iter()
+                        .filter_map(|r| r.ok())
+                        .count()
+                } else {
+                    0
+                };
+
+                CollectionInfo {
+                    name,
+                    collection_type: "collection".to_string(),
+                    document_count: count,
+                    avg_document_size: avg_size,
+                    total_size,
+                    indexes,
+                }
+            }
+        })
+        .buffer_unordered(10)
+        .collect()
+        .await;
+
+    results.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(results)
+}
+
+#[tauri::command]
 pub async fn get_collection_stats_cmd(
     state: State<'_, AppState>,
     id: String,
