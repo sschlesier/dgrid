@@ -12,6 +12,7 @@ export default defineConfig({
   },
   server: {
     port: parseInt(process.env.DGRID_FRONTEND_PORT || '5173', 10),
+    strictPort: true,
   },
   build: {
     outDir: '../dist/frontend',
