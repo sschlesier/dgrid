@@ -36,11 +36,9 @@ pub fn serialize_bson_value(value: &Bson) -> Value {
 
         Bson::Binary(bin) => {
             // Binary subtype 4 = UUID
-            if bin.subtype == bson::spec::BinarySubtype::Uuid {
-                if bin.bytes.len() == 16 {
-                    let u = uuid::Uuid::from_bytes(bin.bytes.as_slice().try_into().unwrap());
-                    return tagged("UUID", &u.to_string());
-                }
+            if bin.subtype == bson::spec::BinarySubtype::Uuid && bin.bytes.len() == 16 {
+                let u = uuid::Uuid::from_bytes(bin.bytes.as_slice().try_into().unwrap());
+                return tagged("UUID", &u.to_string());
             }
             let b64 = base64_encode(&bin.bytes);
             tagged("Binary", &b64)

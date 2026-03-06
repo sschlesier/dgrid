@@ -48,7 +48,7 @@ async fn get_collection_stats(
     {
         use futures_util::StreamExt;
         if let Some(Ok(result)) = cursor.next().await {
-            if let Some(storage_stats) = result.get_document("storageStats").ok() {
+            if let Ok(storage_stats) = result.get_document("storageStats") {
                 let count = get_i64(storage_stats, "count").unwrap_or(0);
                 let avg_obj_size = get_f64(storage_stats, "avgObjSize").unwrap_or(0.0);
                 let size = get_i64(storage_stats, "size").unwrap_or(0);

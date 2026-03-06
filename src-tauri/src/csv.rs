@@ -50,7 +50,7 @@ pub fn flatten_document(doc: &Document, prefix: &str) -> Vec<(String, String)> {
                 // JSON-stringify arrays
                 let json_vals: Vec<serde_json::Value> = arr
                     .iter()
-                    .map(|v| crate::bson_ser::serialize_bson_value(v))
+                    .map(crate::bson_ser::serialize_bson_value)
                     .collect();
                 let json_str =
                     serde_json::to_string(&json_vals).unwrap_or_else(|_| "[]".to_string());

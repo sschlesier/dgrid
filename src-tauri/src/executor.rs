@@ -16,7 +16,7 @@ use crate::bson_ser;
 #[serde(tag = "type")]
 pub enum ParsedQuery {
     #[serde(rename = "collection")]
-    Collection(ParsedCollectionQuery),
+    Collection(Box<ParsedCollectionQuery>),
     #[serde(rename = "db-command")]
     DbCommand(ParsedDbCommand),
 }
@@ -104,7 +104,7 @@ pub async fn execute_query(
     options: QueryOptions,
 ) -> Result<ExecuteQueryResponse, String> {
     match query {
-        ParsedQuery::Collection(q) => execute_collection_query(db, q, options).await,
+        ParsedQuery::Collection(q) => execute_collection_query(db, *q, options).await,
         ParsedQuery::DbCommand(cmd) => execute_db_command(db, cmd, options).await,
     }
 }
@@ -168,12 +168,12 @@ async fn execute_collection_query(
             let pipeline_vals = query.pipeline.unwrap_or_default();
             let mut pipeline: Vec<Document> = pipeline_vals
                 .iter()
-                .map(|v| bson_ser::json_to_document(v))
+                .map(bson_ser::json_to_document)
                 .collect::<Result<Vec<_>, _>>()?;
 
             // Add pagination stages; fetch one extra doc to detect if there are more pages
-            pipeline.push(doc! { "$skip": page_skip as i64 });
-            pipeline.push(doc! { "$limit": options.page_size as i64 + 1 });
+            pipeline.push(doc! { "$skip": page_skip });
+            pipeline.push(doc! { "$limit": options.page_size + 1 });
 
             use futures_util::TryStreamExt;
             let mut docs: Vec<Document> = collection
@@ -298,7 +298,7 @@ async fn execute_collection_query(
             let doc_vals = query.documents.unwrap_or_default();
             let docs: Vec<Document> = doc_vals
                 .iter()
-                .map(|v| bson_ser::json_to_document(v))
+                .map(bson_ser::json_to_document)
                 .collect::<Result<Vec<_>, _>>()?;
 
             let result = collection
@@ -630,7 +630,7 @@ async fn execute_collection_query(
             let ops_vals = query.operations.unwrap_or_default();
             let ops: Vec<Document> = ops_vals
                 .iter()
-                .map(|v| bson_ser::json_to_document(v))
+                .map(bson_ser::json_to_document)
                 .collect::<Result<Vec<_>, _>>()?;
 
             // Execute each operation individually and aggregate counts
@@ -646,30 +646,30 @@ async fn execute_collection_query(
                     collection.insert_one(document).await.map_err(|e| e.to_string())?;
                     inserted_count += 1;
                 } else if let Ok(delete) = op.get_document("deleteOne") {
-                    let filter = delete.get_document("filter").map(|d| d.clone()).unwrap_or_default();
+                    let filter = delete.get_document("filter").cloned().unwrap_or_default();
                     let r = collection.delete_one(filter).await.map_err(|e| e.to_string())?;
                     deleted_count += r.deleted_count;
                 } else if let Ok(delete) = op.get_document("deleteMany") {
-                    let filter = delete.get_document("filter").map(|d| d.clone()).unwrap_or_default();
+                    let filter = delete.get_document("filter").cloned().unwrap_or_default();
                     let r = collection.delete_many(filter).await.map_err(|e| e.to_string())?;
                     deleted_count += r.deleted_count;
                 } else if let Ok(update) = op.get_document("updateOne") {
-                    let filter = update.get_document("filter").map(|d| d.clone()).unwrap_or_default();
-                    let update_doc = update.get_document("update").map(|d| d.clone()).unwrap_or_default();
+                    let filter = update.get_document("filter").cloned().unwrap_or_default();
+                    let update_doc = update.get_document("update").cloned().unwrap_or_default();
                     let r = collection.update_one(filter, update_doc).await.map_err(|e| e.to_string())?;
                     matched_count += r.matched_count;
                     modified_count += r.modified_count;
                     if r.upserted_id.is_some() { upserted_count += 1; }
                 } else if let Ok(update) = op.get_document("updateMany") {
-                    let filter = update.get_document("filter").map(|d| d.clone()).unwrap_or_default();
-                    let update_doc = update.get_document("update").map(|d| d.clone()).unwrap_or_default();
+                    let filter = update.get_document("filter").cloned().unwrap_or_default();
+                    let update_doc = update.get_document("update").cloned().unwrap_or_default();
                     let r = collection.update_many(filter, update_doc).await.map_err(|e| e.to_string())?;
                     matched_count += r.matched_count;
                     modified_count += r.modified_count;
                     if r.upserted_id.is_some() { upserted_count += 1; }
                 } else if let Ok(replace) = op.get_document("replaceOne") {
-                    let filter = replace.get_document("filter").map(|d| d.clone()).unwrap_or_default();
-                    let replacement = replace.get_document("replacement").map(|d| d.clone()).unwrap_or_default();
+                    let filter = replace.get_document("filter").cloned().unwrap_or_default();
+                    let replacement = replace.get_document("replacement").cloned().unwrap_or_default();
                     let r = collection.replace_one(filter, replacement).await.map_err(|e| e.to_string())?;
                     matched_count += r.matched_count;
                     modified_count += r.modified_count;
@@ -751,7 +751,7 @@ async fn execute_db_command(
 
             batch.iter()
                 .filter_map(|b| b.as_document())
-                .map(|d| bson_ser::serialize_document(d))
+                .map(bson_ser::serialize_document)
                 .collect()
         }
 
@@ -879,7 +879,7 @@ async fn execute_db_command(
 
             batch.iter()
                 .filter_map(|b| b.as_document())
-                .map(|d| bson_ser::serialize_document(d))
+                .map(bson_ser::serialize_document)
                 .collect()
         }
 
@@ -977,7 +977,7 @@ fn optional_doc(value: &Option<Value>) -> Result<Option<Document>, String> {
 }
 
 fn serialize_docs(docs: &[Document]) -> Vec<Map<String, Value>> {
-    docs.iter().map(|d| bson_ser::serialize_document(d)).collect()
+    docs.iter().map(bson_ser::serialize_document).collect()
 }
 
 fn parse_update_options(

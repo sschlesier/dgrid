@@ -34,7 +34,6 @@ pub async fn execute_query(
     let options = QueryOptions {
         page: request.page.unwrap_or(1),
         page_size: request.page_size.unwrap_or(50),
-        ..Default::default()
     };
 
     // Set up cancellation token if tab_id provided

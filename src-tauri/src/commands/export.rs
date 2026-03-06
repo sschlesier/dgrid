@@ -242,7 +242,7 @@ async fn export_csv_inner(
         exported_count += 1;
 
         // Emit progress every 100 rows
-        if exported_count % 100 == 0 {
+        if exported_count.is_multiple_of(100) {
             let _ = app.emit(
                 "export-progress",
                 ExportProgress {
@@ -279,7 +279,7 @@ async fn get_total_count(
         CollectionOperation::Find => {
             let filter = match &query.filter {
                 Some(v) => bson_ser::json_to_document(v)
-                    .map_err(|e| DgridError::Validation(e))?,
+                    .map_err(DgridError::Validation)?,
                 None => Document::new(),
             };
             collection
@@ -292,7 +292,7 @@ async fn get_total_count(
             let pipeline_vals = query.pipeline.as_deref().unwrap_or(&[]);
             let mut pipeline: Vec<Document> = pipeline_vals
                 .iter()
-                .map(|v| bson_ser::json_to_document(v))
+                .map(bson_ser::json_to_document)
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(DgridError::Validation)?;
             pipeline.push(mongodb::bson::doc! { "$count": "total" });
@@ -329,7 +329,7 @@ async fn open_cursor(
         CollectionOperation::Find => {
             let filter = match &query.filter {
                 Some(v) => bson_ser::json_to_document(v)
-                    .map_err(|e| DgridError::Validation(e))?,
+                    .map_err(DgridError::Validation)?,
                 None => Document::new(),
             };
 
@@ -337,13 +337,13 @@ async fn open_cursor(
             if let Some(ref proj) = query.projection {
                 opts.projection = Some(
                     bson_ser::json_to_document(proj)
-                        .map_err(|e| DgridError::Validation(e))?,
+                        .map_err(DgridError::Validation)?,
                 );
             }
             if let Some(ref sort) = query.sort {
                 opts.sort = Some(
                     bson_ser::json_to_document(sort)
-                        .map_err(|e| DgridError::Validation(e))?,
+                        .map_err(DgridError::Validation)?,
                 );
             }
 
@@ -357,7 +357,7 @@ async fn open_cursor(
             let pipeline_vals = query.pipeline.as_deref().unwrap_or(&[]);
             let pipeline: Vec<Document> = pipeline_vals
                 .iter()
-                .map(|v| bson_ser::json_to_document(v))
+                .map(bson_ser::json_to_document)
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(DgridError::Validation)?;
 
