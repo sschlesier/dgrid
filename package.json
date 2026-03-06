@@ -20,7 +20,7 @@
     "lint:fix": "eslint . --ext .ts,.js,.svelte --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "pnpm type-check && pnpm lint && pnpm test run && pnpm build:frontend",
+    "verify": "pnpm type-check && pnpm lint && pnpm test run && pnpm build:frontend && cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml",
     "version": "tsx scripts/sync-version.ts",
     "release": "tsx scripts/release.ts",
     "prepare": "husky",
