@@ -62,7 +62,14 @@ If the user provides edits, apply them to CHANGES.md and show the updated diff a
 
 ## 5. Bump Version
 
-Run `pnpm version` with the confirmed increment. This updates `package.json`, commits, and creates the `v*` tag:
+First, commit the CHANGES.md update so the working tree is clean before `pnpm version` runs:
+
+```bash
+git add CHANGES.md
+git commit -m "chore: update CHANGES.md for v<new-version>"
+```
+
+Then run `pnpm version` with the confirmed increment. This updates `package.json`, commits, and creates the `v*` tag:
 
 ```bash
 pnpm version <patch|minor|major>
