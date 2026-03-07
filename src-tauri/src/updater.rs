@@ -39,6 +39,24 @@ fn is_newer(current: &str, latest: &str) -> bool {
     false
 }
 
+/// Detect how the app was installed. Returns "homebrew" or "direct".
+pub fn detect_install_method() -> &'static str {
+    if cfg!(target_os = "macos") {
+        if let Ok(exe) = std::env::current_exe() {
+            // Resolve symlinks — Homebrew Cask symlinks from /Applications/ into /opt/homebrew/Caskroom/
+            let path = exe.canonicalize().unwrap_or(exe);
+            let path_str = path.to_string_lossy();
+            if path_str.contains("/Caskroom/")
+                || path_str.starts_with("/opt/homebrew/")
+                || path_str.starts_with("/usr/local/Cellar/")
+            {
+                return "homebrew";
+            }
+        }
+    }
+    "direct"
+}
+
 /// Check GitHub for a newer release. Returns `None` on any error or if up-to-date.
 pub async fn check_for_update(current_version: &str) -> Option<UpdateInfo> {
     let client = reqwest::Client::new();

@@ -17,6 +17,7 @@ import type {
   UpdateFieldResponse,
   DeleteDocumentRequest,
   DeleteDocumentResponse,
+  VersionResponse,
 } from '../lib/contracts';
 
 /**
@@ -73,14 +74,9 @@ export async function getVersion(): Promise<{
   }
 }
 
-export async function checkForUpdates(): Promise<{
-  version: string;
-  update?: { version: string; url: string };
-}> {
+export async function checkForUpdates(): Promise<VersionResponse> {
   try {
-    return await invoke<{ version: string; update?: { version: string; url: string } }>(
-      'check_for_updates'
-    );
+    return await invoke<VersionResponse>('check_for_updates');
   } catch (e) {
     throw wrapInvokeError(e);
   }

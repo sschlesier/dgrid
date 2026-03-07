@@ -113,6 +113,7 @@ export interface CollectionSchemaResponse {
 // Version / Update Check
 export interface VersionResponse {
   version: string;
+  installMethod: string;
   update?: { version: string; url: string };
 }
 
