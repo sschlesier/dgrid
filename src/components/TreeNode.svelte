@@ -11,6 +11,7 @@
     onNodeExpand?: (_node: TreeNodeData) => void;
     onRefresh?: (_node: TreeNodeData) => void;
     onNodeContextMenu?: (_node: TreeNodeData, _event: MouseEvent) => void;
+    onNodeHover?: (_node: TreeNodeData | null, _event: MouseEvent) => void;
   }
 
   let {
@@ -20,6 +21,7 @@
     onNodeExpand,
     onRefresh,
     onNodeContextMenu,
+    onNodeHover,
   }: Props = $props();
 
   // Node types that support refresh action
@@ -112,6 +114,8 @@
       onclick={handleClick}
       onkeydown={handleKeyDown}
       oncontextmenu={handleContextMenu}
+      onmouseenter={(e) => onNodeHover?.(node, e)}
+      onmouseleave={(e) => onNodeHover?.(null, e)}
       role="treeitem"
       tabindex="0"
       aria-expanded={hasChildren ? isExpanded : undefined}
@@ -173,6 +177,7 @@
           {onNodeExpand}
           {onRefresh}
           {onNodeContextMenu}
+          {onNodeHover}
         />
       {/each}
     </div>

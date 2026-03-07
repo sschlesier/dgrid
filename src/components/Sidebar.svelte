@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { appStore } from '../stores/app.svelte';
   import TreeNode from './TreeNode.svelte';
   import ContextMenu from './ContextMenu.svelte';
+  import CollectionTooltip from './CollectionTooltip.svelte';
   import type { TreeNodeData } from '../types';
 
   interface Props {
@@ -12,6 +14,11 @@
   let { onEditConnection, onConnect }: Props = $props();
 
   async function handleNodeClick(node: TreeNodeData) {
+    tooltip = null;
+    if (tooltipTimer) {
+      clearTimeout(tooltipTimer);
+      tooltipTimer = null;
+    }
     switch (node.type) {
       case 'connection': {
         const connection = appStore.connections.find((c) => c.id === node.connectionId);
@@ -78,6 +85,46 @@
     }
   }
 
+  // --- Tooltip ---
+
+  interface TooltipState {
+    x: number;
+    y: number;
+    node: TreeNodeData;
+  }
+
+  let tooltip = $state<TooltipState | null>(null);
+  let tooltipTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function handleNodeHover(node: TreeNodeData | null, event: MouseEvent) {
+    if (tooltipTimer) {
+      clearTimeout(tooltipTimer);
+      tooltipTimer = null;
+    }
+    if (!node || (node.type !== 'collection' && node.type !== 'view')) {
+      tooltip = null;
+      return;
+    }
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    tooltipTimer = setTimeout(() => {
+      tooltip = { x: rect.right + 8, y: rect.top, node };
+      tooltipTimer = null;
+    }, 400);
+  }
+
+  const tooltipStats = $derived(() => {
+    if (!tooltip) return null;
+    const { node } = tooltip;
+    if (!node.databaseName || !node.collectionName) return null;
+    const colls = appStore.collections.get(node.databaseName);
+    return colls?.find((c) => c.name === node.collectionName) ?? null;
+  });
+
+  onDestroy(() => {
+    if (tooltipTimer) clearTimeout(tooltipTimer);
+  });
+
   // --- Context menu ---
 
   interface ContextMenuState {
@@ -89,6 +136,11 @@
   let contextMenu = $state<ContextMenuState | null>(null);
 
   function handleNodeContextMenu(node: TreeNodeData, event: MouseEvent) {
+    tooltip = null;
+    if (tooltipTimer) {
+      clearTimeout(tooltipTimer);
+      tooltipTimer = null;
+    }
     contextMenu = { x: event.clientX, y: event.clientY, node };
   }
 
@@ -221,7 +273,7 @@
     <h2>Connections</h2>
   </div>
 
-  <div class="sidebar-content" role="tree">
+  <div class="sidebar-content" role="tree" onscroll={() => (tooltip = null)}>
     {#if appStore.connections.length === 0}
       <div class="empty-state">
         <svg width="40" height="40" viewBox="0 0 16 16" fill="currentColor" class="empty-icon">
@@ -241,6 +293,7 @@
             onNodeExpand={handleNodeExpand}
             onRefresh={handleNodeRefresh}
             onNodeContextMenu={handleNodeContextMenu}
+            onNodeHover={handleNodeHover}
           />
           <!-- Action buttons overlay for connections -->
           {#if node.type === 'connection'}
@@ -305,6 +358,20 @@
     y={contextMenu.y}
     items={contextMenuItems}
     onclose={() => (contextMenu = null)}
+  />
+{/if}
+
+{#if tooltip}
+  {@const stats = tooltipStats()}
+  <CollectionTooltip
+    x={tooltip.x}
+    y={tooltip.y}
+    name={tooltip.node.collectionName ?? tooltip.node.label}
+    type={tooltip.node.type === 'view' ? 'view' : 'collection'}
+    documentCount={stats?.documentCount ?? 0}
+    avgDocumentSize={stats?.avgDocumentSize ?? 0}
+    totalSize={stats?.totalSize ?? 0}
+    statsLoaded={stats !== null && stats.totalSize > 0}
   />
 {/if}
 
