@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0
+
+- Make sidebar version a clickable release notes link
+- Replace update badge link with context-aware popover
+- Collection stats tooltip on sidebar hover
+- Support full set of find() chained methods
+- Fix: parse find().count() chain as count operation
+
 ## 1.0.5
 
 - Faster sidebar expansion with two-phase collection loading
