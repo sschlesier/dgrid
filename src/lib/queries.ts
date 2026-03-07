@@ -632,6 +632,18 @@ export function parseCollectionQuery(queryText: string): Result<ParsedCollection
     switch (operation) {
       case 'find': {
         const parsed = parseFindArgs(argsStr);
+        // .count() chained on find() — treat as a count operation
+        if (/\.count\s*\(\s*\)/.test(chainStr)) {
+          return {
+            ok: true,
+            value: {
+              type: 'collection',
+              collection,
+              operation: 'count',
+              filter: parsed.filter,
+            },
+          };
+        }
         const chained = parseChainedMethods(chainStr);
         return {
           ok: true,

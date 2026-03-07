@@ -166,6 +166,26 @@ describe('Query Parser', () => {
         expect(result.value.filter).toEqual({});
       }
     });
+
+    it('parses find().count() as count operation', () => {
+      const result = parseQuery('db.users.find({ active: true }).count()');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('count');
+        expect(result.value.filter).toEqual({ active: true });
+      }
+    });
+
+    it('parses find().count() with no filter', () => {
+      const result = parseQuery('db.users.find({}).count()');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('count');
+        expect(result.value.filter).toEqual({});
+      }
+    });
   });
 
   describe('distinct queries', () => {
