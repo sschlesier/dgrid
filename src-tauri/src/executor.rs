@@ -43,6 +43,7 @@ pub enum CollectionOperation {
     DropIndex,
     GetIndexes,
     BulkWrite,
+    Explain,
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,6 +66,10 @@ pub struct ParsedCollectionQuery {
     pub index_spec: Option<Value>,
     pub index_name: Option<String>,
     pub operations: Option<Vec<Value>>,
+    pub hint: Option<Value>,
+    pub collation: Option<Value>,
+    pub allow_disk_use: Option<bool>,
+    pub max_time_ms: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -139,6 +144,30 @@ async fn execute_collection_query(
                 .build();
             find_opts.projection = projection;
             find_opts.sort = sort;
+
+            if let Some(hint_val) = &query.hint {
+                use mongodb::options::Hint;
+                let hint = if let Some(name) = hint_val.as_str() {
+                    Hint::Name(name.to_string())
+                } else {
+                    Hint::Keys(bson_ser::json_to_document(hint_val)?)
+                };
+                find_opts.hint = Some(hint);
+            }
+            if let Some(coll_val) = &query.collation {
+                use mongodb::options::Collation;
+                let locale = coll_val
+                    .get("locale")
+                    .and_then(|v| v.as_str())
+                    .ok_or("collation requires a locale field")?;
+                find_opts.collation = Some(Collation::builder().locale(locale).build());
+            }
+            if let Some(adu) = query.allow_disk_use {
+                find_opts.allow_disk_use = Some(adu);
+            }
+            if let Some(ms) = query.max_time_ms {
+                find_opts.max_time = Some(std::time::Duration::from_millis(ms as u64));
+            }
 
             use futures_util::TryStreamExt;
             let mut docs: Vec<Document> = collection
@@ -619,6 +648,53 @@ async fn execute_collection_query(
 
             Ok(ExecuteQueryResponse {
                 documents,
+                page: options.page,
+                page_size: options.page_size,
+                has_more: false,
+                execution_time_ms: start.elapsed().as_millis() as u64,
+            })
+        }
+
+        CollectionOperation::Explain => {
+            let filter = value_to_doc(&query.filter)?;
+            let verbosity = query
+                .options
+                .as_ref()
+                .and_then(|o| o.get("verbosity"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("queryPlanner");
+
+            let mut find_cmd = doc! {
+                "find": &query.collection,
+                "filter": filter,
+            };
+            if let Some(sort) = optional_doc(&query.sort)? {
+                find_cmd.insert("sort", sort);
+            }
+            if let Some(proj) = optional_doc(&query.projection)? {
+                find_cmd.insert("projection", proj);
+            }
+            if let Some(limit) = query.limit {
+                find_cmd.insert("limit", limit);
+            }
+            if let Some(skip) = query.skip {
+                find_cmd.insert("skip", skip);
+            }
+            if let Some(hint_val) = &query.hint {
+                if let Some(name) = hint_val.as_str() {
+                    find_cmd.insert("hint", name);
+                } else {
+                    find_cmd.insert("hint", bson_ser::json_to_document(hint_val)?);
+                }
+            }
+
+            let result = db
+                .run_command(doc! { "explain": find_cmd, "verbosity": verbosity })
+                .await
+                .map_err(|e| e.to_string())?;
+
+            Ok(ExecuteQueryResponse {
+                documents: vec![bson_ser::serialize_document(&result)],
                 page: options.page,
                 page_size: options.page_size,
                 has_more: false,
@@ -1147,7 +1223,7 @@ mod tests {
             "insertOne", "insertMany", "updateOne", "updateMany",
             "replaceOne", "deleteOne", "deleteMany",
             "findOneAndUpdate", "findOneAndReplace", "findOneAndDelete",
-            "createIndex", "dropIndex", "getIndexes", "bulkWrite",
+            "createIndex", "dropIndex", "getIndexes", "bulkWrite", "explain",
         ];
         for op in operations {
             let json = serde_json::json!({

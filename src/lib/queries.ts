@@ -26,7 +26,8 @@ export interface ParsedCollectionQuery {
     | 'createIndex'
     | 'dropIndex'
     | 'getIndexes'
-    | 'bulkWrite';
+    | 'bulkWrite'
+    | 'explain';
   filter?: Document;
   projection?: Document;
   sort?: Document;
@@ -42,6 +43,10 @@ export interface ParsedCollectionQuery {
   indexSpec?: Document; // For createIndex keys
   indexName?: string; // For dropIndex
   operations?: Document[]; // For bulkWrite
+  hint?: Document | string; // For find().hint() — index spec or index name
+  collation?: Document; // For find().collation()
+  allowDiskUse?: boolean; // For find().allowDiskUse()
+  maxTimeMS?: number; // For find().maxTimeMS()
 }
 
 // Database-level command (db.method())
@@ -443,26 +448,77 @@ function findMatchingBracket(str: string, start: number): number {
 
 function parseChainedMethods(
   chain: string
-): Pick<ParsedCollectionQuery, 'sort' | 'limit' | 'skip'> {
-  const result: Pick<ParsedCollectionQuery, 'sort' | 'limit' | 'skip'> = {};
+): Pick<
+  ParsedCollectionQuery,
+  'sort' | 'limit' | 'skip' | 'hint' | 'collation' | 'allowDiskUse' | 'maxTimeMS' | 'projection'
+> {
+  const result: Pick<
+    ParsedCollectionQuery,
+    | 'sort'
+    | 'limit'
+    | 'skip'
+    | 'hint'
+    | 'collation'
+    | 'allowDiskUse'
+    | 'maxTimeMS'
+    | 'projection'
+  > = {};
 
-  // Match .method(args) patterns
-  const methodPattern = /\.(\w+)\(([^)]*)\)/g;
-  let match;
+  let i = 0;
+  while (i < chain.length) {
+    if (chain[i] !== '.') {
+      i++;
+      continue;
+    }
+    i++; // skip '.'
 
-  while ((match = methodPattern.exec(chain)) !== null) {
-    const [, method, args] = match;
+    // Read method name
+    const methodStart = i;
+    while (i < chain.length && /\w/.test(chain[i])) i++;
+    const method = chain.slice(methodStart, i);
+    if (!method) continue;
+
+    // Skip whitespace before '('
+    while (i < chain.length && /\s/.test(chain[i])) i++;
+    if (i >= chain.length || chain[i] !== '(') continue;
+
+    const closeIdx = findMatchingBracket(chain, i);
+    if (closeIdx === -1) break;
+
+    const args = chain.slice(i + 1, closeIdx).trim();
+    i = closeIdx + 1;
 
     switch (method) {
       case 'sort':
-        result.sort = parseJavaScriptObject(args.trim());
+        if (args) result.sort = parseJavaScriptObject(args);
         break;
       case 'limit':
-        result.limit = parseInt(args.trim(), 10);
+        result.limit = parseInt(args, 10);
         break;
       case 'skip':
-        result.skip = parseInt(args.trim(), 10);
+        result.skip = parseInt(args, 10);
         break;
+      case 'hint':
+        if (args) {
+          result.hint = args.startsWith('{')
+            ? parseJavaScriptObject(args)
+            : args.replace(/['"]/g, '').trim();
+        }
+        break;
+      case 'collation':
+        if (args) result.collation = parseJavaScriptObject(args);
+        break;
+      case 'allowDiskUse':
+        result.allowDiskUse = args.trim() !== 'false';
+        break;
+      case 'maxTimeMS':
+        result.maxTimeMS = parseInt(args, 10);
+        break;
+      case 'projection':
+      case 'project':
+        if (args) result.projection = parseJavaScriptObject(args);
+        break;
+      // pretty() is shell-only formatting — silently ignore
     }
   }
 
@@ -632,8 +688,9 @@ export function parseCollectionQuery(queryText: string): Result<ParsedCollection
     switch (operation) {
       case 'find': {
         const parsed = parseFindArgs(argsStr);
-        // .count() chained on find() — treat as a count operation
-        if (/\.count\s*\(\s*\)/.test(chainStr)) {
+
+        // .count() or .size() chained — treat as count operation
+        if (/\.(?:count|size)\s*\(\s*\)/.test(chainStr)) {
           return {
             ok: true,
             value: {
@@ -644,7 +701,26 @@ export function parseCollectionQuery(queryText: string): Result<ParsedCollection
             },
           };
         }
+
         const chained = parseChainedMethods(chainStr);
+
+        // .explain([verbosity]) chained — treat as explain operation
+        const explainMatch = chainStr.match(/\.explain\s*\(\s*(?:['"]([^'"]*)['"]\s*)?\)/);
+        if (explainMatch) {
+          const verbosity = explainMatch[1] || 'queryPlanner';
+          return {
+            ok: true,
+            value: {
+              type: 'collection',
+              collection,
+              operation: 'explain',
+              ...parsed,
+              ...chained,
+              options: { verbosity },
+            },
+          };
+        }
+
         return {
           ok: true,
           value: {
@@ -973,7 +1049,7 @@ export function parseCollectionQuery(queryText: string): Result<ParsedCollection
         return {
           ok: false,
           error: {
-            message: `Unsupported operation: ${operation}. Supported: find, findOne, aggregate, count, distinct, insertOne, insertMany, updateOne, updateMany, replaceOne, deleteOne, deleteMany, findOneAndUpdate, findOneAndReplace, findOneAndDelete, createIndex, dropIndex, getIndexes, bulkWrite`,
+            message: `Unsupported operation: ${operation}. Supported: find, findOne, aggregate, count, distinct, insertOne, insertMany, updateOne, updateMany, replaceOne, deleteOne, deleteMany, findOneAndUpdate, findOneAndReplace, findOneAndDelete, createIndex, dropIndex, getIndexes, bulkWrite, explain`,
           },
         };
     }

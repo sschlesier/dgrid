@@ -90,6 +90,111 @@ describe('Query Parser', () => {
       }
     });
 
+    it('parses find with hint as index spec', () => {
+      const result = parseQuery('db.users.find({}).hint({ email: 1 })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.hint).toEqual({ email: 1 });
+      }
+    });
+
+    it('parses find with hint as index name string', () => {
+      const result = parseQuery('db.users.find({}).hint("email_1")');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.hint).toBe('email_1');
+      }
+    });
+
+    it('parses find with collation', () => {
+      const result = parseQuery('db.users.find({}).collation({ locale: "en", strength: 2 })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.collation).toEqual({ locale: 'en', strength: 2 });
+      }
+    });
+
+    it('parses find with allowDiskUse', () => {
+      const result = parseQuery('db.users.find({}).sort({ age: 1 }).allowDiskUse(true)');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.allowDiskUse).toBe(true);
+      }
+    });
+
+    it('parses find with maxTimeMS', () => {
+      const result = parseQuery('db.users.find({}).maxTimeMS(5000)');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.maxTimeMS).toBe(5000);
+      }
+    });
+
+    it('parses find with chained projection()', () => {
+      const result = parseQuery('db.users.find({}).projection({ name: 1, email: 1 })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('find');
+        expect(result.value.projection).toEqual({ name: 1, email: 1 });
+      }
+    });
+
+    it('chained projection() overrides find() second arg', () => {
+      const result = parseQuery('db.users.find({}, { age: 1 }).projection({ name: 1 })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.projection).toEqual({ name: 1 });
+      }
+    });
+
+    it('parses find().pretty() without error (silently ignored)', () => {
+      const result = parseQuery('db.users.find({}).pretty()');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('find');
+      }
+    });
+
+    it('parses find().explain() as explain operation', () => {
+      const result = parseQuery('db.users.find({ active: true }).explain()');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('explain');
+        expect(result.value.filter).toEqual({ active: true });
+        expect(result.value.options).toEqual({ verbosity: 'queryPlanner' });
+      }
+    });
+
+    it('parses find().explain("executionStats")', () => {
+      const result = parseQuery('db.users.find({}).explain("executionStats")');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('explain');
+        expect(result.value.options).toEqual({ verbosity: 'executionStats' });
+      }
+    });
+
+    it('parses find().sort().explain() preserving sort', () => {
+      const result = parseQuery('db.users.find({}).sort({ age: -1 }).explain("queryPlanner")');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('explain');
+        expect(result.value.sort).toEqual({ age: -1 });
+        expect(result.value.options).toEqual({ verbosity: 'queryPlanner' });
+      }
+    });
+
     it('parses find with string values', () => {
       const result = parseQuery("db.users.find({ name: 'John' })");
 
@@ -184,6 +289,16 @@ describe('Query Parser', () => {
       if (result.ok) {
         expect(result.value.operation).toBe('count');
         expect(result.value.filter).toEqual({});
+      }
+    });
+
+    it('parses find().size() as count operation', () => {
+      const result = parseQuery('db.users.find({ active: true }).size()');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('count');
+        expect(result.value.filter).toEqual({ active: true });
       }
     });
   });
