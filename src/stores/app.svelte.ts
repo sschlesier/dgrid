@@ -54,6 +54,7 @@ class AppStore {
   ui = $state<UIState>(loadUIState());
   notifications = $state<Notification[]>([]);
   updateAvailable = $state<{ version: string; url: string } | null>(null);
+  installMethod = $state<string>('direct');
 
   // Loading states
   isLoadingConnections = $state(false);
@@ -576,6 +577,7 @@ class AppStore {
   async checkForUpdates(): Promise<void> {
     try {
       const data = await api.checkForUpdates();
+      this.installMethod = data.installMethod;
       if (data.update) {
         this.updateAvailable = data.update;
       }
