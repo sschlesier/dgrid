@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import { openUrl } from '@tauri-apps/plugin-opener';
   import { appStore } from '../stores/app.svelte';
   import TreeNode from './TreeNode.svelte';
   import ContextMenu from './ContextMenu.svelte';
@@ -348,7 +349,15 @@
   </div>
 
   <div class="sidebar-footer">
-    v{typeof DGRID_VERSION !== 'undefined' ? DGRID_VERSION : 'dev'}
+    <button
+      class="version-link"
+      onclick={() =>
+        openUrl(
+          `https://github.com/sschlesier/dgrid/releases/tag/v${typeof DGRID_VERSION !== 'undefined' ? DGRID_VERSION : 'dev'}`
+        )}
+    >
+      v{typeof DGRID_VERSION !== 'undefined' ? DGRID_VERSION : 'dev'}
+    </button>
   </div>
 </aside>
 
@@ -462,5 +471,15 @@
   .action-btn:hover {
     background-color: var(--color-bg-tertiary);
     color: var(--color-text-primary);
+  }
+
+  .version-link {
+    all: unset;
+    cursor: pointer;
+    color: inherit;
+  }
+
+  .version-link:hover {
+    text-decoration: underline;
   }
 </style>
