@@ -404,7 +404,8 @@
       editorStore.addRecentPath(path);
       startWatching(path);
     } catch (e) {
-      console.error('Failed to open file:', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      appStore.notify('error', `Failed to open file: ${msg}`);
     }
   }
 
@@ -413,7 +414,8 @@
       try {
         await api.writeFile({ path: currentFilePath, content: queryStore.getQueryText(tab.id) });
       } catch (e) {
-        console.error('Failed to save file:', e);
+        const msg = e instanceof Error ? e.message : String(e);
+        appStore.notify('error', `Failed to save file: ${msg}`);
       }
     } else {
       await handleSaveAs();
@@ -433,7 +435,8 @@
       editorStore.addRecentPath(filePath);
       startWatching(filePath);
     } catch (e) {
-      console.error('Failed to save file:', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      appStore.notify('error', `Failed to save file: ${msg}`);
     }
   }
 

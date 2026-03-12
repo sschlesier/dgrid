@@ -46,9 +46,16 @@ pub fn is_path_safe(file_path: &str) -> bool {
         return true;
     }
 
-    // Block sensitive paths
+    // Block sensitive paths.
+    // For absolute-path patterns (start with '/'), match from the beginning of the path to
+    // avoid false positives on user directories (e.g. ~/Library must not be blocked by /Library/).
+    // For other patterns (node_modules, .git, .env), use substring match.
     for pattern in BLOCKED_PATTERNS {
-        if file_path.contains(pattern) {
+        if pattern.starts_with('/') {
+            if file_path.starts_with(pattern) {
+                return false;
+            }
+        } else if file_path.contains(pattern) {
             return false;
         }
     }
@@ -127,6 +134,19 @@ mod tests {
         assert!(!is_path_safe("/home/user/node_modules/test.js"));
         assert!(!is_path_safe("/home/user/project/.git/config"));
         assert!(!is_path_safe("/home/user/.env"));
+    }
+
+    #[test]
+    fn allows_user_library_paths() {
+        // macOS iCloud Drive: ~/Library/Mobile Documents/...
+        assert!(is_path_safe(
+            "/Users/alice/Library/Mobile Documents/com~apple~CloudDocs/Desktop/query.js"
+        ));
+        assert!(is_path_safe(
+            "/Users/alice/Library/CloudStorage/OneDrive/query.js"
+        ));
+        // But system /Library/ at root is still blocked
+        assert!(!is_path_safe("/Library/Application Support/query.js"));
     }
 
     // ── is_allowed_extension ──────────────────────────────────────
