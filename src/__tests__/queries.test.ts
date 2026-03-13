@@ -823,6 +823,36 @@ db.location-config.findOneAndUpdate({locationId: '606361ebc9e7fd407a23935d'}, {$
         expect(result.value.filter).toEqual({ active: true });
       }
     });
+
+    it('ignores inline comments inside aggregate pipelines', () => {
+      const result = parseQuery(`db.ready_locations.aggregate([
+        {$match: {'systemType.options.apiUrl': {$exists: true}}},
+        {$project: {name: 1, url: '$systemType.options.apiUrl'}},
+        // {$group: {_id: '$url', cnt: {$sum: 1}}},
+      ])`);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.operation).toBe('aggregate');
+        expect(result.value.pipeline).toEqual([
+          { $match: { 'systemType.options.apiUrl': { $exists: true } } },
+          { $project: { name: 1, url: '$systemType.options.apiUrl' } },
+        ]);
+      }
+    });
+
+    it('ignores inline comments inside find filters', () => {
+      const result = parseQuery(`db.users.find({
+        active: true,
+        // keep admins only
+        role: 'admin'
+      })`);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.filter).toEqual({ active: true, role: 'admin' });
+      }
+    });
   });
 
   describe('database commands', () => {

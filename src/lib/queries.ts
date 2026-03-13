@@ -126,6 +126,102 @@ function stripLeadingComments(query: string): string {
   }
 }
 
+function isRegexContextChar(char: string | undefined): boolean {
+  return char === undefined || /[\s(:,={[!&|?;+*-]/.test(char);
+}
+
+function stripComments(query: string): string {
+  let result = '';
+  let i = 0;
+  let inString = false;
+  let stringChar = '';
+  let inRegex = false;
+  let inRegexCharClass = false;
+
+  while (i < query.length) {
+    const char = query[i];
+    const next = query[i + 1];
+
+    if (inString) {
+      result += char;
+      if (char === '\\' && i + 1 < query.length) {
+        result += query[i + 1];
+        i += 2;
+        continue;
+      }
+      if (char === stringChar) {
+        inString = false;
+      }
+      i++;
+      continue;
+    }
+
+    if (inRegex) {
+      result += char;
+      if (char === '\\' && i + 1 < query.length) {
+        result += query[i + 1];
+        i += 2;
+        continue;
+      }
+      if (char === '[') {
+        inRegexCharClass = true;
+      } else if (char === ']' && inRegexCharClass) {
+        inRegexCharClass = false;
+      } else if (char === '/' && !inRegexCharClass) {
+        inRegex = false;
+      }
+      i++;
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      inString = true;
+      stringChar = char;
+      result += char;
+      i++;
+      continue;
+    }
+
+    if (char === '/' && next === '/') {
+      result += '  ';
+      i += 2;
+      while (i < query.length && query[i] !== '\n') {
+        result += ' ';
+        i++;
+      }
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      result += '  ';
+      i += 2;
+      while (i < query.length) {
+        if (query[i] === '*' && query[i + 1] === '/') {
+          result += '  ';
+          i += 2;
+          break;
+        }
+        result += query[i] === '\n' ? '\n' : ' ';
+        i++;
+      }
+      continue;
+    }
+
+    if (char === '/') {
+      let j = result.length - 1;
+      while (j >= 0 && /\s/.test(result[j])) j--;
+      if (isRegexContextChar(j >= 0 ? result[j] : undefined) && next !== '/' && next !== '*') {
+        inRegex = true;
+      }
+    }
+
+    result += char;
+    i++;
+  }
+
+  return result;
+}
+
 // Extract collection name and the index where the rest of the query begins,
 // supporting dot notation, bracket notation, and db.getCollection().
 interface CollectionAccess {
@@ -157,7 +253,7 @@ function extractCollectionAccess(text: string): CollectionAccess | null {
 
 // Detect if query is a db command or collection query
 export function detectQueryType(query: string): 'db-command' | 'collection' {
-  const trimmed = stripLeadingComments(query).trim();
+  const trimmed = stripLeadingComments(stripComments(query)).trim();
 
   // Match db.methodName( pattern — only dot-notation can be a db command
   const dbMethodMatch = trimmed.match(/^db\.([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/);
@@ -454,14 +550,7 @@ function parseChainedMethods(
 > {
   const result: Pick<
     ParsedCollectionQuery,
-    | 'sort'
-    | 'limit'
-    | 'skip'
-    | 'hint'
-    | 'collation'
-    | 'allowDiskUse'
-    | 'maxTimeMS'
-    | 'projection'
+    'sort' | 'limit' | 'skip' | 'hint' | 'collation' | 'allowDiskUse' | 'maxTimeMS' | 'projection'
   > = {};
 
   let i = 0;
@@ -527,7 +616,7 @@ function parseChainedMethods(
 
 // Parse a database-level command (db.method())
 export function parseDbCommand(queryText: string): Result<ParsedDbCommand, ParseError> {
-  const text = stripLeadingComments(queryText).trim();
+  const text = stripLeadingComments(stripComments(queryText)).trim();
 
   // Match db.method(...)
   const dbMethodPattern = /^db\.([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/;
@@ -634,7 +723,7 @@ export function parseDbCommand(queryText: string): Result<ParsedDbCommand, Parse
 
 // Parse a collection-level query (db.collection.method())
 export function parseCollectionQuery(queryText: string): Result<ParsedCollectionQuery, ParseError> {
-  const text = stripLeadingComments(queryText).trim();
+  const text = stripLeadingComments(stripComments(queryText)).trim();
 
   // Extract collection name using any supported syntax
   const access = extractCollectionAccess(text);
