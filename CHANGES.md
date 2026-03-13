@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1
+
+- Remove redundant path sanitation that blocked saves to iCloud Drive and other cloud storage locations
+
 ## 1.1.0
 
 - Make sidebar version a clickable release notes link
