@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+- Fix: allow saving to iCloud Drive and surface file errors to user
+- Remove path restriction blocklist from file validation
+
 ## 1.1.0
 
 - Make sidebar version a clickable release notes link
