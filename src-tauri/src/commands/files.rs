@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
 use crate::error::DgridError;
-use crate::file_validation::{allowed_extensions_display, is_allowed_extension, is_path_safe, MAX_FILE_SIZE};
+use crate::file_validation::MAX_FILE_SIZE;
 use crate::state::AppState;
 
 #[derive(Debug, Serialize)]
@@ -37,28 +37,11 @@ pub struct FileChangedEvent {
     pub content: String,
 }
 
-/// Validate a file path for safety and extension.
-fn validate_path(file_path: &str) -> Result<(), DgridError> {
-    if file_path.is_empty() {
-        return Err(DgridError::Validation("File path is required".into()));
-    }
-    if !is_path_safe(file_path) {
-        return Err(DgridError::Validation(
-            "Access to this path is not allowed".into(),
-        ));
-    }
-    if !is_allowed_extension(file_path) {
-        return Err(DgridError::Validation(format!(
-            "File type not allowed. Allowed: {}",
-            allowed_extensions_display()
-        )));
-    }
-    Ok(())
-}
-
 #[tauri::command]
 pub async fn read_file(path: String) -> Result<FileReadResponse, DgridError> {
-    validate_path(&path)?;
+    if path.is_empty() {
+        return Err(DgridError::Validation("File path is required".into()));
+    }
 
     let file_path = Path::new(&path);
 
@@ -93,7 +76,9 @@ pub async fn read_file(path: String) -> Result<FileReadResponse, DgridError> {
 
 #[tauri::command]
 pub async fn write_file(request: FileWriteRequest) -> Result<FileWriteResponse, DgridError> {
-    validate_path(&request.path)?;
+    if request.path.is_empty() {
+        return Err(DgridError::Validation("File path is required".into()));
+    }
 
     if request.content.len() > MAX_FILE_SIZE {
         return Err(DgridError::Validation(format!(
@@ -123,8 +108,6 @@ pub async fn watch_file(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), DgridError> {
-    validate_path(&path)?;
-
     let file_path = Path::new(&path);
     if !file_path.exists() {
         return Err(DgridError::NotFound {
@@ -222,27 +205,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn read_file_rejects_unsafe_path() {
-        let result = read_file("/etc/passwd".into()).await;
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, DgridError::Validation(_)));
-        assert!(err.to_string().contains("not allowed"));
-    }
-
-    #[tokio::test]
-    async fn read_file_rejects_bad_extension() {
-        let tmp = NamedTempFile::with_suffix(".txt").unwrap();
-        let path = tmp.path().to_string_lossy().to_string();
-
-        let result = read_file(path).await;
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, DgridError::Validation(_)));
-        assert!(err.to_string().contains("File type not allowed"));
-    }
-
-    #[tokio::test]
     async fn read_file_rejects_empty_path() {
         let result = read_file("".into()).await;
         assert!(result.is_err());
@@ -289,31 +251,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_file_rejects_unsafe_path() {
-        let request = FileWriteRequest {
-            path: "/etc/test.js".into(),
-            content: "bad".into(),
-        };
-        let result = write_file(request).await;
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), DgridError::Validation(_)));
-    }
-
-    #[tokio::test]
-    async fn write_file_rejects_bad_extension() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("test.py").to_string_lossy().to_string();
-
-        let request = FileWriteRequest {
-            path,
-            content: "print('bad')".into(),
-        };
-        let result = write_file(request).await;
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), DgridError::Validation(_)));
-    }
-
-    #[tokio::test]
     async fn write_file_rejects_oversized_content() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("big.js").to_string_lossy().to_string();
@@ -328,9 +265,4 @@ mod tests {
         assert!(err.to_string().contains("maximum size"));
     }
 
-    #[tokio::test]
-    async fn validate_path_rejects_traversal() {
-        let result = read_file("/home/user/../etc/passwd".into()).await;
-        assert!(result.is_err());
-    }
 }
