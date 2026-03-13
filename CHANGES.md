@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2
+
+- Fix: query parser now ignores inline comments (e.g. `// comment`)
+
 ## 1.1.1
 
 - Fix: allow saving to iCloud Drive and surface file errors to user
