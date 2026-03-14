@@ -2,6 +2,7 @@
   import { isSerializedBson } from './grid/utils';
   import type { CellType } from './grid/types';
   import * as api from '../api/client';
+  import { buildEditPreview } from '../lib/editPreview';
   import { appStore } from '../stores/app.svelte';
   import Spinner from './Spinner.svelte';
 
@@ -13,6 +14,7 @@
     fieldPath: string;
     value: unknown;
     cellType: CellType;
+    queryText: string;
   }
 
   interface Props {
@@ -81,16 +83,45 @@
     return String(value);
   }
 
-  let selectedType = $state(mapCellTypeToEditType(field.cellType));
-  let valueText = $state(valueToText(field.value, field.cellType));
+  let selectedType = $state('string');
+  let valueText = $state('');
   let isSaving = $state(false);
   let error = $state<string | null>(null);
   let valueRef = $state<HTMLTextAreaElement | HTMLSelectElement | undefined>();
+  let copiedPreview = $state(false);
+  let initializedFieldKey = $state('');
 
   const hideValueEditor = $derived(selectedType === 'null');
   const showBooleanSelect = $derived(selectedType === 'boolean');
+  const parsedValue = $derived(convertValue(valueText, selectedType));
+  const previewValue = $derived(parsedValue.ok ? parsedValue.value : field.value);
+  const editPreview = $derived(
+    buildEditPreview({
+      collection: field.collection,
+      docId: field.docId,
+      fieldPath: field.fieldPath,
+      value: previewValue,
+      queryText: field.queryText,
+    })
+  );
 
   // Initialize boolean value text
+  $effect(() => {
+    const nextFieldKey = JSON.stringify([
+      field.docId,
+      field.fieldPath,
+      field.cellType,
+      field.value,
+    ]);
+    if (initializedFieldKey !== nextFieldKey) {
+      selectedType = mapCellTypeToEditType(field.cellType);
+      valueText = valueToText(field.value, field.cellType);
+      error = null;
+      copiedPreview = false;
+      initializedFieldKey = nextFieldKey;
+    }
+  });
+
   $effect(() => {
     if (selectedType === 'boolean' && valueText !== 'true' && valueText !== 'false') {
       valueText = 'true';
@@ -101,6 +132,7 @@
   $effect(() => {
     if (valueRef) {
       requestAnimationFrame(() => {
+        if (!valueRef) return;
         valueRef!.focus();
         if (valueRef instanceof HTMLTextAreaElement) {
           valueRef.select();
@@ -194,9 +226,13 @@
   async function handleSave() {
     error = null;
 
-    const result = convertValue(valueText, selectedType);
-    if (!result.ok) {
-      error = result.error;
+    if (editPreview.missingId) {
+      error = editPreview.missingIdMessage;
+      return;
+    }
+
+    if (!parsedValue.ok) {
+      error = parsedValue.error;
       return;
     }
 
@@ -207,7 +243,7 @@
         collection: field.collection,
         documentId: field.docId,
         fieldPath: field.fieldPath,
-        value: result.value,
+        value: parsedValue.value,
         type: selectedType,
       });
       appStore.notify('success', 'Field updated');
@@ -216,6 +252,18 @@
       error = (err as Error).message;
     } finally {
       isSaving = false;
+    }
+  }
+
+  async function handleCopyPreview() {
+    try {
+      await navigator.clipboard.writeText(editPreview.previewText);
+      copiedPreview = true;
+      setTimeout(() => {
+        copiedPreview = false;
+      }, 1500);
+    } catch {
+      appStore.notify('error', 'Failed to copy update query');
     }
   }
 
@@ -296,6 +344,36 @@
       {#if error}
         <div class="error-message">{error}</div>
       {/if}
+
+      {#if editPreview.missingIdMessage}
+        <div class="warning-banner error-banner" data-testid="edit-warning-missing-id">
+          {editPreview.missingIdMessage}
+        </div>
+      {/if}
+
+      {#if editPreview.idManipulationMessage}
+        <div class="warning-banner warning-banner-yellow" data-testid="edit-warning-id-manipulated">
+          {editPreview.idManipulationMessage}
+        </div>
+      {/if}
+
+      <div class="preview-section">
+        <div class="preview-header">
+          <label for="update-preview">Update Query</label>
+          <button
+            type="button"
+            class="copy-preview-btn"
+            onclick={handleCopyPreview}
+            title={copiedPreview ? 'Copied!' : 'Copy update query'}
+          >
+            {copiedPreview ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+        <pre
+          id="update-preview"
+          class="preview-code"
+          data-testid="update-preview">{editPreview.previewText}</pre>
+      </div>
     </div>
 
     <div class="dialog-footer">
@@ -303,7 +381,12 @@
         <button type="button" class="cancel-btn" onclick={onclose} disabled={isSaving}>
           Cancel
         </button>
-        <button type="button" class="save-btn" onclick={handleSave} disabled={isSaving}>
+        <button
+          type="button"
+          class="save-btn"
+          onclick={handleSave}
+          disabled={isSaving || editPreview.missingId}
+        >
           {#if isSaving}
             <Spinner size="sm" color="white" />
             Saving...
@@ -456,6 +539,78 @@
     color: var(--color-error-text);
     border-radius: var(--radius-md);
     font-size: var(--font-size-sm);
+  }
+
+  .warning-banner {
+    margin-top: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+  }
+
+  .error-banner {
+    background-color: var(--color-error-light);
+    color: var(--color-error-text);
+    border: 1px solid var(--color-error);
+  }
+
+  .warning-banner-yellow {
+    background-color: var(--color-warning-light);
+    color: var(--color-warning-text);
+    border: 1px solid var(--color-warning);
+  }
+
+  .preview-section {
+    margin-top: var(--space-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+  }
+
+  .preview-header label {
+    margin-bottom: 0;
+  }
+
+  .copy-preview-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 72px;
+    padding: 6px 10px;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+  }
+
+  .copy-preview-btn:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  .preview-code {
+    margin: 0;
+    padding: var(--space-md);
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+    color: var(--color-text-primary);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   .dialog-footer {

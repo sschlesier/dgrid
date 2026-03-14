@@ -84,6 +84,9 @@
   const columns = $derived(gridState.columns);
   const sort = $derived(gridState.sort);
   const drilldownPath = $derived(gridState.drilldown.path);
+  const activeQueryText = $derived(
+    queryStore.getActiveResult(tabId)?.query ?? queryStore.getQueryText(tabId)
+  );
 
   // Compute display data based on drill-down path
   const displayData = $derived.by((): DrilldownDocument[] => {
@@ -476,6 +479,7 @@
       fieldPath: editingField.fieldPath,
       value: editingField.value,
       cellType: detectCellType(editingField.value),
+      queryText: activeQueryText,
     }}
     onclose={() => (editingField = null)}
     onsaved={handleEditSaved}

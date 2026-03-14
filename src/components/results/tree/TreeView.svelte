@@ -48,6 +48,9 @@
 
   const gridState = $derived(gridStore.getState(tabId));
   const docs = $derived(results.documents as Record<string, unknown>[]);
+  const activeQueryText = $derived(
+    queryStore.getActiveResult(tabId)?.query ?? queryStore.getQueryText(tabId)
+  );
 
   // Search results - keep as array for navigation, derive Set for highlighting
   const searchMatchList = $derived.by(() => {
@@ -302,6 +305,7 @@
       fieldPath: editingField.fieldPath,
       value: editingField.value,
       cellType: detectValueType(editingField.value) as import('../../grid/types').CellType,
+      queryText: activeQueryText,
     }}
     onclose={() => (editingField = null)}
     onsaved={handleEditSaved}
