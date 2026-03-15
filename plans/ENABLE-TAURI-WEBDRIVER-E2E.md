@@ -146,13 +146,15 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - real-app export-ui spec passes on macOS
   - current WebDriver suite (`pnpm e2e`) passes on macOS
   - Linux E2E workflow definition and CI entrypoint wiring are present in the repo
+  - Linux E2E workflow passes on GitHub Actions for PR `#3`
+  - `main` branch protection requires the `e2e-linux` status check
 - Latest progress:
   - warning-suppression cleanup landed in commit `50ca81e` (`Suppress webdriver warning noise in e2e harness`)
   - Linux CI rollout landed in commits `90b9eb7`, `56c7df8`, `0c6d791`, and `7096526`
   - the current macOS WebDriver suite runs cleanly without the prior non-blocking `element/.../name` warning spam
+  - GitHub Actions run `23104422380` completed successfully for PR `#3`
+  - `main` branch protection now enforces the `e2e-linux` required check
 - Remaining immediate work:
-  - run the new Linux GitHub Actions workflow and fix any Ubuntu-specific failures that appear
-  - mark the Linux E2E workflow as a required branch-protection check once it is passing reliably
   - start phase-2 migration work for preserved Playwright coverage such as results views, query history, multi-query modes, sidebar context menus, and shortcut rebinding
 
 ### Later Consideration: Autocomplete Coverage Limits
