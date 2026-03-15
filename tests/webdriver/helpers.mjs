@@ -128,6 +128,11 @@ export async function openContextMenuFromFocusedCell(element) {
   await s.contextMenu.menu().waitForDisplayed({ timeout: 5_000 });
 }
 
+export async function openContextMenuOnElement(element) {
+  await contextClick(element);
+  await s.contextMenu.menu().waitForDisplayed({ timeout: 5_000 });
+}
+
 export async function openCollection(connectionName, database, collection) {
   await connectToServer(connectionName);
   await expect(s.sidebar.treeItem(database)).toBeDisplayed();
