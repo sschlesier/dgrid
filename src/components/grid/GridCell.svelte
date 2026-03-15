@@ -39,6 +39,23 @@
       event.preventDefault();
       ondrill(fieldKey);
     }
+    if (event.shiftKey && event.key === 'F10') {
+      event.preventDefault();
+      const target = event.currentTarget as HTMLElement;
+      const rect = target.getBoundingClientRect();
+      target.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          button: 2,
+          buttons: 2,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+        })
+      );
+      return;
+    }
     if (matchesBinding(event, keybindingsStore.getBinding('edit-field')) && onedit && fieldKey) {
       event.preventDefault();
       event.stopPropagation();
