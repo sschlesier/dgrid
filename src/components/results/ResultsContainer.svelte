@@ -48,7 +48,7 @@
   }
 </script>
 
-<div class="results-container">
+<div class="results-container" data-tab-id={tabId}>
   <div class="results-toolbar">
     <ViewSelector value={viewMode} onchange={handleViewChange} />
     {#if results.documents.length > 0}
