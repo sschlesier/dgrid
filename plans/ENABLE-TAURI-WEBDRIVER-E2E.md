@@ -141,9 +141,12 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - real-app autocomplete spec passes on macOS
   - real-app export-ui spec passes on macOS
   - current WebDriver suite (`pnpm e2e`) passes on macOS
+- Latest progress:
+  - warning-suppression cleanup landed in commit `50ca81e` (`Suppress webdriver warning noise in e2e harness`)
+  - the current macOS WebDriver suite runs cleanly without the prior non-blocking `element/.../name` warning spam
 - Remaining immediate work:
+  - begin Linux CI rollout now that the current macOS suite shape is stable
   - start phase-2 migration work for preserved Playwright coverage such as results views, query history, multi-query modes, sidebar context menus, and shortcut rebinding
-  - begin Linux CI rollout once the current macOS suite shape is considered stable
 
 ### Later Consideration: Autocomplete Coverage Limits
 
