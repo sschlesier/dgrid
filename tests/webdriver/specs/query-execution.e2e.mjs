@@ -35,16 +35,16 @@ describe('Query Execution', () => {
       port: runtime.mongo.port,
     });
     await connectToServer('QueryTest');
-    await expect(await s.sidebar.treeItem(TEST_DB)).toBeDisplayed();
+    await expect(s.sidebar.treeItem(TEST_DB)).toBeDisplayed();
     await expandTreeNode(TEST_DB);
-    await expect(await s.sidebar.treeItem('Collections')).toBeDisplayed();
+    await expect(s.sidebar.treeItem('Collections')).toBeDisplayed();
     await browser.waitUntil(async () => (await (await s.sidebar.treeItem(TEST_COLLECTION)).isDisplayed()), {
       timeout: 10_000,
       timeoutMsg: `Collection ${TEST_COLLECTION} did not appear after expanding ${TEST_DB}`,
     }).catch(async () => {
       await expandTreeNode('Collections');
     });
-    await expect(await s.sidebar.treeItem(TEST_COLLECTION)).toBeDisplayed();
+    await expect(s.sidebar.treeItem(TEST_COLLECTION)).toBeDisplayed();
     await (await s.sidebar.treeItem(TEST_COLLECTION)).click();
   }
 
@@ -59,9 +59,9 @@ describe('Query Execution', () => {
     await clearAndTypeQuery(`db.${TEST_COLLECTION}.find({})`);
     await (await s.query.executeButton()).click();
 
-    await expect(await s.results.gridViewport()).toBeDisplayed();
-    await expect(await s.results.gridViewport()).toHaveText(expect.stringContaining('Alice'));
-    await expect(await s.results.gridViewport()).toHaveText(expect.stringContaining('Bob'));
+    await expect(s.results.gridViewport()).toBeDisplayed();
+    await expect(s.results.gridViewport()).toHaveText(expect.stringContaining('Alice'));
+    await expect(s.results.gridViewport()).toHaveText(expect.stringContaining('Bob'));
   });
 
   it('shows an error display for invalid queries', async () => {
@@ -75,8 +75,8 @@ describe('Query Execution', () => {
     await browser.keys('Backspace');
     await (await s.query.executeButton()).click();
 
-    await (await s.query.errorDisplay()).waitForDisplayed({ timeout: 10_000 });
-    await expect(await s.query.errorDisplay()).toBeDisplayed();
+    await s.query.errorDisplay().waitForDisplayed({ timeout: 10_000 });
+    await expect(s.query.errorDisplay()).toBeDisplayed();
   });
 
   it('paginates a result set larger than 50 documents', async () => {
@@ -90,12 +90,12 @@ describe('Query Execution', () => {
     await clearAndTypeQuery(`db.${TEST_COLLECTION}.find({})`);
     await (await s.query.executeButton()).click();
 
-    await expect(await s.results.pagination()).toBeDisplayed();
-    await expect(await s.results.paginationCount()).toHaveText('Docs 1–50');
-    await expect(await s.results.pageInfo()).toHaveText('Page 1');
+    await expect(s.results.pagination()).toBeDisplayed();
+    await expect(s.results.paginationCount()).toHaveText('Docs 1–50');
+    await expect(s.results.pageInfo()).toHaveText('Page 1');
     await (await s.results.nextPageButton()).click();
-    await expect(await s.results.paginationCount()).toHaveText('Docs 51–60');
-    await expect(await s.results.pageInfo()).toHaveText('Page 2');
+    await expect(s.results.paginationCount()).toHaveText('Docs 51–60');
+    await expect(s.results.pageInfo()).toHaveText('Page 2');
   });
 
   it('shows document count and execution time in the status bar', async () => {
@@ -108,7 +108,7 @@ describe('Query Execution', () => {
     await clearAndTypeQuery(`db.${TEST_COLLECTION}.find({})`);
     await (await s.query.executeButton()).click();
 
-    await expect(await s.statusBar.center()).toHaveText(expect.stringContaining('Docs 1–2'));
-    await expect(await s.statusBar.center()).toHaveText(expect.stringContaining('ms'));
+    await expect(s.statusBar.center()).toHaveText(expect.stringContaining('Docs 1–2'));
+    await expect(s.statusBar.center()).toHaveText(expect.stringContaining('ms'));
   });
 });

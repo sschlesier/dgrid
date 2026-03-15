@@ -130,6 +130,7 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - keyboard-accessible grid-cell context-menu path for stable real-app E2E coverage
   - editor bridge hooks for deterministic autocomplete field inspection and completion application in WebDriver tests
   - export-store test hook for deterministic progress-overlay coverage without relying on the native save dialog
+  - WebdriverIO logger suppression for the known non-blocking `element/.../name` warning noise during passing runs
 - Verified:
   - real-app smoke spec passes on macOS
   - real-app connection-management spec passes on macOS
@@ -141,7 +142,6 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - real-app export-ui spec passes on macOS
   - current WebDriver suite (`pnpm e2e`) passes on macOS
 - Remaining immediate work:
-  - decide whether to suppress or work around the non-blocking `tauri-webdriver` element-name warnings seen during passing runs
   - start phase-2 migration work for preserved Playwright coverage such as results views, query history, multi-query modes, sidebar context menus, and shortcut rebinding
   - begin Linux CI rollout once the current macOS suite shape is considered stable
 

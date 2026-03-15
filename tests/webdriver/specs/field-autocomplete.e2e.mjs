@@ -90,7 +90,7 @@ describe('Field Autocomplete', () => {
     await browser.execute((el) => {
       el.__dgridTest?.applyCompletion('name');
     }, editor);
-    await expect(await s.query.editorContent()).toHaveText(expect.stringContaining('name'));
+    await expect(s.query.editorContent()).toHaveText(expect.stringContaining('name'));
   });
 
   it('supports nested dot-notation fields', async () => {

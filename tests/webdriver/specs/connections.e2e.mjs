@@ -20,8 +20,8 @@ describe('Connection Management', () => {
       port: runtime.mongo.port,
     });
 
-    await expect(await s.sidebar.treeItem('Test Mongo')).toBeDisplayed();
-    await expect(await s.sidebar.emptyState()).not.toBeDisplayed();
+    await expect(s.sidebar.treeItem('Test Mongo')).toBeDisplayed();
+    await expect(s.sidebar.emptyState()).not.toBeDisplayed();
   });
 
   it('creates a new connection via the URI tab', async () => {
@@ -30,17 +30,17 @@ describe('Connection Management', () => {
       uri: `mongodb://${runtime.mongo.host}:${runtime.mongo.port}`,
     });
 
-    await expect(await s.sidebar.treeItem('URI Connection')).toBeDisplayed();
+    await expect(s.sidebar.treeItem('URI Connection')).toBeDisplayed();
   });
 
   it('shows a successful test connection result', async () => {
     await (await s.header.newConnectionButton()).click();
-    await (await s.connectionDialog.overlay()).waitForDisplayed({ timeout: 5_000 });
+    await s.connectionDialog.overlay().waitForDisplayed({ timeout: 5_000 });
     await (await s.connectionDialog.nameInput()).setValue('Test Mongo');
     await (await s.connectionDialog.hostInput()).setValue(runtime.mongo.host);
     await (await s.connectionDialog.portInput()).setValue(String(runtime.mongo.port));
     await (await s.connectionDialog.testButton()).click();
-    await expect(await s.connectionDialog.testResultSuccess()).toBeDisplayed();
+    await expect(s.connectionDialog.testResultSuccess()).toBeDisplayed();
   });
 
   it('connects and shows databases in the sidebar', async () => {
@@ -51,6 +51,6 @@ describe('Connection Management', () => {
     });
 
     await connectToServer('Connected Mongo');
-    await expect(await s.sidebar.treeItem('admin')).toBeDisplayed();
+    await expect(s.sidebar.treeItem('admin')).toBeDisplayed();
   });
 });
