@@ -130,9 +130,17 @@ pnpm test run
 # Rust tests (backend)
 cd src-tauri && cargo test
 
+# Real-app Tauri E2E (local)
+pnpm e2e
+
+# Real-app Tauri E2E (CI/Linux-style)
+pnpm e2e:ci
+
 # Type-check, lint, test, and build in one command
 pnpm verify
 ```
+
+The active end-to-end suite lives under `tests/webdriver/` and runs against the real Tauri app through `tauri-webdriver`. GitHub Actions runs the Linux E2E path with `xvfb-run pnpm e2e:ci`.
 
 ## Release
 
@@ -161,6 +169,7 @@ The workflow:
 src-tauri/          Tauri v2 Rust backend (commands, executor, storage, keyring)
 src/                Svelte 5 frontend (Vite build)
 tests/e2e/          Playwright E2E tests
+tests/webdriver/    WebdriverIO real-app Tauri E2E tests
 ```
 
 ## License

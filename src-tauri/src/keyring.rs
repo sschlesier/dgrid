@@ -1,4 +1,7 @@
 use crate::error::DgridError;
+use std::collections::HashMap;
+use std::env;
+use std::sync::Mutex;
 
 const DEFAULT_SERVICE_NAME: &str = "dgrid-mongodb-gui";
 
@@ -17,8 +20,40 @@ pub struct KeyringPasswordStorage {
 impl KeyringPasswordStorage {
     pub fn new() -> Self {
         Self {
-            service_name: DEFAULT_SERVICE_NAME.to_string(),
+            service_name: env::var("DGRID_KEYRING_SERVICE")
+                .unwrap_or_else(|_| DEFAULT_SERVICE_NAME.to_string()),
         }
+    }
+}
+
+/// In-memory password storage for test and E2E modes.
+pub struct MemoryPasswordStorage {
+    store: Mutex<HashMap<String, String>>,
+}
+
+impl MemoryPasswordStorage {
+    pub fn new() -> Self {
+        Self {
+            store: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+impl PasswordStorage for MemoryPasswordStorage {
+    fn get(&self, connection_id: &str) -> Option<String> {
+        self.store.lock().unwrap().get(connection_id).cloned()
+    }
+
+    fn set(&self, connection_id: &str, password: &str) -> Result<(), DgridError> {
+        self.store
+            .lock()
+            .unwrap()
+            .insert(connection_id.to_string(), password.to_string());
+        Ok(())
+    }
+
+    fn delete(&self, connection_id: &str) {
+        self.store.lock().unwrap().remove(connection_id);
     }
 }
 
@@ -47,38 +82,7 @@ impl PasswordStorage for KeyringPasswordStorage {
 #[cfg(test)]
 pub mod mock {
     use super::*;
-    use std::collections::HashMap;
-    use std::sync::Mutex;
-
-    pub struct MockPasswordStorage {
-        store: Mutex<HashMap<String, String>>,
-    }
-
-    impl MockPasswordStorage {
-        pub fn new() -> Self {
-            Self {
-                store: Mutex::new(HashMap::new()),
-            }
-        }
-    }
-
-    impl PasswordStorage for MockPasswordStorage {
-        fn get(&self, connection_id: &str) -> Option<String> {
-            self.store.lock().unwrap().get(connection_id).cloned()
-        }
-
-        fn set(&self, connection_id: &str, password: &str) -> Result<(), DgridError> {
-            self.store
-                .lock()
-                .unwrap()
-                .insert(connection_id.to_string(), password.to_string());
-            Ok(())
-        }
-
-        fn delete(&self, connection_id: &str) {
-            self.store.lock().unwrap().remove(connection_id);
-        }
-    }
+    pub type MockPasswordStorage = MemoryPasswordStorage;
 }
 
 #[cfg(test)]

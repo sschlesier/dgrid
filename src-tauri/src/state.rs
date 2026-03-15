@@ -6,7 +6,8 @@ use notify::RecommendedWatcher;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
-use crate::keyring::{KeyringPasswordStorage, PasswordStorage};
+use crate::config::AppConfig;
+use crate::keyring::{KeyringPasswordStorage, MemoryPasswordStorage, PasswordStorage};
 use crate::pool::ConnectionPool;
 use crate::storage::ConnectionStorage;
 use crate::updater::UpdateInfo;
@@ -19,6 +20,7 @@ pub struct CachedUpdateCheck {
 
 /// Shared application state managed by Tauri.
 pub struct AppState {
+    pub config: AppConfig,
     pub storage: Mutex<ConnectionStorage>,
     pub passwords: Box<dyn PasswordStorage>,
     pub pool: ConnectionPool,
@@ -29,13 +31,17 @@ pub struct AppState {
 
 impl AppState {
     pub fn new() -> Self {
-        let data_dir = dirs::home_dir()
-            .expect("could not determine home directory")
-            .join(".dgrid");
+        let config = AppConfig::from_env();
+        let passwords: Box<dyn PasswordStorage> = if config.use_mock_passwords {
+            Box::new(MemoryPasswordStorage::new())
+        } else {
+            Box::new(KeyringPasswordStorage::new())
+        };
 
         Self {
-            storage: Mutex::new(ConnectionStorage::new(&data_dir)),
-            passwords: Box::new(KeyringPasswordStorage::new()),
+            config: config.clone(),
+            storage: Mutex::new(ConnectionStorage::new(&config.data_dir)),
+            passwords,
             pool: ConnectionPool::new(),
             cancellation_tokens: RwLock::new(HashMap::new()),
             file_watchers: Mutex::new(HashMap::new()),
