@@ -68,9 +68,14 @@ describe('Query Execution', () => {
     await seedDatabase(TEST_DB, TEST_COLLECTION, [{ name: 'Alice' }]);
 
     await openCollection();
-    await clearAndTypeQuery('db.users.find({invalid syntax!!!');
+    const editor = await s.query.editorContent();
+    await editor.click();
+    const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+    await browser.keys([modifier, 'ArrowRight']);
+    await browser.keys('Backspace');
     await (await s.query.executeButton()).click();
 
+    await (await s.query.errorDisplay()).waitForDisplayed({ timeout: 10_000 });
     await expect(await s.query.errorDisplay()).toBeDisplayed();
   });
 
@@ -86,10 +91,11 @@ describe('Query Execution', () => {
     await (await s.query.executeButton()).click();
 
     await expect(await s.results.pagination()).toBeDisplayed();
-    await expect(await s.results.paginationCount()).toHaveText(expect.stringContaining('60 documents'));
-    await expect(await s.results.pageInfo()).toHaveText(expect.stringContaining('Page 1 of 2'));
+    await expect(await s.results.paginationCount()).toHaveText('Docs 1–50');
+    await expect(await s.results.pageInfo()).toHaveText('Page 1');
     await (await s.results.nextPageButton()).click();
-    await expect(await s.results.pageInfo()).toHaveText(expect.stringContaining('Page 2 of 2'));
+    await expect(await s.results.paginationCount()).toHaveText('Docs 51–60');
+    await expect(await s.results.pageInfo()).toHaveText('Page 2');
   });
 
   it('shows document count and execution time in the status bar', async () => {
@@ -102,7 +108,7 @@ describe('Query Execution', () => {
     await clearAndTypeQuery(`db.${TEST_COLLECTION}.find({})`);
     await (await s.query.executeButton()).click();
 
-    await expect(await s.statusBar.center()).toHaveText(expect.stringContaining('2 documents'));
+    await expect(await s.statusBar.center()).toHaveText(expect.stringContaining('Docs 1–2'));
     await expect(await s.statusBar.center()).toHaveText(expect.stringContaining('ms'));
   });
 });
