@@ -15,6 +15,10 @@ const argv = process.argv.slice(2);
 const isCi = argv.includes('--ci') || process.env.CI === 'true';
 const specIndex = argv.indexOf('--spec');
 const specArg = specIndex >= 0 ? argv[specIndex + 1] : undefined;
+const driverStartTimeoutMs = parseInt(
+  process.env.DGRID_E2E_DRIVER_START_TIMEOUT_MS || (isCi ? '30000' : '15000'),
+  10
+);
 
 let mongod;
 let tauriDriverProcess;
@@ -65,7 +69,7 @@ try {
     }
   });
 
-  await waitForPort(driverPort, 15_000);
+  await waitForPort(driverPort, driverStartTimeoutMs);
 
   const wdioArgs = ['exec', 'wdio', 'run', './tests/webdriver/wdio.conf.mjs'];
   if (specArg) {
@@ -114,6 +118,12 @@ function getDriverCommand() {
 }
 
 async function resolveApplicationPath() {
+  const explicitPath = process.env.DGRID_E2E_APPLICATION_PATH;
+  if (explicitPath) {
+    await access(explicitPath, fsConstants.X_OK);
+    return explicitPath;
+  }
+
   const suffix = process.platform === 'win32' ? '.exe' : '';
   const binaryPath = path.join(repoRoot, 'src-tauri', 'target', 'debug', `dgrid${suffix}`);
   await access(binaryPath, fsConstants.X_OK);

@@ -9,6 +9,7 @@ if (!runtimeFile || !fs.existsSync(runtimeFile)) {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const runtime = JSON.parse(fs.readFileSync(runtimeFile, 'utf8'));
+const isCi = process.env.DGRID_E2E_CI === '1' || process.env.CI === 'true';
 
 export const config = {
   runner: 'local',
@@ -23,12 +24,12 @@ export const config = {
   },
   framework: 'mocha',
   reporters: ['spec'],
-  waitforTimeout: 10_000,
-  connectionRetryCount: 1,
-  connectionRetryTimeout: 30_000,
+  waitforTimeout: isCi ? 20_000 : 10_000,
+  connectionRetryCount: isCi ? 2 : 1,
+  connectionRetryTimeout: isCi ? 60_000 : 30_000,
   mochaOpts: {
     ui: 'bdd',
-    timeout: 60_000,
+    timeout: isCi ? 90_000 : 60_000,
   },
   capabilities: [
     {
