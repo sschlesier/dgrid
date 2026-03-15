@@ -43,6 +43,16 @@ export const selectors = {
     errorDisplay: () => $('.error-display'),
   },
 
+  tabs: {
+    bar: () => $('.tabbar'),
+    all: () => $$('.tabbar [role="tab"]'),
+    tab: (name) => $(`//*[@role="tab"][contains(normalize-space(.), ${quoteXPath(name)})]`),
+    activeTab: () => $('.tab.active'),
+    closeButton: (name) =>
+      $(`//*[@role="tab"][contains(normalize-space(.), ${quoteXPath(name)})]//*[contains(@class, "tab-close")]`),
+    newTabButton: () => $('.new-tab-btn'),
+  },
+
   results: {
     gridViewport: () => $('.grid-viewport'),
     pagination: () => $('.pagination'),
