@@ -126,6 +126,7 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - debug-build Tauri WebDriver plugin registration
   - WebdriverIO harness and launcher scripts
   - migrated smoke, connection-management, query-execution, tab-management, context-menu, field-editing, autocomplete, and export-ui specs
+  - deterministic WebDriver shortcut-dispatch helper for global keyboard shortcut coverage in the Tauri webview
   - WebDriver query helpers updated to reliably clear and edit the prefilled collection query
   - keyboard-accessible grid-cell context-menu path for stable real-app E2E coverage
   - editor bridge hooks for deterministic autocomplete field inspection and completion application in WebDriver tests
@@ -148,6 +149,7 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - real-app export-ui spec passes on macOS
   - real-app multi-query spec passes on macOS
   - real-app sidebar-context-menu spec passes on macOS
+  - real-app smoke spec now covers `?` opening the shortcuts modal and rebinding the `show-help` shortcut
   - current WebDriver suite (`pnpm e2e`) passes on macOS
   - Linux E2E workflow definition and CI entrypoint wiring are present in the repo
   - Linux E2E workflow passes on GitHub Actions for PR `#3`
@@ -157,11 +159,12 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - sidebar-context-menu migration landed in commit `2f27089` (`Add webdriver coverage for sidebar context menus`)
   - warning-suppression cleanup landed in commit `50ca81e` (`Suppress webdriver warning noise in e2e harness`)
   - Linux CI rollout landed in commits `90b9eb7`, `56c7df8`, `0c6d791`, and `7096526`
+  - smoke shortcut parity landed with deterministic shortcut dispatch and restored `show-help` rebinding coverage
   - the current macOS WebDriver suite runs cleanly without the prior non-blocking `element/.../name` warning spam
   - GitHub Actions run `23104422380` completed successfully for PR `#3`
   - `main` branch protection now enforces the `e2e-linux` required check
 - Remaining immediate work:
-  - finish the remaining smoke-spec shortcut parity work for `?` opening the shortcuts modal and shortcut rebinding
+  - no immediate parity gaps remain in the current planned real-app WebDriver suite
 
 ### Later Consideration: Autocomplete Coverage Limits
 

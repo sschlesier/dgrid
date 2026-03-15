@@ -112,6 +112,41 @@ export async function contextClick(element, xOffset = 0, yOffset = 0) {
   );
 }
 
+export async function dispatchShortcut({
+  key,
+  code,
+  meta = false,
+  ctrl = false,
+  shift = false,
+  alt = false,
+}) {
+  await browser.execute(
+    ({ nextKey, nextCode, nextMeta, nextCtrl, nextShift, nextAlt }) => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: nextKey,
+          code: nextCode,
+          metaKey: nextMeta,
+          ctrlKey: nextCtrl,
+          shiftKey: nextShift,
+          altKey: nextAlt,
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+        })
+      );
+    },
+    {
+      nextKey: key,
+      nextCode: code,
+      nextMeta: meta,
+      nextCtrl: ctrl,
+      nextShift: shift,
+      nextAlt: alt,
+    }
+  );
+}
+
 export async function openContextMenuFromFocusedCell(element) {
   await element.click();
   await browser.execute((el) => {
