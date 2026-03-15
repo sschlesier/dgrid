@@ -13,7 +13,7 @@ export default [
   },
   // Config files and scripts (no project checking)
   {
-    files: ['*.config.ts', '*.config.js', 'scripts/**/*.ts'],
+    files: ['*.config.ts', '*.config.js', '*.config.mjs', 'scripts/**/*.ts', 'scripts/**/*.mjs'],
     languageOptions: {
       parser: tsParser,
       globals: {
@@ -29,12 +29,15 @@ export default [
   },
   // Test files (no project checking)
   {
-    files: ['tests/**/*.ts', 'tests/**/*.js', 'src/**/__tests__/**/*.ts'],
+    files: ['tests/**/*.ts', 'tests/**/*.js', 'tests/**/*.mjs', 'src/**/__tests__/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       globals: {
         ...globals.node,
         ...globals.browser,
+        ...globals.mocha,
+        browser: 'readonly',
+        $: 'readonly',
       },
     },
     plugins: {

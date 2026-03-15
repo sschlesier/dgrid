@@ -1,5 +1,6 @@
 mod bson_ser;
 mod commands;
+mod config;
 mod credentials;
 mod csv;
 mod error;
@@ -14,9 +15,14 @@ mod updater;
 use state::AppState;
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_opener::init());
+
+    #[cfg(debug_assertions)]
+    let builder = builder.plugin(tauri_plugin_webdriver::init());
+
+    builder
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             commands::version::get_version,
