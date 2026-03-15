@@ -11,7 +11,13 @@
   import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
   import { javascript } from '@codemirror/lang-javascript';
   import { vim } from '@replit/codemirror-vim';
-  import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
+  import {
+    acceptCompletion,
+    closeBrackets,
+    closeBracketsKeymap,
+    moveCompletionSelection,
+    startCompletion,
+  } from '@codemirror/autocomplete';
   import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
   import { bracketMatching } from '@codemirror/language';
   import { editorHighlighting } from '../lib/editorHighlighting';
@@ -50,6 +56,16 @@
   // Mutable ref so the completion source closure always reads the latest field names.
   // Updated by the "Sync autocomplete field names" $effect below.
   let currentFieldNames: string[] = [];
+
+  interface EditorTestBridge {
+    startCompletion: () => void;
+    acceptCompletion: () => boolean;
+    moveCompletionDown: () => boolean;
+    moveCompletionUp: () => boolean;
+    getFieldNames: () => string[];
+    setFieldNames: (_fields: string[]) => void;
+    applyCompletion: (_label: string) => void;
+  }
 
   // Theme using CSS variables for light/dark support
   const theme = EditorView.theme({
@@ -178,6 +194,25 @@
     }
   });
 
+  function handleEditorCommand(event: Event) {
+    if (!view || !(event instanceof CustomEvent)) return;
+
+    switch (event.type) {
+      case 'dgrid:editor-start-completion':
+        startCompletion(view);
+        break;
+      case 'dgrid:editor-accept-completion':
+        acceptCompletion(view);
+        break;
+      case 'dgrid:editor-move-completion-down':
+        moveCompletionSelection(true)(view);
+        break;
+      case 'dgrid:editor-move-completion-up':
+        moveCompletionSelection(false)(view);
+        break;
+    }
+  }
+
   onMount(() => {
     const extensions = [
       lineNumbers(),
@@ -213,11 +248,48 @@
       parent: container,
     });
 
+    (container as HTMLDivElement & { __dgridTest?: EditorTestBridge }).__dgridTest = {
+      startCompletion: () => startCompletion(view!),
+      acceptCompletion: () => acceptCompletion(view!),
+      moveCompletionDown: () => moveCompletionSelection(true)(view!),
+      moveCompletionUp: () => moveCompletionSelection(false)(view!),
+      getFieldNames: () => [...currentFieldNames],
+      setFieldNames: (fields: string[]) => {
+        currentFieldNames = [...fields];
+        view!.dispatch({
+          effects: autocompleteCompartment.reconfigure(
+            currentFieldNames.length > 0 ? fieldCompletionExtension(() => currentFieldNames) : []
+          ),
+        });
+      },
+      applyCompletion: (label: string) => {
+        const state = view!.state;
+        const head = state.selection.main.head;
+        const before = state.doc.sliceString(0, head);
+        const match = before.match(/[\w.]+$/);
+        const from = match ? head - match[0].length : head;
+        view!.dispatch({
+          changes: { from, to: head, insert: label },
+          selection: { anchor: from + label.length },
+        });
+      },
+    };
+
+    container.addEventListener('dgrid:editor-start-completion', handleEditorCommand);
+    container.addEventListener('dgrid:editor-accept-completion', handleEditorCommand);
+    container.addEventListener('dgrid:editor-move-completion-down', handleEditorCommand);
+    container.addEventListener('dgrid:editor-move-completion-up', handleEditorCommand);
+
     // Auto-focus so keyboard shortcuts work immediately
     view.focus();
   });
 
   onDestroy(() => {
+    delete (container as HTMLDivElement & { __dgridTest?: EditorTestBridge }).__dgridTest;
+    container?.removeEventListener('dgrid:editor-start-completion', handleEditorCommand);
+    container?.removeEventListener('dgrid:editor-accept-completion', handleEditorCommand);
+    container?.removeEventListener('dgrid:editor-move-completion-down', handleEditorCommand);
+    container?.removeEventListener('dgrid:editor-move-completion-up', handleEditorCommand);
     view?.destroy();
   });
 

@@ -38,9 +38,17 @@ export const selectors = {
   },
 
   query: {
+    editorContainer: () => $('.editor-container'),
     editorContent: () => $('.cm-content'),
     executeButton: () => $('.execute-btn.split-main'),
     errorDisplay: () => $('.error-display'),
+    autocomplete: () => $('.cm-tooltip-autocomplete'),
+    autocompleteOption: (label) =>
+      $(
+        `//*[contains(@class, "cm-tooltip-autocomplete")]//*[contains(@class, "cm-completionLabel")][contains(normalize-space(.), ${quoteXPath(label)})]`
+      ),
+    autocompleteSelectedOption: () =>
+      $('.cm-tooltip-autocomplete [aria-selected="true"] .cm-completionLabel'),
   },
 
   tabs: {
