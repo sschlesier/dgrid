@@ -65,6 +65,8 @@
     getFieldNames: () => string[];
     setFieldNames: (_fields: string[]) => void;
     applyCompletion: (_label: string) => void;
+    setValue: (_value: string) => void;
+    setSelection: (_anchor: number, _head?: number) => void;
   }
 
   // Theme using CSS variables for light/dark support
@@ -272,6 +274,23 @@
           changes: { from, to: head, insert: label },
           selection: { anchor: from + label.length },
         });
+      },
+      setValue: (nextValue: string) => {
+        const currentValue = view!.state.doc.toString();
+        view!.dispatch({
+          changes: {
+            from: 0,
+            to: currentValue.length,
+            insert: nextValue,
+          },
+          selection: { anchor: nextValue.length },
+        });
+      },
+      setSelection: (anchor: number, head = anchor) => {
+        view!.dispatch({
+          selection: { anchor, head },
+        });
+        view!.focus();
       },
     };
 
