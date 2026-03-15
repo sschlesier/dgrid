@@ -1,4 +1,15 @@
-# E2E Tests — Currently Disabled
+# Playwright E2E Tests — Preserved Reference Only
+
+## Current status
+
+These Playwright specs are not the active E2E path. The real-app suite now lives in `tests/webdriver/` and runs against the Tauri app through `tauri-webdriver`.
+
+Use:
+
+- `pnpm e2e` for the local real-app suite
+- `pnpm e2e:ci` for the CI/Linux real-app suite
+
+GitHub Actions runs the Linux path under `xvfb-run`.
 
 ## Why
 
