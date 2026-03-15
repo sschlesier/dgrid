@@ -55,10 +55,31 @@ export const selectors = {
 
   results: {
     gridViewport: () => $('.grid-viewport'),
+    gridRow: (index) => $(`.grid-row[data-row-index="${index}"]`),
+    gridCell: () => $$('.grid-cell'),
+    gridCellWithText: (text) => $(`//*[contains(@class, "grid-cell")]//*[contains(normalize-space(.), ${quoteXPath(text)})]/ancestor::*[contains(@class, "grid-cell")]`),
     pagination: () => $('.pagination'),
     paginationCount: () => $('.pagination .count'),
     pageInfo: () => $('.page-info'),
     nextPageButton: () => $('.page-nav .nav-btn[title="Next page"]'),
+  },
+
+  contextMenu: {
+    menu: () => $('.context-menu'),
+    item: (label) =>
+      $(
+        `//*[contains(@class, "context-menu")]//button[contains(@class, "context-menu-item")][normalize-space(.)=${quoteXPath(label)}]`
+      ),
+    separator: () => $('.context-menu-separator'),
+  },
+
+  editDialog: {
+    overlay: () => $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Edit Field']]`),
+    fieldPath: () => $('.field-path-display'),
+    typeSelect: () => $('#field-type'),
+    valueInput: () => $('#field-value'),
+    saveButton: () => $('.save-btn'),
+    cancelButton: () => $('.dialog-footer .cancel-btn'),
   },
 
   statusBar: {

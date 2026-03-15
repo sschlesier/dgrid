@@ -1,3 +1,4 @@
+import { expect } from 'expect-webdriverio';
 import { selectors as s } from './selectors.mjs';
 import { deleteAllConnections } from './runtime.mjs';
 
@@ -79,6 +80,63 @@ export async function clearAndTypeQuery(query) {
   await browser.keys([modifier, 'a']);
   await browser.keys('Backspace');
   await browser.keys(query.split(''));
+}
+
+export async function contextClick(element, xOffset = 0, yOffset = 0) {
+  await browser.execute(
+    (el, offsetX, offsetY) => {
+      const target = el;
+      const rect = target.getBoundingClientRect();
+      const clientX = Math.round(rect.left + rect.width / 2 + offsetX);
+      const clientY = Math.round(rect.top + rect.height / 2 + offsetY);
+      target.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          button: 2,
+          buttons: 2,
+          clientX,
+          clientY,
+        })
+      );
+    },
+    element,
+    xOffset,
+    yOffset
+  );
+}
+
+export async function openContextMenuFromFocusedCell(element) {
+  await element.click();
+  await browser.execute((el) => {
+    el.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'F10',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      })
+    );
+  }, element);
+  await (await s.contextMenu.menu()).waitForDisplayed({ timeout: 5_000 });
+}
+
+export async function openCollection(connectionName, database, collection) {
+  await connectToServer(connectionName);
+  await expect(await s.sidebar.treeItem(database)).toBeDisplayed();
+  await expandTreeNode(database);
+  await expect(await s.sidebar.treeItem('Collections')).toBeDisplayed();
+  await expect(await s.sidebar.treeItem(collection)).toBeDisplayed();
+  await (await s.sidebar.treeItem(collection)).click();
+}
+
+export async function openCollectionResults({ connectionName, database, collection, query }) {
+  await openCollection(connectionName, database, collection);
+  await clearAndTypeQuery(query);
+  await (await s.query.executeButton()).click();
+  await expect(await s.results.gridViewport()).toBeDisplayed();
 }
 
 export { s };
