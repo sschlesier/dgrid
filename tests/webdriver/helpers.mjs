@@ -128,6 +128,7 @@ export async function openCollection(connectionName, database, collection) {
   await expect(s.sidebar.treeItem(database)).toBeDisplayed();
   await expandTreeNode(database);
   await expect(s.sidebar.treeItem('Collections')).toBeDisplayed();
+  await expandTreeNode('Collections');
   await expect(s.sidebar.treeItem(collection)).toBeDisplayed();
   await (await s.sidebar.treeItem(collection)).click();
 }
@@ -137,6 +138,34 @@ export async function openCollectionResults({ connectionName, database, collecti
   await clearAndTypeQuery(query);
   await (await s.query.executeButton()).click();
   await expect(s.results.gridViewport()).toBeDisplayed();
+}
+
+export async function openQueryHistory() {
+  await (await s.history.toolbarButton()).click();
+  await s.history.dropdown().waitForDisplayed({ timeout: 5_000 });
+}
+
+export async function editConnectionName(currentName, nextName) {
+  await expect(s.sidebar.treeItem(currentName)).toBeDisplayed();
+  await (await s.sidebar.actionButton('Edit connection')).click();
+  await s.connectionDialog.overlay().waitForDisplayed({ timeout: 5_000 });
+  await expect(s.connectionDialog.heading()).toHaveText('Edit Connection');
+  await (await s.connectionDialog.nameInput()).clearValue();
+  await (await s.connectionDialog.nameInput()).setValue(nextName);
+  await (await s.connectionDialog.saveButton()).click();
+  await s.connectionDialog.overlay().waitForDisplayed({ reverse: true, timeout: 5_000 });
+}
+
+export async function deleteConnectionFromDialog() {
+  await s.connectionDialog.overlay().waitForDisplayed({ timeout: 5_000 });
+  await browser.execute(() => {
+    window.confirm = () => true;
+  });
+  await (await s.connectionDialog.deleteButton()).click();
+}
+
+export async function switchResultsView(name) {
+  await (await s.results.viewButton(name)).click();
 }
 
 export { s };
