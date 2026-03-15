@@ -73,6 +73,7 @@ export async function clearAndTypeQuery(query) {
   await editor.click();
   const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
   await browser.keys([modifier, 'a']);
+  await browser.keys('Backspace');
   await browser.keys(query.split(''));
 }
 
