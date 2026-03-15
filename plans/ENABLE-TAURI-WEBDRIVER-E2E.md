@@ -125,14 +125,28 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - isolated E2E app config for data dir, update-check disabling, and mock password storage
   - debug-build Tauri WebDriver plugin registration
   - WebdriverIO harness and launcher scripts
-  - migrated smoke, connection-management, and query-execution specs
+  - migrated smoke, connection-management, query-execution, tab-management, context-menu, field-editing, autocomplete, and export-ui specs
   - WebDriver query helpers updated to reliably clear and edit the prefilled collection query
+  - keyboard-accessible grid-cell context-menu path for stable real-app E2E coverage
+  - editor bridge hooks for deterministic autocomplete field inspection and completion application in WebDriver tests
+  - export-store test hook for deterministic progress-overlay coverage without relying on the native save dialog
 - Verified:
   - real-app smoke spec passes on macOS
   - real-app connection-management spec passes on macOS
   - real-app query-execution spec passes on macOS
+  - real-app tab-management spec passes on macOS
+  - real-app context-menu spec passes on macOS
+  - real-app field-editing spec passes on macOS
+  - real-app autocomplete spec passes on macOS
+  - real-app export-ui spec passes on macOS
   - current WebDriver suite (`pnpm e2e`) passes on macOS
 - Remaining immediate work:
-  - continue porting high-value preserved specs
   - decide whether to suppress or work around the non-blocking `tauri-webdriver` element-name warnings seen during passing runs
-  - start phase-2 migration work for preserved Playwright coverage such as tab management, context menus, field editing, autocomplete, and export flows
+  - start phase-2 migration work for preserved Playwright coverage such as results views, query history, multi-query modes, sidebar context menus, and shortcut rebinding
+  - begin Linux CI rollout once the current macOS suite shape is considered stable
+
+### Later Consideration: Autocomplete Coverage Limits
+
+- The current autocomplete coverage uses an editor bridge in the real app to inspect and apply completions because `tauri-webdriver` was not reliably delivering the CodeMirror popup-trigger path (`Tab` -> visible completion tooltip) in the Tauri webview.
+- This means the suite currently verifies autocomplete field availability and completion application in the live editor state, but it does not yet prove end-to-end popup rendering and keyboard navigation through the visible CodeMirror completion UI.
+- Revisit this later if `tauri-webdriver` improves, if a more reliable CodeMirror interaction path is found, or if popup-level autocomplete behavior becomes important enough to justify a more explicit app-side test seam.
