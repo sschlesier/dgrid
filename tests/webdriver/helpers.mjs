@@ -60,6 +60,10 @@ export async function connectToServer(connectionName) {
 
 export async function expandTreeNode(name) {
   const item = await s.sidebar.treeItem(name);
+  const currentState = await item.getAttribute('aria-expanded');
+  if (currentState === 'true') {
+    return;
+  }
   const chevron = await item.$('.chevron');
   await chevron.click();
   await browser.waitUntil(async () => (await item.getAttribute('aria-expanded')) === 'true', {
