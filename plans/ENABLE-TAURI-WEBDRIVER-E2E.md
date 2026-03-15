@@ -131,6 +131,10 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - editor bridge hooks for deterministic autocomplete field inspection and completion application in WebDriver tests
   - export-store test hook for deterministic progress-overlay coverage without relying on the native save dialog
   - WebdriverIO logger suppression for the known non-blocking `element/.../name` warning noise during passing runs
+  - dedicated Linux GitHub Actions workflow for real-app E2E on pull requests, pushes to `main`, and manual dispatch
+  - Linux CI workflow execution under Xvfb with Tauri/WebKit system dependencies and `tauri-webdriver` installation
+  - CI-aware WebDriver harness timeout tuning and explicit app-path override support for Linux debugging
+  - developer docs updated to point to `tests/webdriver/` as the active real-app suite and `pnpm e2e:ci` as the CI entrypoint
 - Verified:
   - real-app smoke spec passes on macOS
   - real-app connection-management spec passes on macOS
@@ -141,11 +145,14 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - real-app autocomplete spec passes on macOS
   - real-app export-ui spec passes on macOS
   - current WebDriver suite (`pnpm e2e`) passes on macOS
+  - Linux E2E workflow definition and CI entrypoint wiring are present in the repo
 - Latest progress:
   - warning-suppression cleanup landed in commit `50ca81e` (`Suppress webdriver warning noise in e2e harness`)
+  - Linux CI rollout landed in commits `90b9eb7`, `56c7df8`, `0c6d791`, and `7096526`
   - the current macOS WebDriver suite runs cleanly without the prior non-blocking `element/.../name` warning spam
 - Remaining immediate work:
-  - begin Linux CI rollout now that the current macOS suite shape is stable
+  - run the new Linux GitHub Actions workflow and fix any Ubuntu-specific failures that appear
+  - mark the Linux E2E workflow as a required branch-protection check once it is passing reliably
   - start phase-2 migration work for preserved Playwright coverage such as results views, query history, multi-query modes, sidebar context menus, and shortcut rebinding
 
 ### Later Consideration: Autocomplete Coverage Limits
