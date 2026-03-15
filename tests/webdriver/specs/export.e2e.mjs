@@ -49,12 +49,12 @@ describe('Export UI', () => {
   it('shows the export button only after results are available', async () => {
     await openCollectionWithResults([{ name: 'Alice' }]);
 
-    await expect(await s.results.exportButton()).not.toExist();
+    await expect(s.results.exportButton()).not.toExist();
 
     await (await s.query.executeButton()).click();
-    await (await s.results.gridViewport()).waitForDisplayed({ timeout: 10_000 });
-    await expect(await s.results.exportButton()).toBeDisplayed();
-    await expect(await s.results.exportButton()).toHaveText(expect.stringContaining('Export CSV'));
+    await s.results.gridViewport().waitForDisplayed({ timeout: 10_000 });
+    await expect(s.results.exportButton()).toBeDisplayed();
+    await expect(s.results.exportButton()).toHaveText(expect.stringContaining('Export CSV'));
   });
 
   it('renders the export overlay from store state', async () => {
@@ -65,7 +65,7 @@ describe('Export UI', () => {
     ]);
 
     await (await s.query.executeButton()).click();
-    await (await s.results.gridViewport()).waitForDisplayed({ timeout: 10_000 });
+    await s.results.gridViewport().waitForDisplayed({ timeout: 10_000 });
 
     const tabId = await (await s.results.container()).getAttribute('data-tab-id');
     await setExportState(tabId, {
@@ -75,11 +75,11 @@ describe('Export UI', () => {
       error: null,
     });
 
-    await expect(await s.exportOverlay.overlay()).toBeDisplayed();
-    await expect(await s.exportOverlay.status()).toHaveText(
+    await expect(s.exportOverlay.overlay()).toBeDisplayed();
+    await expect(s.exportOverlay.status()).toHaveText(
       expect.stringContaining('Exporting 10 / 25 documents')
     );
-    await expect(await s.exportOverlay.cancelButton()).toBeDisplayed();
+    await expect(s.exportOverlay.cancelButton()).toBeDisplayed();
 
     await setExportState(tabId, {
       isExporting: false,
@@ -88,6 +88,6 @@ describe('Export UI', () => {
       error: null,
     });
 
-    await expect(await s.exportOverlay.overlay()).not.toBeDisplayed();
+    await expect(s.exportOverlay.overlay()).not.toBeDisplayed();
   });
 });

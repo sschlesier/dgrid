@@ -34,11 +34,11 @@ describe('Tab Management', () => {
       port: runtime.mongo.port,
     });
     await connectToServer('TabTest');
-    await expect(await s.sidebar.treeItem(TEST_DB)).toBeDisplayed();
+    await expect(s.sidebar.treeItem(TEST_DB)).toBeDisplayed();
     await expandTreeNode(TEST_DB);
-    await expect(await s.sidebar.treeItem('Collections')).toBeDisplayed();
+    await expect(s.sidebar.treeItem('Collections')).toBeDisplayed();
     await expandTreeNode('Collections');
-    await expect(await s.sidebar.treeItem(collection)).toBeDisplayed();
+    await expect(s.sidebar.treeItem(collection)).toBeDisplayed();
     await (await s.sidebar.treeItem(collection)).click();
   }
 
@@ -47,9 +47,9 @@ describe('Tab Management', () => {
 
     await openCollection('users');
 
-    await expect(await s.tabs.bar()).toBeDisplayed();
-    await expect(await s.tabs.activeTab()).toHaveText(expect.stringContaining('users'));
-    await expect(await s.tabs.activeTab()).toHaveText(expect.stringContaining(TEST_DB));
+    await expect(s.tabs.bar()).toBeDisplayed();
+    await expect(s.tabs.activeTab()).toHaveText(expect.stringContaining('users'));
+    await expect(s.tabs.activeTab()).toHaveText(expect.stringContaining(TEST_DB));
   });
 
   it('opens multiple tabs for different collections', async () => {
@@ -57,12 +57,12 @@ describe('Tab Management', () => {
     await seedDatabase(TEST_DB, 'orders', [{ item: 'Widget' }]);
 
     await openCollection('users');
-    await expect(await s.sidebar.treeItem('orders')).toBeDisplayed();
+    await expect(s.sidebar.treeItem('orders')).toBeDisplayed();
     await (await s.sidebar.treeItem('orders')).click();
 
-    await expect(await s.tabs.tab('users')).toBeDisplayed();
-    await expect(await s.tabs.tab('orders')).toBeDisplayed();
-    await expect(await s.tabs.all()).toBeElementsArrayOfSize(2);
+    await expect(s.tabs.tab('users')).toBeDisplayed();
+    await expect(s.tabs.tab('orders')).toBeDisplayed();
+    await expect(s.tabs.all()).toBeElementsArrayOfSize(2);
   });
 
   it('closes a tab without affecting the remaining tab', async () => {
@@ -76,9 +76,9 @@ describe('Tab Management', () => {
     await closeButton.moveTo();
     await closeButton.click();
 
-    await expect(await s.tabs.tab('orders')).not.toExist();
-    await expect(await s.tabs.tab('users')).toBeDisplayed();
-    await expect(await s.tabs.activeTab()).toHaveText(expect.stringContaining('users'));
+    await expect(s.tabs.tab('orders')).not.toExist();
+    await expect(s.tabs.tab('users')).toBeDisplayed();
+    await expect(s.tabs.activeTab()).toHaveText(expect.stringContaining('users'));
   });
 
   it('maintains independent query text in each tab', async () => {
@@ -92,10 +92,10 @@ describe('Tab Management', () => {
     await clearAndTypeQuery('db.orders.find({})');
 
     await (await s.tabs.tab('users')).click();
-    await expect(await s.query.editorContent()).toHaveText(expect.stringContaining('db.users.find'));
+    await expect(s.query.editorContent()).toHaveText(expect.stringContaining('db.users.find'));
 
     await (await s.tabs.tab('orders')).click();
-    await expect(await s.query.editorContent()).toHaveText(
+    await expect(s.query.editorContent()).toHaveText(
       expect.stringContaining('db.orders.find')
     );
   });

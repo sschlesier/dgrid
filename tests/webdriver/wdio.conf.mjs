@@ -18,6 +18,9 @@ export const config = {
   port: runtime.webdriverPort,
   path: '/',
   logLevel: 'warn',
+  logLevels: {
+    webdriver: 'silent',
+  },
   framework: 'mocha',
   reporters: ['spec'],
   waitforTimeout: 10_000,

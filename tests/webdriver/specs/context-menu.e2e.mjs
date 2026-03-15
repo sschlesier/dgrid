@@ -63,7 +63,7 @@ describe('Grid Context Menu', () => {
     expect(labels).toContain('Copy Document as JSON');
     expect(labels).toContain('Copy _id');
     expect(labels).toContain('Delete Document');
-    await expect(await s.contextMenu.separator()).toBeDisplayed();
+    await expect(s.contextMenu.separator()).toBeDisplayed();
   });
 
   it('opens the edit dialog for the selected cell', async () => {
@@ -73,8 +73,8 @@ describe('Grid Context Menu', () => {
     await openContextMenuFromFocusedCell(cell);
     await (await s.contextMenu.item('Edit Field')).click();
 
-    await expect(await s.editDialog.overlay()).toBeDisplayed();
-    await expect(await s.editDialog.fieldPath()).toHaveText('name');
+    await expect(s.editDialog.overlay()).toBeDisplayed();
+    await expect(s.editDialog.fieldPath()).toHaveText('name');
   });
 
   it('deletes a document after confirmation', async () => {
@@ -83,7 +83,7 @@ describe('Grid Context Menu', () => {
       { name: 'ToKeep', value: 2 },
     ]);
 
-    await expect(await s.results.gridViewport()).toHaveText(expect.stringContaining('ToDelete'));
+    await expect(s.results.gridViewport()).toHaveText(expect.stringContaining('ToDelete'));
     const cell = await s.results.gridCellWithText('ToDelete');
     await openContextMenuFromFocusedCell(cell);
     await browser.execute(() => {
@@ -95,7 +95,7 @@ describe('Grid Context Menu', () => {
       async () => !(await (await s.results.gridViewport()).getText()).includes('ToDelete'),
       { timeout: 10_000, timeoutMsg: 'Deleted document still visible in results' }
     );
-    await expect(await s.results.gridViewport()).toHaveText(expect.stringContaining('ToKeep'));
+    await expect(s.results.gridViewport()).toHaveText(expect.stringContaining('ToKeep'));
   });
 
   it('keeps the document when delete is cancelled', async () => {
@@ -108,6 +108,6 @@ describe('Grid Context Menu', () => {
     });
     await (await s.contextMenu.item('Delete Document')).click();
 
-    await expect(await s.results.gridViewport()).toHaveText(expect.stringContaining('StayHere'));
+    await expect(s.results.gridViewport()).toHaveText(expect.stringContaining('StayHere'));
   });
 });

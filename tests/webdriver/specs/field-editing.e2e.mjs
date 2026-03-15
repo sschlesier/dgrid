@@ -55,21 +55,21 @@ describe('Field Editing', () => {
       cell,
       process.platform === 'darwin'
     );
-    await (await s.editDialog.overlay()).waitForDisplayed({ timeout: 5_000 });
+    await s.editDialog.overlay().waitForDisplayed({ timeout: 5_000 });
   }
 
   it('edits a string field value', async () => {
     await setupResults([{ name: 'Original', value: 42 }]);
 
     await openEditDialogForValue('Original');
-    await expect(await s.editDialog.fieldPath()).toHaveText('name');
+    await expect(s.editDialog.fieldPath()).toHaveText('name');
 
     const valueInput = await s.editDialog.valueInput();
     await valueInput.clearValue();
     await valueInput.setValue('Updated');
     await (await s.editDialog.saveButton()).click();
 
-    await (await s.editDialog.overlay()).waitForDisplayed({ reverse: true, timeout: 5_000 });
+    await s.editDialog.overlay().waitForDisplayed({ reverse: true, timeout: 5_000 });
     await browser.waitUntil(
       async () => (await (await s.results.gridViewport()).getText()).includes('Updated'),
       { timeout: 10_000, timeoutMsg: 'Updated value did not appear in results' }
@@ -87,7 +87,7 @@ describe('Field Editing', () => {
     await valueInput.setValue('99');
     await (await s.editDialog.saveButton()).click();
 
-    await (await s.editDialog.overlay()).waitForDisplayed({ reverse: true, timeout: 5_000 });
+    await s.editDialog.overlay().waitForDisplayed({ reverse: true, timeout: 5_000 });
     await browser.waitUntil(async () => (await (await s.results.gridViewport()).getText()).includes('99'), {
       timeout: 10_000,
       timeoutMsg: 'Updated numeric value did not appear in results',
@@ -104,8 +104,8 @@ describe('Field Editing', () => {
     await valueInput.setValue('Changed');
     await (await s.editDialog.cancelButton()).click();
 
-    await (await s.editDialog.overlay()).waitForDisplayed({ reverse: true, timeout: 5_000 });
-    await expect(await s.results.gridViewport()).toHaveText(expect.stringContaining('KeepMe'));
-    await expect(await s.results.gridViewport()).not.toHaveText(expect.stringContaining('Changed'));
+    await s.editDialog.overlay().waitForDisplayed({ reverse: true, timeout: 5_000 });
+    await expect(s.results.gridViewport()).toHaveText(expect.stringContaining('KeepMe'));
+    await expect(s.results.gridViewport()).not.toHaveText(expect.stringContaining('Changed'));
   });
 });

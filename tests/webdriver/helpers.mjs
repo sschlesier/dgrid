@@ -21,7 +21,7 @@ export async function resetApp() {
 export async function waitForAppReady() {
   await $('body').waitForExist({ timeout: 15_000 });
   try {
-    await (await s.header.root()).waitForDisplayed({ timeout: 15_000 });
+    await s.header.root().waitForDisplayed({ timeout: 15_000 });
   } catch (error) {
     const source = await browser.getPageSource().catch(() => '');
     throw new Error(
@@ -32,22 +32,22 @@ export async function waitForAppReady() {
 
 export async function createConnection({ name, host, port }) {
   await (await s.header.newConnectionButton()).click();
-  await (await s.connectionDialog.overlay()).waitForDisplayed({ timeout: 5_000 });
+  await s.connectionDialog.overlay().waitForDisplayed({ timeout: 5_000 });
   await (await s.connectionDialog.nameInput()).setValue(name);
   await (await s.connectionDialog.hostInput()).setValue(host);
   await (await s.connectionDialog.portInput()).setValue(String(port));
   await (await s.connectionDialog.saveButton()).click();
-  await (await s.connectionDialog.overlay()).waitForDisplayed({ reverse: true, timeout: 5_000 });
+  await s.connectionDialog.overlay().waitForDisplayed({ reverse: true, timeout: 5_000 });
 }
 
 export async function createConnectionViaUri({ name, uri }) {
   await (await s.header.newConnectionButton()).click();
-  await (await s.connectionDialog.overlay()).waitForDisplayed({ timeout: 5_000 });
+  await s.connectionDialog.overlay().waitForDisplayed({ timeout: 5_000 });
   await (await s.connectionDialog.nameInput()).setValue(name);
   await (await s.connectionDialog.uriTab()).click();
   await (await s.connectionDialog.uriInput()).setValue(uri);
   await (await s.connectionDialog.saveButton()).click();
-  await (await s.connectionDialog.overlay()).waitForDisplayed({ reverse: true, timeout: 5_000 });
+  await s.connectionDialog.overlay().waitForDisplayed({ reverse: true, timeout: 5_000 });
 }
 
 export async function connectToServer(connectionName) {
@@ -120,15 +120,15 @@ export async function openContextMenuFromFocusedCell(element) {
       })
     );
   }, element);
-  await (await s.contextMenu.menu()).waitForDisplayed({ timeout: 5_000 });
+  await s.contextMenu.menu().waitForDisplayed({ timeout: 5_000 });
 }
 
 export async function openCollection(connectionName, database, collection) {
   await connectToServer(connectionName);
-  await expect(await s.sidebar.treeItem(database)).toBeDisplayed();
+  await expect(s.sidebar.treeItem(database)).toBeDisplayed();
   await expandTreeNode(database);
-  await expect(await s.sidebar.treeItem('Collections')).toBeDisplayed();
-  await expect(await s.sidebar.treeItem(collection)).toBeDisplayed();
+  await expect(s.sidebar.treeItem('Collections')).toBeDisplayed();
+  await expect(s.sidebar.treeItem(collection)).toBeDisplayed();
   await (await s.sidebar.treeItem(collection)).click();
 }
 
@@ -136,7 +136,7 @@ export async function openCollectionResults({ connectionName, database, collecti
   await openCollection(connectionName, database, collection);
   await clearAndTypeQuery(query);
   await (await s.query.executeButton()).click();
-  await expect(await s.results.gridViewport()).toBeDisplayed();
+  await expect(s.results.gridViewport()).toBeDisplayed();
 }
 
 export { s };
