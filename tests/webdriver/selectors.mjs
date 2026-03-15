@@ -17,15 +17,19 @@ export const selectors = {
     emptyState: () => $('aside.sidebar .empty-state'),
     treeItem: (name) =>
       $(`//*[@role="treeitem"][contains(normalize-space(.), ${quoteXPath(name)})]`),
+    actionButton: (title) => $(`.action-btn[title="${title}"]`),
   },
 
   connectionDialog: {
     overlay: () => $('.dialog-overlay'),
+    dialog: () => $('.dialog'),
+    heading: () => $('.dialog-header h2'),
     nameInput: () => $('#name'),
     hostInput: () => $('#host'),
     portInput: () => $('#port'),
     testButton: () => $('button=Test Connection'),
     saveButton: () => $('button=Save'),
+    deleteButton: () => $('button=Delete'),
     uriTab: () => $('[data-testid="uri-tab"]'),
     uriInput: () => $('[data-testid="uri-input"]'),
     testResultSuccess: () => $('.test-result.success'),
@@ -33,15 +37,28 @@ export const selectors = {
   },
 
   shortcutsModal: {
+    overlay: () => $('.modal-overlay'),
     modal: () => $('.modal-overlay .modal'),
     heading: () => $('.modal-header h2'),
+    shortcutKeys: (id) => $(`[data-testid="shortcut-keys-${id}"]`),
+    captureZone: () => $('[data-testid="capture-zone"]'),
+    resetButton: (id) => $(`[data-testid="reset-${id}"]`),
   },
 
   query: {
     editorContainer: () => $('.editor-container'),
     editorContent: () => $('.cm-content'),
     executeButton: () => $('.execute-btn.split-main'),
+    executeDropdownToggle: () => $('.execute-btn.split-dropdown'),
+    executeDropdown: () => $('.execute-dropdown'),
+    executeDropdownItem: (label) =>
+      $(
+        `//*[contains(@class, "execute-dropdown")]//*[contains(@class, "dropdown-item")][.//*[contains(normalize-space(.), ${quoteXPath(label)})]]`
+      ),
     errorDisplay: () => $('.error-display'),
+    subResultTabs: () => $('.sub-result-tabs'),
+    subResultTab: (index) => $$('.sub-result-tab')[index],
+    subResultTabWithError: () => $('.sub-result-tab.has-error'),
     autocomplete: () => $('.cm-tooltip-autocomplete'),
     autocompleteOption: (label) =>
       $(
@@ -67,10 +84,14 @@ export const selectors = {
     gridRow: (index) => $(`.grid-row[data-row-index="${index}"]`),
     gridCell: () => $$('.grid-cell'),
     gridCellWithText: (text) => $(`//*[contains(@class, "grid-cell")]//*[contains(normalize-space(.), ${quoteXPath(text)})]/ancestor::*[contains(@class, "grid-cell")]`),
+    viewSelector: () => $('.view-selector'),
+    viewButton: (name) => $(`.view-btn[title="${name} View"]`),
     pagination: () => $('.pagination'),
     paginationCount: () => $('.pagination .count'),
     pageInfo: () => $('.page-info'),
     nextPageButton: () => $('.page-nav .nav-btn[title="Next page"]'),
+    jsonView: () => $('.json-view'),
+    treeView: () => $('.tree-view'),
     exportButton: () => $('.export-csv-btn'),
   },
 
@@ -100,5 +121,15 @@ export const selectors = {
 
   statusBar: {
     center: () => $('.statusbar-center'),
+  },
+
+  history: {
+    toolbarButton: () =>
+      $(`//*[contains(@class, "toolbar-btn")][.//*[contains(normalize-space(.), ${quoteXPath('History')})]]`),
+    dropdown: () => $('.history-dropdown'),
+    item: () => $$('.history-item'),
+    itemQuery: () => $$('.item-query'),
+    clearButton: () => $('.clear-btn'),
+    emptyState: () => $('.empty-history'),
   },
 };
