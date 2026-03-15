@@ -62,6 +62,7 @@ export const selectors = {
   },
 
   results: {
+    container: () => $('.results-container'),
     gridViewport: () => $('.grid-viewport'),
     gridRow: (index) => $(`.grid-row[data-row-index="${index}"]`),
     gridCell: () => $$('.grid-cell'),
@@ -70,6 +71,7 @@ export const selectors = {
     paginationCount: () => $('.pagination .count'),
     pageInfo: () => $('.page-info'),
     nextPageButton: () => $('.page-nav .nav-btn[title="Next page"]'),
+    exportButton: () => $('.export-csv-btn'),
   },
 
   contextMenu: {
@@ -88,6 +90,12 @@ export const selectors = {
     valueInput: () => $('#field-value'),
     saveButton: () => $('.save-btn'),
     cancelButton: () => $('.dialog-footer .cancel-btn'),
+  },
+
+  exportOverlay: {
+    overlay: () => $('.export-overlay'),
+    status: () => $('.export-status'),
+    cancelButton: () => $('.export-overlay .cancel-btn'),
   },
 
   statusBar: {
