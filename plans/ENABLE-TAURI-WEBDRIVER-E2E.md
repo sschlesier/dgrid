@@ -129,12 +129,14 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - WebDriver query helpers updated to reliably clear and edit the prefilled collection query
   - keyboard-accessible grid-cell context-menu path for stable real-app E2E coverage
   - editor bridge hooks for deterministic autocomplete field inspection and completion application in WebDriver tests
+  - editor bridge hooks for deterministic query text and cursor positioning in WebDriver tests
   - export-store test hook for deterministic progress-overlay coverage without relying on the native save dialog
   - WebdriverIO logger suppression for the known non-blocking `element/.../name` warning noise during passing runs
   - dedicated Linux GitHub Actions workflow for real-app E2E on pull requests, pushes to `main`, and manual dispatch
   - Linux CI workflow execution under Xvfb with Tauri/WebKit system dependencies and `tauri-webdriver` installation
   - CI-aware WebDriver harness timeout tuning and explicit app-path override support for Linux debugging
   - developer docs updated to point to `tests/webdriver/` as the active real-app suite and `pnpm e2e:ci` as the CI entrypoint
+  - migrated multi-query and sidebar-context-menu specs into the real-app WebDriver suite
 - Verified:
   - real-app smoke spec passes on macOS
   - real-app connection-management spec passes on macOS
@@ -144,18 +146,22 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - real-app field-editing spec passes on macOS
   - real-app autocomplete spec passes on macOS
   - real-app export-ui spec passes on macOS
+  - real-app multi-query spec passes on macOS
+  - real-app sidebar-context-menu spec passes on macOS
   - current WebDriver suite (`pnpm e2e`) passes on macOS
   - Linux E2E workflow definition and CI entrypoint wiring are present in the repo
   - Linux E2E workflow passes on GitHub Actions for PR `#3`
   - `main` branch protection requires the `e2e-linux` status check
 - Latest progress:
+  - multi-query migration landed in commit `5aed6c9` (`Add webdriver coverage for multi-query execution`)
+  - sidebar-context-menu migration landed in commit `2f27089` (`Add webdriver coverage for sidebar context menus`)
   - warning-suppression cleanup landed in commit `50ca81e` (`Suppress webdriver warning noise in e2e harness`)
   - Linux CI rollout landed in commits `90b9eb7`, `56c7df8`, `0c6d791`, and `7096526`
   - the current macOS WebDriver suite runs cleanly without the prior non-blocking `element/.../name` warning spam
   - GitHub Actions run `23104422380` completed successfully for PR `#3`
   - `main` branch protection now enforces the `e2e-linux` required check
 - Remaining immediate work:
-  - start phase-2 migration work for preserved Playwright coverage such as results views, query history, multi-query modes, sidebar context menus, and shortcut rebinding
+  - finish the remaining smoke-spec shortcut parity work for `?` opening the shortcuts modal and shortcut rebinding
 
 ### Later Consideration: Autocomplete Coverage Limits
 
