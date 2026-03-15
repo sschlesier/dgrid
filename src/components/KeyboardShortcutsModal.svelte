@@ -15,7 +15,7 @@
   let pendingBinding = $state<ShortcutBinding | null>(null);
 
   // Category ordering
-  const categoryOrder = ['General', 'Tabs', 'Query', 'File'];
+  const categoryOrder = ['General', 'Tabs', 'Query', 'File', 'Results'];
 
   // Group definitions by category
   const groupedDefinitions = $derived.by(() => {
@@ -26,14 +26,25 @@
     }
     // Return in defined order
     return categoryOrder
-      .filter((cat) => groups[cat])
-      .map((cat) => ({ category: cat, shortcuts: groups[cat] }));
+      .filter((cat) => groups[cat] || staticRows[cat])
+      .map((cat) => ({ category: cat, shortcuts: groups[cat] ?? [] }));
   });
 
   // Check if any shortcut is customized (for Reset All button visibility)
   const hasAnyCustomization = $derived(
     SHORTCUT_DEFINITIONS.some((d) => keybindingsStore.isCustomized(d.id))
   );
+
+  const staticRows: Record<string, Array<{ description: string; keys: string[] }>> = {
+    General: [{ description: 'Close dialogs', keys: ['Esc'] }],
+    Results: [
+      { description: 'Next tree search match', keys: ['Enter'] },
+      { description: 'Previous tree search match', keys: ['Shift', 'Enter'] },
+      { description: 'Clear tree search', keys: ['Esc'] },
+      { description: 'Fold all JSON', keys: ['Ctrl', 'Shift', '['] },
+      { description: 'Unfold all JSON', keys: ['Ctrl', 'Shift', ']'] },
+    ],
+  };
 
   function handleKeyDown(event: KeyboardEvent) {
     if (editingId) {
@@ -242,16 +253,22 @@
               </div>
             {/each}
 
-            {#if group.category === 'General'}
-              <!-- Static Escape row -->
-              <div class="shortcut-row static">
-                <span class="shortcut-description">Close dialogs</span>
-                <span class="shortcut-actions">
-                  <span class="shortcut-keys static">
-                    <kbd>Esc</kbd>
+            {#if staticRows[group.category]}
+              {#each staticRows[group.category] as row}
+                <div class="shortcut-row static">
+                  <span class="shortcut-description">{row.description}</span>
+                  <span class="shortcut-actions">
+                    <span class="shortcut-keys static">
+                      {#each row.keys as keyPart, i}
+                        <kbd>{keyPart}</kbd>
+                        {#if i < row.keys.length - 1}
+                          <span class="key-separator">+</span>
+                        {/if}
+                      {/each}
+                    </span>
                   </span>
-                </span>
-              </div>
+                </div>
+              {/each}
             {/if}
           </div>
         </div>

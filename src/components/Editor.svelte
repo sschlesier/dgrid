@@ -7,7 +7,7 @@
     lineNumbers,
     placeholder as placeholderExt,
   } from '@codemirror/view';
-  import { EditorState, Compartment } from '@codemirror/state';
+  import { EditorState, Compartment, EditorSelection } from '@codemirror/state';
   import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
   import { javascript } from '@codemirror/lang-javascript';
   import { vim } from '@replit/codemirror-vim';
@@ -24,6 +24,7 @@
     value?: string;
     onchange?: (_value: string) => void;
     onexecute?: (_info: ExecuteInfo) => void;
+    onformat?: () => void;
     vimMode?: boolean;
     readonly?: boolean;
     placeholder?: string;
@@ -34,6 +35,7 @@
     value = '',
     onchange,
     onexecute,
+    onformat,
     vimMode = false,
     readonly = false,
     placeholder = '',
@@ -167,6 +169,13 @@
           return true;
         },
       },
+      {
+        key: bindingToCodeMirrorKey(keybindingsStore.getBinding('format-query')),
+        run: () => {
+          onformat?.();
+          return true;
+        },
+      },
     ]);
   }
 
@@ -257,6 +266,7 @@
     keybindingsStore.getBinding('execute-all');
     keybindingsStore.getBinding('execute-current');
     keybindingsStore.getBinding('execute-selected');
+    keybindingsStore.getBinding('format-query');
     if (view) {
       view.dispatch({
         effects: executeCompartment.reconfigure(createExecuteKeymap()),
@@ -306,6 +316,26 @@
       selectionTo: to,
       hasSelection: from !== to,
     };
+  }
+
+  export function replaceRange(
+    from: number,
+    to: number,
+    text: string,
+    options: { selectInserted?: boolean } = {}
+  ): void {
+    if (!view) return;
+
+    const selection = options.selectInserted
+      ? EditorSelection.range(from, from + text.length)
+      : EditorSelection.cursor(from + text.length);
+
+    view.dispatch({
+      changes: { from, to, insert: text },
+      selection,
+    });
+
+    view.focus();
   }
 </script>
 

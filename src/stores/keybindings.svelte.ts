@@ -68,6 +68,12 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     category: 'Query',
     defaultBinding: { key: 'enter', meta: true, alt: true },
   },
+  {
+    id: 'format-query',
+    description: 'Format query text',
+    category: 'Query',
+    defaultBinding: { key: 'l', meta: true },
+  },
 
   // File
   {

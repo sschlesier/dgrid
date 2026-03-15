@@ -35,6 +35,16 @@ describe('KeybindingsStore', () => {
       expect(keybindingsStore.definitions.length).toBe(SHORTCUT_DEFINITIONS.length);
       expect(keybindingsStore.definitions[0].id).toBe('show-help');
     });
+
+    it('includes the query format shortcut', () => {
+      const definition = SHORTCUT_DEFINITIONS.find((item) => item.id === 'format-query');
+      expect(definition).toEqual({
+        id: 'format-query',
+        description: 'Format query text',
+        category: 'Query',
+        defaultBinding: { key: 'l', meta: true },
+      });
+    });
   });
 
   describe('getBinding', () => {
@@ -64,6 +74,11 @@ describe('KeybindingsStore', () => {
       keybindingsStore.setBinding('new-tab', { key: 'n', meta: true, shift: true });
       const formatted = keybindingsStore.getFormatted('new-tab');
       expect(formatted).toBe('⌘⇧N');
+    });
+
+    it('returns formatted format-query binding', () => {
+      const formatted = keybindingsStore.getFormatted('format-query');
+      expect(formatted).toBe('⌘L');
     });
   });
 

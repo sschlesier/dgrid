@@ -8,6 +8,11 @@
   import { keybindingsStore } from '../stores/keybindings.svelte';
   import { splitQueries, findSliceAtOffset, findSlicesInSelection } from '../lib/querySplitter';
   import type { QuerySlice } from '../lib/querySplitter';
+  import {
+    applyFormatSuggestion,
+    formatQueryText,
+    type FormatSuggestion,
+  } from '../lib/queryFormatter';
   import { matchesBinding } from '../utils/keyboard';
   import { watchFile } from '../api/websocket';
   import * as api from '../api/client';
@@ -66,6 +71,12 @@
   let showHistory = $state(false);
   let editorRef: Editor | null = $state(null);
   let showDropdown = $state(false);
+  let formatAssist = $state<{
+    message: string;
+    from: number;
+    to: number;
+    suggestions: FormatSuggestion[];
+  } | null>(null);
 
   // Resizable splitter state
   let editorHeight = $state(200);
@@ -101,11 +112,44 @@
 
   function handleQueryChange(value: string) {
     queryStore.setQueryText(tab.id, value);
+    formatAssist = null;
     // Update tab title based on query
     const firstLine = value.split('\n')[0].slice(0, 30);
     if (firstLine) {
       appStore.updateTab(tab.id, { title: firstLine || 'New Query' });
     }
+  }
+
+  function getFormatTarget() {
+    const fullText = queryStore.getQueryText(tab.id);
+    const cursorInfo = editorRef?.getCursorInfo() ?? {
+      offset: 0,
+      selectionFrom: 0,
+      selectionTo: 0,
+      hasSelection: false,
+    };
+
+    if (cursorInfo.hasSelection) {
+      return {
+        fullText,
+        cursorInfo,
+        from: cursorInfo.selectionFrom,
+        to: cursorInfo.selectionTo,
+        text: fullText.slice(cursorInfo.selectionFrom, cursorInfo.selectionTo),
+      };
+    }
+
+    const slices = splitQueries(fullText);
+    const activeSlice = findSliceAtOffset(slices, cursorInfo.offset);
+    if (!activeSlice) return null;
+
+    return {
+      fullText,
+      cursorInfo,
+      from: activeSlice.startOffset,
+      to: activeSlice.endOffset,
+      text: fullText.slice(activeSlice.startOffset, activeSlice.endOffset),
+    };
   }
 
   // Resolve which slices to execute based on mode
@@ -223,6 +267,79 @@
       selectionTo: cursorInfo.selectionTo,
       hasSelection: cursorInfo.hasSelection,
     });
+  }
+
+  async function runFormatForRange(
+    from: number,
+    to: number,
+    textToFormat: string,
+    cursorInfo: {
+      offset: number;
+      selectionFrom: number;
+      selectionTo: number;
+      hasSelection: boolean;
+    }
+  ) {
+    const result = await formatQueryText(textToFormat);
+
+    if (!result.ok) {
+      formatAssist =
+        result.suggestions.length > 0
+          ? {
+              message: result.message,
+              from,
+              to,
+              suggestions: result.suggestions,
+            }
+          : null;
+
+      if (result.suggestions.length === 0) {
+        appStore.notify('error', `Failed to format query: ${result.message}`);
+      }
+      return false;
+    }
+
+    formatAssist = null;
+
+    if (result.formatted === textToFormat) return true;
+
+    editorRef?.replaceRange(from, to, result.formatted, {
+      selectInserted: cursorInfo.hasSelection,
+    });
+
+    return true;
+  }
+
+  async function handleFormatQuery() {
+    const target = getFormatTarget();
+    if (!target || !target.fullText.trim()) return;
+
+    await runFormatForRange(target.from, target.to, target.text, target.cursorInfo);
+  }
+
+  async function handleApplyFormatSuggestion(suggestion: FormatSuggestion) {
+    if (!formatAssist) return;
+
+    const currentText = queryStore.getQueryText(tab.id).slice(formatAssist.from, formatAssist.to);
+    const correctedText = applyFormatSuggestion(currentText, suggestion);
+    const applyFrom = formatAssist.from;
+
+    editorRef?.replaceRange(applyFrom, formatAssist.to, correctedText, {
+      selectInserted: false,
+    });
+
+    appStore.notify('success', `Applied fix: ${suggestion.label}`);
+
+    await runFormatForRange(applyFrom, applyFrom + correctedText.length, correctedText, {
+      offset: applyFrom + correctedText.length,
+      selectionFrom: applyFrom,
+      selectionTo: applyFrom + correctedText.length,
+      hasSelection: false,
+    });
+  }
+
+  function dismissFormatAssist() {
+    formatAssist = null;
   }
 
   function toggleDropdown() {
@@ -623,13 +740,48 @@
       {/if}
 
       <span class="toolbar-info">Database: {tab.database}</span>
+
+      <button
+        class="toolbar-btn"
+        onclick={handleFormatQuery}
+        disabled={!queryText.trim()}
+        title="Format Query ({keybindingsStore.getFormatted('format-query')})"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path
+            d="M2.75 3a.75.75 0 0 1 0-1.5h10.5a.75.75 0 0 1 0 1.5Zm0 4.25a.75.75 0 0 1 0-1.5h7.5a.75.75 0 0 1 0 1.5Zm0 4.25a.75.75 0 0 1 0-1.5h10.5a.75.75 0 0 1 0 1.5Zm8.22-3.03a.75.75 0 0 1 1.06 0l1.22 1.22 1.22-1.22a.75.75 0 1 1 1.06 1.06l-1.22 1.22 1.22 1.22a.75.75 0 1 1-1.06 1.06l-1.22-1.22-1.22 1.22a.75.75 0 1 1-1.06-1.06l1.22-1.22-1.22-1.22a.75.75 0 0 1 0-1.06Z"
+          />
+        </svg>
+        <span>Format</span>
+      </button>
     </div>
+
+    {#if formatAssist}
+      <div class="format-assist">
+        <div class="format-assist-copy">
+          <strong>Likely fix available</strong>
+          <span>{formatAssist.message}</span>
+        </div>
+        <div class="format-assist-actions">
+          {#each formatAssist.suggestions as suggestion}
+            <button
+              class="format-assist-btn primary"
+              onclick={() => handleApplyFormatSuggestion(suggestion)}
+            >
+              {suggestion.label}
+            </button>
+          {/each}
+          <button class="format-assist-btn" onclick={dismissFormatAssist}>Dismiss</button>
+        </div>
+      </div>
+    {/if}
 
     <Editor
       bind:this={editorRef}
       value={queryText}
       onchange={handleQueryChange}
       onexecute={handleExecute}
+      onformat={handleFormatQuery}
       vimMode={editorStore.vimMode}
       placeholder="Enter your MongoDB query here... (e.g., db.collection.find())"
       {fieldNames}
@@ -1046,6 +1198,56 @@
     background-color: var(--color-bg-tertiary);
     padding: 0 4px;
     border-radius: var(--radius-sm);
+  }
+
+  .format-assist {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    background-color: var(--color-warning-light);
+    color: var(--color-warning-text);
+    border-top: 1px solid var(--color-warning);
+    border-bottom: 1px solid var(--color-warning);
+  }
+
+  .format-assist-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: var(--font-size-sm);
+  }
+
+  .format-assist-copy strong {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .format-assist-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+  }
+
+  .format-assist-btn {
+    padding: var(--space-xxs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    background-color: rgba(255, 255, 255, 0.65);
+    color: inherit;
+    font-size: var(--font-size-sm);
+    transition: background-color var(--transition-fast);
+  }
+
+  .format-assist-btn:hover {
+    background-color: rgba(255, 255, 255, 0.85);
+  }
+
+  .format-assist-btn.primary {
+    background-color: var(--color-warning);
+    border-color: var(--color-warning);
+    color: var(--color-warning-text);
   }
 
   .error-display {
