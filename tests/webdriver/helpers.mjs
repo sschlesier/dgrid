@@ -74,12 +74,17 @@ export async function expandTreeNode(name) {
 }
 
 export async function clearAndTypeQuery(query) {
-  const editor = await s.query.editorContent();
-  await editor.click();
-  const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
-  await browser.keys([modifier, 'a']);
-  await browser.keys('Backspace');
-  await browser.keys(query.split(''));
+  const editor = await s.query.editorContainer();
+  await browser.execute((el, nextQuery) => {
+    el.__dgridTest?.setValue(nextQuery);
+  }, editor, query);
+}
+
+export async function setQueryCursor(offset) {
+  const editor = await s.query.editorContainer();
+  await browser.execute((el, nextOffset) => {
+    el.__dgridTest?.setSelection(nextOffset);
+  }, editor, offset);
 }
 
 export async function contextClick(element, xOffset = 0, yOffset = 0) {
