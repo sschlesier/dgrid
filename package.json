@@ -25,10 +25,11 @@
     "release": "tsx scripts/release.ts",
     "prepare": "husky",
     "tauri": "tauri",
-    "e2e": "echo 'E2E tests disabled — need migration to Tauri-compatible approach (see tests/e2e/README.md)' && exit 1",
-    "e2e:headed": "echo 'E2E tests disabled' && exit 1",
-    "e2e:ui": "echo 'E2E tests disabled' && exit 1",
-    "e2e:report": "echo 'E2E tests disabled' && exit 1"
+    "e2e": "node scripts/run-tauri-e2e.mjs",
+    "e2e:headed": "node scripts/run-tauri-e2e.mjs",
+    "e2e:ci": "node scripts/run-tauri-e2e.mjs --ci",
+    "e2e:install-driver": "cargo install tauri-webdriver",
+    "e2e:report": "node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs"
   },
   "keywords": [
     "mongodb",
@@ -66,9 +67,14 @@
     "@typescript-eslint/eslint-plugin": "^8.53.1",
     "@typescript-eslint/parser": "^8.53.1",
     "@vitest/coverage-v8": "^3.2.4",
+    "@wdio/cli": "^9.25.0",
+    "@wdio/local-runner": "^9.25.0",
+    "@wdio/mocha-framework": "^9.25.0",
+    "@wdio/spec-reporter": "^9.25.0",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-svelte": "^3.14.0",
+    "expect-webdriverio": "^5.6.5",
     "globals": "^17.1.0",
     "happy-dom": "^15.11.7",
     "husky": "^9.1.7",
@@ -80,6 +86,7 @@
     "svelte-check": "^4.3.5",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "webdriverio": "^9.25.0"
   }
 }
