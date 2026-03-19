@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+
+- Add update preview in edit field dialog showing the operation that will be executed
+- Warn when editing \_id fields that could change document identity
+- Add query auto-formatting with keyboard shortcut support
+- Update keyboard shortcuts modal with new shortcuts
+
 ## 1.1.2
 
 - Fix: query parser now ignores inline comments (e.g. `// comment`)
