@@ -4,7 +4,7 @@
   "description": "Modern MongoDB GUI with AI-native development",
   "type": "module",
   "engines": {
-    "node": ">=22",
+    "node": ">=24",
     "pnpm": ">=9"
   },
   "scripts": {

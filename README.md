@@ -85,7 +85,7 @@ Press `?` to see all shortcuts. The essentials:
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (stable toolchain)
-- [Node.js](https://nodejs.org/) >= 22
+- [Node.js](https://nodejs.org/) >= 24
 - [pnpm](https://pnpm.io/) >= 9
 - Platform dependencies:
   - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
