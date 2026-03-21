@@ -10,6 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const runtimeFile = path.join(repoRoot, 'tests', 'webdriver', '.runtime.json');
 const artifactsDir = path.join(repoRoot, 'tests', 'webdriver', 'artifacts');
+const runtimeMetadataFile = path.join(artifactsDir, 'runtime-metadata.json');
 const driverPort = parseInt(process.env.DGRID_E2E_WEBDRIVER_PORT || '4444', 10);
 
 const argv = process.argv.slice(2);
@@ -47,6 +48,11 @@ try {
   appLauncherPath = await createAppLauncher(applicationBinaryPath);
   const mongoUrl = new URL(mongod.getUri());
   const runtime = {
+    startedAt: new Date().toISOString(),
+    ci: isCi,
+    platform: process.platform,
+    arch: process.arch,
+    pid: process.pid,
     mongo: {
       host: mongoUrl.hostname,
       port: parseInt(mongoUrl.port, 10),
@@ -60,8 +66,10 @@ try {
 
   await mkdir(path.dirname(runtimeFile), { recursive: true });
   await writeFile(runtimeFile, JSON.stringify(runtime, null, 2));
+  await writeFile(runtimeMetadataFile, JSON.stringify(runtime, null, 2));
   harnessLogger.info(`E2E artifacts directory: ${artifactsDir}`);
   harnessLogger.info(`Runtime file: ${runtimeFile}`);
+  harnessLogger.info(`Runtime metadata: ${runtimeMetadataFile}`);
   harnessLogger.info(`Application binary: ${runtime.applicationBinaryPath}`);
 
   driverLogStream = fs.createWriteStream(path.join(artifactsDir, 'tauri-webdriver.log'), {
