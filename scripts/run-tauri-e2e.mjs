@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs, { constants as fsConstants } from 'node:fs';
-import { access, chmod, mkdir, rm, writeFile } from 'node:fs/promises';
+import { access, appendFile, chmod, mkdir, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,6 +11,8 @@ const repoRoot = path.resolve(__dirname, '..');
 const runtimeFile = path.join(repoRoot, 'tests', 'webdriver', '.runtime.json');
 const artifactsDir = path.join(repoRoot, 'tests', 'webdriver', 'artifacts');
 const runtimeMetadataFile = path.join(artifactsDir, 'runtime-metadata.json');
+const junitReportFile = path.join(artifactsDir, 'wdio-junit.xml');
+const ciSummaryFile = path.join(artifactsDir, 'ci-summary.md');
 const driverPort = parseInt(process.env.DGRID_E2E_WEBDRIVER_PORT || '4444', 10);
 
 const argv = process.argv.slice(2);
@@ -29,6 +31,7 @@ let appLauncherPath;
 let driverLogStream;
 let harnessLogStream;
 let harnessLogger;
+let testFailure;
 
 try {
   await prepareArtifactsDir();
@@ -114,11 +117,16 @@ try {
     env: {
       ...process.env,
       DGRID_E2E_RUNTIME_FILE: runtimeFile,
+      DGRID_E2E_JUNIT_FILE: junitReportFile,
       DGRID_E2E_CI: isCi ? '1' : process.env.DGRID_E2E_CI || '',
     },
     logger: harnessLogger,
   });
+} catch (error) {
+  testFailure = error;
 } finally {
+  await publishCiSummary();
+
   if (tauriDriverProcess && !tauriDriverProcess.killed) {
     tauriDriverProcess.kill('SIGTERM');
   }
@@ -137,6 +145,10 @@ try {
 
   await closeStream(driverLogStream);
   await closeStream(harnessLogStream);
+}
+
+if (testFailure) {
+  throw testFailure;
 }
 
 async function ensureDriverInstalled() {
@@ -222,6 +234,141 @@ async function runCommand(command, args, options) {
 async function prepareArtifactsDir() {
   await rm(artifactsDir, { recursive: true, force: true });
   await mkdir(artifactsDir, { recursive: true });
+}
+
+async function publishCiSummary() {
+  const summary = await buildCiSummary();
+  await writeFile(ciSummaryFile, summary, 'utf8');
+
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+  if (summaryPath) {
+    await appendFile(summaryPath, summary, 'utf8');
+  }
+}
+
+async function buildCiSummary() {
+  const fallbackLines = [
+    '## Linux E2E Summary',
+    '',
+    'No JUnit report was generated.',
+  ];
+
+  let xml;
+  try {
+    xml = await fs.promises.readFile(junitReportFile, 'utf8');
+  } catch {
+    return `${fallbackLines.join('\n')}\n`;
+  }
+
+  const suites = parseJUnitSuites(xml);
+  if (suites.length === 0) {
+    return `${fallbackLines.join('\n')}\n`;
+  }
+
+  const totalTests = suites.reduce((sum, suite) => sum + suite.tests, 0);
+  const totalFailures = suites.reduce((sum, suite) => sum + suite.failures, 0);
+  const totalSkipped = suites.reduce((sum, suite) => sum + suite.skipped, 0);
+  const totalDuration = suites.reduce((sum, suite) => sum + suite.durationSeconds, 0);
+
+  const lines = [
+    '## Linux E2E Summary',
+    '',
+    `- Specs: ${suites.length}`,
+    `- Tests: ${totalTests}`,
+    `- Failures: ${totalFailures}`,
+    `- Skipped: ${totalSkipped}`,
+    `- Duration: ${formatDuration(totalDuration)}`,
+    '',
+    '### Spec durations',
+  ];
+
+  for (const suite of [...suites].sort((a, b) => b.durationSeconds - a.durationSeconds)) {
+    lines.push(
+      `- ${suite.file || suite.name}: ${formatDuration(suite.durationSeconds)} (${suite.tests} tests, ${suite.failures} failed${suite.skipped ? `, ${suite.skipped} skipped` : ''})`
+    );
+  }
+
+  const failingSuites = suites.filter((suite) => suite.failures > 0);
+  if (failingSuites.length > 0) {
+    lines.push('', '### Failing specs');
+    for (const suite of failingSuites) {
+      lines.push(`- ${suite.file || suite.name}`);
+      for (const failure of suite.failuresList) {
+        lines.push(`  - ${failure}`);
+      }
+    }
+  }
+
+  lines.push('', `JUnit report: \`tests/webdriver/artifacts/${path.basename(junitReportFile)}\``);
+  return `${lines.join('\n')}\n`;
+}
+
+function parseJUnitSuites(xml) {
+  const suites = [];
+  const suiteRegex = /<testsuite\b([^>]*)>([\s\S]*?)<\/testsuite>/g;
+
+  for (const match of xml.matchAll(suiteRegex)) {
+    const attrs = parseXmlAttributes(match[1] ?? '');
+    const body = match[2] ?? '';
+    const failuresList = [];
+
+    for (const failureMatch of body.matchAll(/<testcase\b([^>]*)>([\s\S]*?)<\/testcase>/g)) {
+      const testcaseAttrs = parseXmlAttributes(failureMatch[1] ?? '');
+      const testcaseBody = failureMatch[2] ?? '';
+      if (!/<failure\b/i.test(testcaseBody)) {
+        continue;
+      }
+
+      const className = testcaseAttrs.classname || testcaseAttrs.class || '';
+      const testName = testcaseAttrs.name || 'Unnamed test';
+      failuresList.push(className ? `${className} :: ${testName}` : testName);
+    }
+
+    suites.push({
+      name: attrs.name || 'Unnamed suite',
+      file: attrs.file || '',
+      tests: parseInt(attrs.tests || '0', 10),
+      failures: parseInt(attrs.failures || '0', 10),
+      skipped: parseInt(attrs.skipped || attrs.disabled || '0', 10),
+      durationSeconds: parseFloat(attrs.time || '0'),
+      failuresList,
+    });
+  }
+
+  return suites;
+}
+
+function parseXmlAttributes(rawAttributes) {
+  const attributes = {};
+  const attributeRegex = /([\w:-]+)="([^"]*)"/g;
+
+  for (const [, key, value] of rawAttributes.matchAll(attributeRegex)) {
+    attributes[key] = decodeXmlEntities(value);
+  }
+
+  return attributes;
+}
+
+function decodeXmlEntities(value) {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '0.0s';
+  }
+  if (seconds < 60) {
+    return `${seconds.toFixed(1)}s`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds - minutes * 60;
+  return `${minutes}m ${remainingSeconds.toFixed(1)}s`;
 }
 
 function createLogger(name) {

@@ -10,6 +10,20 @@ if (!runtimeFile || !fs.existsSync(runtimeFile)) {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const runtime = JSON.parse(fs.readFileSync(runtimeFile, 'utf8'));
 const isCi = process.env.DGRID_E2E_CI === '1' || process.env.CI === 'true';
+const junitOutputFile = process.env.DGRID_E2E_JUNIT_FILE;
+
+const reporters = ['spec'];
+if (junitOutputFile) {
+  reporters.push([
+    'junit',
+    {
+      outputDir: path.dirname(junitOutputFile),
+      outputFileFormat: () => path.basename(junitOutputFile),
+      addFileAttribute: true,
+      packageName: 'dgrid-webdriver-e2e',
+    },
+  ]);
+}
 
 export const config = {
   runner: 'local',
@@ -23,7 +37,7 @@ export const config = {
     webdriver: 'silent',
   },
   framework: 'mocha',
-  reporters: ['spec'],
+  reporters,
   waitforTimeout: isCi ? 20_000 : 10_000,
   connectionRetryCount: isCi ? 2 : 1,
   connectionRetryTimeout: isCi ? 60_000 : 30_000,

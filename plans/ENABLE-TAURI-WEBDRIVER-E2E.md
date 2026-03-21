@@ -139,6 +139,9 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - harness-side artifact log capture for the Tauri app, `tauri-webdriver`, and the Node launcher while preserving console output
   - persisted runtime metadata in `tests/webdriver/artifacts/runtime-metadata.json` for CI triage
   - Linux CI failure-artifact upload for the WebDriver artifacts directory, covering logs and any persisted failure snapshots
+  - WDIO JUnit report emission under `tests/webdriver/artifacts/wdio-junit.xml` alongside the existing spec reporter
+  - CI summary generation under `tests/webdriver/artifacts/ci-summary.md` with spec durations and failing-spec rollups when JUnit output is present
+  - Linux CI artifact upload for the machine-readable WDIO results bundle (`wdio-junit.xml` and `ci-summary.md`)
   - developer docs updated to point to `tests/webdriver/` as the active real-app suite and `pnpm e2e:ci` as the CI entrypoint
   - migrated multi-query and sidebar-context-menu specs into the real-app WebDriver suite
 - Verified:
@@ -157,6 +160,8 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - Linux E2E workflow definition and CI entrypoint wiring are present in the repo
   - Linux E2E workflow passes on GitHub Actions for PR `#3`
   - `main` branch protection requires the `e2e-linux` status check
+  - `pnpm exec eslint scripts/run-tauri-e2e.mjs tests/webdriver/wdio.conf.mjs` passes after the Chunk 3 reporting changes
+  - `node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs` reaches the harness startup and summary-generation path locally, but full execution is blocked in the current sandbox when `mongodb-memory-server` attempts to bind `0.0.0.0`
 - Latest progress:
   - multi-query migration landed in commit `5aed6c9` (`Add webdriver coverage for multi-query execution`)
   - sidebar-context-menu migration landed in commit `2f27089` (`Add webdriver coverage for sidebar context menus`)
@@ -169,9 +174,9 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - `main` branch protection now enforces the `e2e-linux` required check
   - Chunk 1 CI diagnostics landed with persistent harness, `tauri-webdriver`, and Tauri app logs under `tests/webdriver/artifacts/`
   - Chunk 2 CI failure artifact upload landed with persisted runtime metadata and workflow-side artifact publishing for failed Linux runs
+  - Chunk 3 machine-readable WDIO reporting and CI summary wiring is now in place for the Linux workflow
 - Remaining immediate work:
   - no immediate parity gaps remain in the current planned real-app WebDriver suite
   - next follow-up should focus on CI diagnostics and be split into commit-sized chunks:
-    - Chunk 3: emit machine-readable WDIO results for CI, preferably JUnit alongside the existing spec reporter, and publish a short job summary with failing specs and durations
     - Chunk 4: add richer failure snapshots from the WebDriver suite itself, such as per-failure page source dumps and screenshots, written into a stable artifacts directory that CI can upload
     - Chunk 5: tighten CI observability and triage ergonomics, including explicit tool/version reporting, built-app path reporting, and preservation of the built debug binary on failed Linux runs when useful for reproduction

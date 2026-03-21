@@ -52,6 +52,17 @@ jobs:
       - name: Run Linux E2E suite
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" pnpm e2e:ci
 
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-e2e-results
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            tests/webdriver/artifacts/wdio-junit.xml
+            tests/webdriver/artifacts/ci-summary.md
+
       - name: Upload failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
