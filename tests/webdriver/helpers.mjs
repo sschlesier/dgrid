@@ -87,6 +87,69 @@ export async function setQueryCursor(offset) {
   }, editor, offset);
 }
 
+export async function focusQueryEditor() {
+  const editor = await s.query.editorContent();
+  await editor.click();
+  return editor;
+}
+
+export async function dispatchQueryEditorCommand(type) {
+  const editor = await s.query.editorContainer();
+  await browser.execute((el, eventType) => {
+    el.dispatchEvent(
+      new CustomEvent(eventType, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      })
+    );
+  }, editor, type);
+}
+
+export async function dispatchQueryEditorKey({
+  key,
+  code = key,
+  ctrl = false,
+  meta = false,
+  shift = false,
+  alt = false,
+}) {
+  const editor = await s.query.editorContent();
+  await browser.execute(
+    (el, nextKey, nextCode, nextCtrl, nextMeta, nextShift, nextAlt) => {
+      el.focus();
+      el.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: nextKey,
+          code: nextCode,
+          ctrlKey: nextCtrl,
+          metaKey: nextMeta,
+          shiftKey: nextShift,
+          altKey: nextAlt,
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+        })
+      );
+    },
+    editor,
+    key,
+    code,
+    ctrl,
+    meta,
+    shift,
+    alt
+  );
+}
+
+export async function getAutocompleteOptionLabels() {
+  return await browser.execute(() =>
+    Array.from(document.querySelectorAll('.cm-tooltip-autocomplete .cm-completionLabel'))
+      .map((element) => element.textContent?.trim() ?? '')
+      .filter(Boolean)
+  );
+}
+
 export async function contextClick(element, xOffset = 0, yOffset = 0) {
   await browser.execute(
     (el, offsetX, offsetY) => {

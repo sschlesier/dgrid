@@ -2,6 +2,10 @@ import { expect } from 'expect-webdriverio';
 import {
   clearAndTypeQuery,
   createConnection,
+  dispatchQueryEditorCommand,
+  dispatchQueryEditorKey,
+  focusQueryEditor,
+  getAutocompleteOptionLabels,
   openCollection,
   resetApp,
   s,
@@ -38,19 +42,7 @@ describe('Field Autocomplete', () => {
     await openCollection(connectionName, TEST_DB, TEST_COLLECTION);
   }
 
-  async function setAutocompleteFields(fields) {
-    const editor = await s.query.editorContainer();
-    await browser.execute(
-      (el, nextFields) => {
-        el.__dgridTest?.setFieldNames(nextFields);
-      },
-      editor,
-      fields
-    );
-  }
-
-  async function triggerAutocomplete(query, expectedField) {
-    await clearAndTypeQuery(query);
+  async function waitForAutocompleteField(expectedField) {
     const editor = await s.query.editorContainer();
     await browser.waitUntil(
       async () =>
@@ -58,48 +50,112 @@ describe('Field Autocomplete', () => {
           (el, expectedName) => {
             const bridge = el.__dgridTest;
             if (!bridge) return false;
-            const fields = bridge.getFieldNames();
-            return fields.length > 0 && fields.includes(expectedName);
+            return bridge.getFieldNames().includes(expectedName);
           },
           editor,
           expectedField
         ),
-      { timeout: 10_000, timeoutMsg: 'Autocomplete field names were not ready' }
+      { timeout: 10_000, timeoutMsg: `Autocomplete field ${expectedField} was not ready` }
     );
-    return editor;
   }
 
-  it('exposes seeded field names to the editor autocomplete bridge', async () => {
+  async function openAutocomplete(query, expectedField) {
+    await clearAndTypeQuery(query);
+    await waitForAutocompleteField(expectedField);
+    await focusQueryEditor();
+    await dispatchQueryEditorCommand('dgrid:editor-start-completion');
+    await s.query.autocomplete().waitForDisplayed({ timeout: 5_000 });
+    await expect(s.query.autocompleteOption(expectedField)).toBeDisplayed();
+  }
+
+  async function selectedAutocompleteOptionText() {
+    return await s.query.autocompleteSelectedOption().getText();
+  }
+
+  it('opens the visible autocomplete popup after navigating to a seeded collection', async () => {
     await openSeededCollection([
       { name: 'Alice', age: 30, email: 'alice@example.com' },
       { name: 'Bob', age: 25, email: 'bob@example.com' },
     ]);
-    await setAutocompleteFields(['name', 'age', 'email']);
 
-    const editor = await triggerAutocomplete(`db.${TEST_COLLECTION}.find({ n`, 'name');
-    const fieldNames = await browser.execute((el) => el.__dgridTest?.getFieldNames() ?? [], editor);
-    expect(fieldNames).toContain('name');
-    expect(fieldNames).toContain('email');
+    await openAutocomplete(`db.${TEST_COLLECTION}.find({ n`, 'name');
+    await expect(s.query.autocomplete()).toBeDisplayed();
   });
 
-  it('applies a completion into the editor text', async () => {
+  it('accepts the selected completion into the editor text', async () => {
     await openSeededCollection([{ name: 'Alice', age: 30 }]);
-    await setAutocompleteFields(['name', 'age']);
 
-    const editor = await triggerAutocomplete(`db.${TEST_COLLECTION}.find({ na`, 'name');
-    await browser.execute((el) => {
-      el.__dgridTest?.applyCompletion('name');
-    }, editor);
+    await openAutocomplete(`db.${TEST_COLLECTION}.find({ na`, 'name');
+    await dispatchQueryEditorCommand('dgrid:editor-accept-completion');
+
+    await s.query.autocomplete().waitForDisplayed({ reverse: true, timeout: 5_000 });
     await expect(s.query.editorContent()).toHaveText(expect.stringContaining('name'));
   });
 
-  it('supports nested dot-notation fields', async () => {
+  it('renders nested dot-notation paths in the popup', async () => {
     await openSeededCollection([{ name: 'Alice', address: { city: 'NYC', zip: '10001' } }]);
-    await setAutocompleteFields(['name', 'address.city', 'address.zip']);
 
-    const editor = await triggerAutocomplete(`db.${TEST_COLLECTION}.find({ address`, 'address.city');
-    const fieldNames = await browser.execute((el) => el.__dgridTest?.getFieldNames() ?? [], editor);
-    expect(fieldNames).toContain('address.city');
-    expect(fieldNames).toContain('address.zip');
+    await openAutocomplete(`db.${TEST_COLLECTION}.find({ address`, 'address.city');
+    await expect(s.query.autocompleteOption('address.zip')).toBeDisplayed();
+  });
+
+  it('moves the selected popup option with arrow-style commands', async () => {
+    await openSeededCollection([{ name: 'Alice', nickname: 'Ally', notes: 'hello' }]);
+
+    await openAutocomplete(`db.${TEST_COLLECTION}.find({ n`, 'name');
+
+    const initialSelected = await selectedAutocompleteOptionText();
+    await dispatchQueryEditorCommand('dgrid:editor-move-completion-down');
+    const afterDown = await selectedAutocompleteOptionText();
+    expect(afterDown).not.toBe(initialSelected);
+
+    await dispatchQueryEditorCommand('dgrid:editor-move-completion-up');
+    const afterUp = await selectedAutocompleteOptionText();
+    expect(afterUp).toBe(initialSelected);
+  });
+
+  it('supports vim-style ctrl+j / ctrl+k navigation in the visible popup', async () => {
+    await openSeededCollection([{ name: 'Alice', nickname: 'Ally', notes: 'hello' }]);
+
+    await openAutocomplete(`db.${TEST_COLLECTION}.find({ n`, 'name');
+
+    const initialSelected = await selectedAutocompleteOptionText();
+    await dispatchQueryEditorKey({ key: 'j', code: 'KeyJ', ctrl: true });
+    const afterFirstMove = await selectedAutocompleteOptionText();
+    expect(afterFirstMove).not.toBe(initialSelected);
+
+    await dispatchQueryEditorKey({ key: 'k', code: 'KeyK', ctrl: true });
+    const afterSecondMove = await selectedAutocompleteOptionText();
+    expect(afterSecondMove).toBe(initialSelected);
+  });
+
+  it('refines visible popup matches as the query text narrows', async () => {
+    await openSeededCollection([{ name: 'Alice', age: 30, email: 'alice@example.com' }]);
+
+    await openAutocomplete(`db.${TEST_COLLECTION}.find({ a`, 'age');
+    const optionsBefore = await getAutocompleteOptionLabels();
+
+    await clearAndTypeQuery(`db.${TEST_COLLECTION}.find({ age`);
+    await focusQueryEditor();
+    await dispatchQueryEditorCommand('dgrid:editor-start-completion');
+    await expect(s.query.autocompleteOption('age')).toBeDisplayed();
+
+    await browser.waitUntil(
+      async () => {
+        const optionsAfter = await getAutocompleteOptionLabels();
+        return optionsAfter.length <= optionsBefore.length && optionsAfter.includes('age');
+      },
+      { timeout: 5_000, timeoutMsg: 'Autocomplete options did not refine after narrowing text' }
+    );
+  });
+
+  it('shows fields discovered from query-result schema enrichment in the popup', async () => {
+    await openSeededCollection([{ name: 'Alice', age: 30 }]);
+
+    await clearAndTypeQuery(`db.${TEST_COLLECTION}.find({})`);
+    await (await s.query.executeButton()).click();
+    await expect(s.results.gridViewport()).toBeDisplayed();
+
+    await openAutocomplete(`db.${TEST_COLLECTION}.find({ ag`, 'age');
   });
 });
