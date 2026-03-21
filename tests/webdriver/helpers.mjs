@@ -10,9 +10,17 @@ export async function resetApp() {
   } catch {
     // Some Tauri WebDriver sessions reject script execution while the webview is still settling.
   }
-  // Starting a fresh WebDriver session is slower than a page refresh, but it avoids
-  // the post-shortcut instability we see with in-place reloads in the Tauri webview.
-  await browser.reloadSession();
+  // macOS needs the heavier session reset after shortcut editing, but Linux keeps the
+  // webdriver plugin and app state healthier if we stay on the same session.
+  if (process.platform === 'darwin') {
+    await browser.reloadSession();
+  } else {
+    try {
+      await browser.refresh();
+    } catch {
+      await browser.reloadSession();
+    }
+  }
   await waitForAppReady();
 }
 
