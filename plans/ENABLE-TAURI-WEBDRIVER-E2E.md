@@ -143,6 +143,7 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - CI summary generation under `tests/webdriver/artifacts/ci-summary.md` with spec durations and failing-spec rollups when JUnit output is present
   - Linux CI artifact upload for the machine-readable WDIO results bundle (`wdio-junit.xml` and `ci-summary.md`)
   - WDIO failure-artifact capture under `tests/webdriver/artifacts/failure-artifacts/` with per-failure screenshots, page-source dumps, and JSON metadata for CI triage
+  - Chunk 5 CI observability updates: explicit tool/version capture, built-app launcher/binary path reporting, and failed-run debug-binary preservation inside the uploaded artifacts bundle
   - developer docs updated to point to `tests/webdriver/` as the active real-app suite and `pnpm e2e:ci` as the CI entrypoint
   - migrated multi-query and sidebar-context-menu specs into the real-app WebDriver suite
 - Verified:
@@ -161,7 +162,7 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - Linux E2E workflow definition and CI entrypoint wiring are present in the repo
   - Linux E2E workflow passes on GitHub Actions for PR `#3`
   - `main` branch protection requires the `e2e-linux` status check
-  - `pnpm exec eslint scripts/run-tauri-e2e.mjs tests/webdriver/wdio.conf.mjs` passes after the Chunk 3 reporting changes
+  - `pnpm exec eslint scripts/run-tauri-e2e.mjs tests/webdriver/wdio.conf.mjs` passes after the Chunk 5 observability changes
   - `node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs` reaches the harness startup and summary-generation path locally, but full execution is blocked in the current sandbox when `mongodb-memory-server` attempts to bind `0.0.0.0`
 - Latest progress:
   - multi-query migration landed in commit `5aed6c9` (`Add webdriver coverage for multi-query execution`)
@@ -177,7 +178,7 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - Chunk 2 CI failure artifact upload landed with persisted runtime metadata and workflow-side artifact publishing for failed Linux runs
   - Chunk 3 machine-readable WDIO reporting and CI summary wiring is now in place for the Linux workflow
   - Chunk 4 richer WebDriver failure snapshots is now in place with per-failure screenshots, page-source dumps, and JSON metadata in the uploaded artifacts bundle
+  - Chunk 5 CI observability is now in place with runtime tool-version capture, explicit built-app path reporting, and failed-run binary preservation wired into the Linux workflow artifacts
 - Remaining immediate work:
   - no immediate parity gaps remain in the current planned real-app WebDriver suite
-  - next follow-up should focus on CI diagnostics and be split into commit-sized chunks:
-    - Chunk 5: tighten CI observability and triage ergonomics, including explicit tool/version reporting, built-app path reporting, and preservation of the built debug binary on failed Linux runs when useful for reproduction
+  - next follow-up should build on the completed CI diagnostics baseline rather than the original migration backlog

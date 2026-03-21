@@ -50,6 +50,8 @@ jobs:
         run: cargo install tauri-webdriver
 
       - name: Run Linux E2E suite
+        env:
+          DGRID_E2E_PRESERVE_APP_BINARY_ON_FAILURE: '1'
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" pnpm e2e:ci
 
       - name: Upload JUnit results

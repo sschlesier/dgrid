@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs, { constants as fsConstants } from 'node:fs';
-import { access, appendFile, chmod, mkdir, rm, writeFile } from 'node:fs/promises';
+import { access, appendFile, chmod, copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -17,6 +17,9 @@ const driverPort = parseInt(process.env.DGRID_E2E_WEBDRIVER_PORT || '4444', 10);
 
 const argv = process.argv.slice(2);
 const isCi = argv.includes('--ci') || process.env.CI === 'true';
+const preserveAppBinaryOnFailure =
+  process.env.DGRID_E2E_PRESERVE_APP_BINARY_ON_FAILURE === '1' ||
+  process.env.GITHUB_ACTIONS === 'true';
 const specIndex = argv.indexOf('--spec');
 const specArg = specIndex >= 0 ? argv[specIndex + 1] : undefined;
 const driverStartTimeoutMs = parseInt(
@@ -32,12 +35,14 @@ let driverLogStream;
 let harnessLogStream;
 let harnessLogger;
 let testFailure;
+let runtimeMetadata;
 
 try {
   await prepareArtifactsDir();
   harnessLogger = createLogger('harness');
   redirectConsoleToLog(harnessLogger);
   await ensureDriverInstalled();
+  const toolVersions = await collectToolVersions();
   await runCommand('pnpm', ['tauri', 'build', '--debug', '--no-bundle', '--ci'], {
     cwd: repoRoot,
     logger: harnessLogger,
@@ -48,14 +53,19 @@ try {
 
   tempDir = await createTempDir();
   const applicationBinaryPath = await resolveApplicationPath();
+  const applicationBinaryStats = await stat(applicationBinaryPath);
   appLauncherPath = await createAppLauncher(applicationBinaryPath);
+  const driverCommand = getDriverCommand();
   const mongoUrl = new URL(mongod.getUri());
-  const runtime = {
+  runtimeMetadata = {
     startedAt: new Date().toISOString(),
     ci: isCi,
     platform: process.platform,
     arch: process.arch,
     pid: process.pid,
+    driverCommand,
+    driverBinaryPath: await resolveExecutablePath(driverCommand),
+    toolVersions,
     mongo: {
       host: mongoUrl.hostname,
       port: parseInt(mongoUrl.port, 10),
@@ -63,23 +73,24 @@ try {
     dataDir: tempDir,
     applicationPath: appLauncherPath,
     applicationBinaryPath,
+    applicationBinarySizeBytes: applicationBinaryStats.size,
     webdriverPort: driverPort,
     artifactsDir,
   };
 
   await mkdir(path.dirname(runtimeFile), { recursive: true });
-  await writeFile(runtimeFile, JSON.stringify(runtime, null, 2));
-  await writeFile(runtimeMetadataFile, JSON.stringify(runtime, null, 2));
+  await writeFile(runtimeFile, JSON.stringify(runtimeMetadata, null, 2));
+  await writeFile(runtimeMetadataFile, JSON.stringify(runtimeMetadata, null, 2));
   harnessLogger.info(`E2E artifacts directory: ${artifactsDir}`);
   harnessLogger.info(`Runtime file: ${runtimeFile}`);
   harnessLogger.info(`Runtime metadata: ${runtimeMetadataFile}`);
-  harnessLogger.info(`Application binary: ${runtime.applicationBinaryPath}`);
+  logRuntimeMetadata(runtimeMetadata, harnessLogger);
 
   driverLogStream = fs.createWriteStream(path.join(artifactsDir, 'tauri-webdriver.log'), {
     flags: 'a',
   });
 
-  tauriDriverProcess = spawn(getDriverCommand(), [], {
+  tauriDriverProcess = spawn(driverCommand, [], {
     cwd: repoRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
@@ -135,6 +146,18 @@ try {
     await mongod.stop();
   }
 
+  if (testFailure && preserveAppBinaryOnFailure && runtimeMetadata?.applicationBinaryPath) {
+    const preservedBinaryPath = await preserveBuiltBinary(runtimeMetadata.applicationBinaryPath);
+    if (preservedBinaryPath) {
+      runtimeMetadata = {
+        ...runtimeMetadata,
+        preservedApplicationBinaryPath: preservedBinaryPath,
+      };
+      await writeFile(runtimeMetadataFile, JSON.stringify(runtimeMetadata, null, 2));
+      harnessLogger?.info(`Preserved failed-run app binary: ${preservedBinaryPath}`);
+    }
+  }
+
   await rm(runtimeFile, { force: true });
   if (appLauncherPath) {
     await rm(appLauncherPath, { force: true });
@@ -166,6 +189,32 @@ function getDriverCommand() {
   return process.env.TAURI_WEBDRIVER_BIN || 'tauri-webdriver';
 }
 
+async function collectToolVersions() {
+  const entries = await Promise.all([
+    resolveVersionEntry('node', process.execPath, [process.execPath, '--version']),
+    resolveVersionEntry('pnpm', 'pnpm', ['pnpm', '--version']),
+    resolveVersionEntry('rustc', 'rustc', ['rustc', '--version']),
+    resolveVersionEntry('cargo', 'cargo', ['cargo', '--version']),
+    resolveVersionEntry('tauriCli', 'pnpm', ['pnpm', 'exec', 'tauri', '--version']),
+    resolveVersionEntry('tauriWebdriver', getDriverCommand(), [getDriverCommand(), '--version']),
+  ]);
+
+  return Object.fromEntries(entries.map(({ key, value }) => [key, value]));
+}
+
+async function resolveVersionEntry(key, executable, command) {
+  const executablePath = await resolveExecutablePath(executable);
+  const version = executablePath ? await tryGetCommandOutput(command[0], command.slice(1)) : null;
+
+  return {
+    key,
+    value: {
+      path: executablePath,
+      version,
+    },
+  };
+}
+
 async function resolveApplicationPath() {
   const explicitPath = process.env.DGRID_E2E_APPLICATION_PATH;
   if (explicitPath) {
@@ -177,6 +226,39 @@ async function resolveApplicationPath() {
   const binaryPath = path.join(repoRoot, 'src-tauri', 'target', 'debug', `dgrid${suffix}`);
   await access(binaryPath, fsConstants.X_OK);
   return binaryPath;
+}
+
+async function resolveExecutablePath(command) {
+  if (!command) {
+    return null;
+  }
+
+  if (command.includes(path.sep)) {
+    const absolutePath = path.resolve(command);
+    try {
+      await access(absolutePath, fsConstants.X_OK);
+      return absolutePath;
+    } catch {
+      return null;
+    }
+  }
+
+  const pathEnv = process.env.PATH || '';
+  for (const directory of pathEnv.split(path.delimiter)) {
+    if (!directory) {
+      continue;
+    }
+
+    const candidate = path.join(directory, command);
+    try {
+      await access(candidate, fsConstants.X_OK);
+      return candidate;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
 }
 
 async function createTempDir() {
@@ -252,17 +334,18 @@ async function buildCiSummary() {
     '',
     'No JUnit report was generated.',
   ];
+  const runtime = await readRuntimeMetadata();
 
   let xml;
   try {
     xml = await fs.promises.readFile(junitReportFile, 'utf8');
   } catch {
-    return `${fallbackLines.join('\n')}\n`;
+    return `${buildSummaryLines(fallbackLines, runtime).join('\n')}\n`;
   }
 
   const suites = parseJUnitSuites(xml);
   if (suites.length === 0) {
-    return `${fallbackLines.join('\n')}\n`;
+    return `${buildSummaryLines(fallbackLines, runtime).join('\n')}\n`;
   }
 
   const totalTests = suites.reduce((sum, suite) => sum + suite.tests, 0);
@@ -300,7 +383,48 @@ async function buildCiSummary() {
   }
 
   lines.push('', `JUnit report: \`tests/webdriver/artifacts/${path.basename(junitReportFile)}\``);
-  return `${lines.join('\n')}\n`;
+  return `${buildSummaryLines(lines, runtime).join('\n')}\n`;
+}
+
+function buildSummaryLines(lines, runtime) {
+  if (!runtime) {
+    return lines;
+  }
+
+  const summaryLines = [...lines];
+  summaryLines.push('', '### Runtime');
+  summaryLines.push(`- Application launcher: \`${runtime.applicationPath}\``);
+  summaryLines.push(`- Application binary: \`${runtime.applicationBinaryPath}\``);
+  summaryLines.push(
+    `- Application binary size: ${formatByteSize(runtime.applicationBinarySizeBytes || 0)}`
+  );
+  summaryLines.push(`- WebDriver command: \`${runtime.driverCommand || 'tauri-webdriver'}\``);
+  if (runtime.driverBinaryPath) {
+    summaryLines.push(`- WebDriver binary: \`${runtime.driverBinaryPath}\``);
+  }
+  summaryLines.push(`- WebDriver port: ${runtime.webdriverPort}`);
+  summaryLines.push(`- Mongo endpoint: ${runtime.mongo.host}:${runtime.mongo.port}`);
+  if (runtime.preservedApplicationBinaryPath) {
+    summaryLines.push(
+      `- Preserved failed-run binary: \`${runtime.preservedApplicationBinaryPath}\``
+    );
+  }
+
+  const toolVersionLines = formatToolVersionLines(runtime.toolVersions);
+  if (toolVersionLines.length > 0) {
+    summaryLines.push('', '### Tool Versions', ...toolVersionLines);
+  }
+
+  return summaryLines;
+}
+
+async function readRuntimeMetadata() {
+  try {
+    const contents = await fs.promises.readFile(runtimeMetadataFile, 'utf8');
+    return JSON.parse(contents);
+  } catch {
+    return null;
+  }
 }
 
 function parseJUnitSuites(xml) {
@@ -369,6 +493,109 @@ function formatDuration(seconds) {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds - minutes * 60;
   return `${minutes}m ${remainingSeconds.toFixed(1)}s`;
+}
+
+function formatByteSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatToolVersionLines(toolVersions) {
+  if (!toolVersions || typeof toolVersions !== 'object') {
+    return [];
+  }
+
+  const labels = {
+    node: 'Node.js',
+    pnpm: 'pnpm',
+    rustc: 'rustc',
+    cargo: 'cargo',
+    tauriCli: 'Tauri CLI',
+    tauriWebdriver: 'tauri-webdriver',
+  };
+
+  return Object.entries(labels).flatMap(([key, label]) => {
+    const entry = toolVersions[key];
+    if (!entry) {
+      return [];
+    }
+
+    const parts = [];
+    if (entry.version) {
+      parts.push(entry.version);
+    }
+    if (entry.path) {
+      parts.push(`path: \`${entry.path}\``);
+    }
+    return parts.length > 0 ? [`- ${label}: ${parts.join(' | ')}`] : [];
+  });
+}
+
+async function preserveBuiltBinary(applicationBinaryPath) {
+  try {
+    await access(applicationBinaryPath, fsConstants.R_OK);
+  } catch {
+    return null;
+  }
+
+  const destinationDir = path.join(artifactsDir, 'preserved-app');
+  await mkdir(destinationDir, { recursive: true });
+  const destinationPath = path.join(destinationDir, path.basename(applicationBinaryPath));
+  await copyFile(applicationBinaryPath, destinationPath);
+  return destinationPath;
+}
+
+async function tryGetCommandOutput(command, args) {
+  return await new Promise((resolve) => {
+    const child = spawn(command, args, {
+      cwd: repoRoot,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', () => resolve(null));
+    child.on('exit', (code) => {
+      if (code !== 0) {
+        resolve(null);
+        return;
+      }
+      resolve((stdout || stderr).trim() || null);
+    });
+  });
+}
+
+function logRuntimeMetadata(runtime, logger) {
+  logger.info(`Application launcher: ${runtime.applicationPath}`);
+  logger.info(`Application binary: ${runtime.applicationBinaryPath}`);
+  logger.info(`Application binary size: ${formatByteSize(runtime.applicationBinarySizeBytes)}`);
+  logger.info(`WebDriver command: ${runtime.driverCommand}`);
+  if (runtime.driverBinaryPath) {
+    logger.info(`WebDriver binary: ${runtime.driverBinaryPath}`);
+  }
+  logger.info(`WebDriver port: ${runtime.webdriverPort}`);
+  logger.info(`Mongo endpoint: ${runtime.mongo.host}:${runtime.mongo.port}`);
+  for (const line of formatToolVersionLines(runtime.toolVersions)) {
+    logger.info(line.replace(/^- /, ''));
+  }
 }
 
 function createLogger(name) {
