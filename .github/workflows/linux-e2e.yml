@@ -62,7 +62,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
           path: |
-            tests/webdriver/artifacts/wdio-junit.xml
+            tests/webdriver/artifacts/wdio-junit*.xml
             tests/webdriver/artifacts/ci-summary.md
 
       - name: Upload failure artifacts

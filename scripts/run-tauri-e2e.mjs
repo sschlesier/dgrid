@@ -1,6 +1,16 @@
 import { spawn } from 'node:child_process';
 import fs, { constants as fsConstants } from 'node:fs';
-import { access, appendFile, chmod, copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  access,
+  appendFile,
+  chmod,
+  copyFile,
+  mkdir,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,6 +22,7 @@ const runtimeFile = path.join(repoRoot, 'tests', 'webdriver', '.runtime.json');
 const artifactsDir = path.join(repoRoot, 'tests', 'webdriver', 'artifacts');
 const runtimeMetadataFile = path.join(artifactsDir, 'runtime-metadata.json');
 const junitReportFile = path.join(artifactsDir, 'wdio-junit.xml');
+const junitReportBaseName = path.basename(junitReportFile, '.xml');
 const ciSummaryFile = path.join(artifactsDir, 'ci-summary.md');
 const driverPort = parseInt(process.env.DGRID_E2E_WEBDRIVER_PORT || '4444', 10);
 
@@ -410,15 +421,8 @@ async function buildCiSummary() {
     'No JUnit report was generated.',
   ];
   const runtime = await readRuntimeMetadata();
-
-  let xml;
-  try {
-    xml = await fs.promises.readFile(junitReportFile, 'utf8');
-  } catch {
-    return `${buildSummaryLines(fallbackLines, runtime).join('\n')}\n`;
-  }
-
-  const suites = parseJUnitSuites(xml);
+  const junitReports = await readJUnitReports();
+  const suites = junitReports.flatMap(parseJUnitSuites);
   if (suites.length === 0) {
     return `${buildSummaryLines(fallbackLines, runtime).join('\n')}\n`;
   }
@@ -457,8 +461,29 @@ async function buildCiSummary() {
     }
   }
 
-  lines.push('', `JUnit report: \`tests/webdriver/artifacts/${path.basename(junitReportFile)}\``);
+  lines.push('', `JUnit reports: \`tests/webdriver/artifacts/${junitReportBaseName}-*.xml\``);
   return `${buildSummaryLines(lines, runtime).join('\n')}\n`;
+}
+
+async function readJUnitReports() {
+  let entries;
+  try {
+    entries = await readdir(artifactsDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const reportNames = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter(
+      (name) => name.startsWith(`${junitReportBaseName}-`) && name.endsWith('.xml')
+    )
+    .sort((left, right) => left.localeCompare(right));
+
+  return await Promise.all(
+    reportNames.map((name) => fs.promises.readFile(path.join(artifactsDir, name), 'utf8'))
+  );
 }
 
 function buildSummaryLines(lines, runtime) {

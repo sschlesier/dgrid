@@ -15,11 +15,12 @@ const failureArtifactsDir = path.join(runtime.artifactsDir, 'failure-artifacts')
 
 const reporters = ['spec'];
 if (junitOutputFile) {
+  const junitOutputBaseName = path.basename(junitOutputFile, path.extname(junitOutputFile));
   reporters.push([
     'junit',
     {
       outputDir: path.dirname(junitOutputFile),
-      outputFileFormat: () => path.basename(junitOutputFile),
+      outputFileFormat: ({ cid }) => `${junitOutputBaseName}-${cid}.xml`,
       addFileAttribute: true,
       packageName: 'dgrid-webdriver-e2e',
     },
