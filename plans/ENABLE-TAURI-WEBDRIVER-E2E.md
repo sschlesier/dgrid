@@ -142,6 +142,7 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - WDIO JUnit report emission under `tests/webdriver/artifacts/wdio-junit.xml` alongside the existing spec reporter
   - CI summary generation under `tests/webdriver/artifacts/ci-summary.md` with spec durations and failing-spec rollups when JUnit output is present
   - Linux CI artifact upload for the machine-readable WDIO results bundle (`wdio-junit.xml` and `ci-summary.md`)
+  - WDIO failure-artifact capture under `tests/webdriver/artifacts/failure-artifacts/` with per-failure screenshots, page-source dumps, and JSON metadata for CI triage
   - developer docs updated to point to `tests/webdriver/` as the active real-app suite and `pnpm e2e:ci` as the CI entrypoint
   - migrated multi-query and sidebar-context-menu specs into the real-app WebDriver suite
 - Verified:
@@ -175,8 +176,8 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - Chunk 1 CI diagnostics landed with persistent harness, `tauri-webdriver`, and Tauri app logs under `tests/webdriver/artifacts/`
   - Chunk 2 CI failure artifact upload landed with persisted runtime metadata and workflow-side artifact publishing for failed Linux runs
   - Chunk 3 machine-readable WDIO reporting and CI summary wiring is now in place for the Linux workflow
+  - Chunk 4 richer WebDriver failure snapshots is now in place with per-failure screenshots, page-source dumps, and JSON metadata in the uploaded artifacts bundle
 - Remaining immediate work:
   - no immediate parity gaps remain in the current planned real-app WebDriver suite
   - next follow-up should focus on CI diagnostics and be split into commit-sized chunks:
-    - Chunk 4: add richer failure snapshots from the WebDriver suite itself, such as per-failure page source dumps and screenshots, written into a stable artifacts directory that CI can upload
     - Chunk 5: tighten CI observability and triage ergonomics, including explicit tool/version reporting, built-app path reporting, and preservation of the built debug binary on failed Linux runs when useful for reproduction
