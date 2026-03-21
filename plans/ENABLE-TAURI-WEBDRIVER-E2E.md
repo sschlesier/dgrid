@@ -160,9 +160,15 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - warning-suppression cleanup landed in commit `50ca81e` (`Suppress webdriver warning noise in e2e harness`)
   - Linux CI rollout landed in commits `90b9eb7`, `56c7df8`, `0c6d791`, and `7096526`
   - smoke shortcut parity landed with deterministic shortcut dispatch and restored `show-help` rebinding coverage
-  - autocomplete popup parity landed in commit `a700f5c` (`Add popup autocomplete coverage to webdriver e2e`)
+  - autocomplete popup parity landed in commit `aa66b45` (`Add popup autocomplete coverage to webdriver e2e`)
   - the current macOS WebDriver suite runs cleanly without the prior non-blocking `element/.../name` warning spam
   - GitHub Actions run `23104422380` completed successfully for PR `#3`
   - `main` branch protection now enforces the `e2e-linux` required check
 - Remaining immediate work:
   - no immediate parity gaps remain in the current planned real-app WebDriver suite
+  - next follow-up should focus on CI diagnostics and be split into commit-sized chunks:
+    - Chunk 1: capture Tauri app, `tauri-webdriver`, and harness logs into artifact files from `scripts/run-tauri-e2e.mjs`, while preserving current console output
+    - Chunk 2: add failure artifacts for Linux CI in `.github/workflows/linux-e2e.yml`, including uploaded logs, runtime metadata, and any persisted DOM/screenshot outputs from failed runs
+    - Chunk 3: emit machine-readable WDIO results for CI, preferably JUnit alongside the existing spec reporter, and publish a short job summary with failing specs and durations
+    - Chunk 4: add richer failure snapshots from the WebDriver suite itself, such as per-failure page source dumps and screenshots, written into a stable artifacts directory that CI can upload
+    - Chunk 5: tighten CI observability and triage ergonomics, including explicit tool/version reporting, built-app path reporting, and preservation of the built debug binary on failed Linux runs when useful for reproduction
