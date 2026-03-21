@@ -92,6 +92,7 @@ try {
 
   tauriDriverProcess = spawn(driverCommand, [], {
     cwd: repoRoot,
+    detached: process.platform !== 'win32',
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
@@ -138,9 +139,10 @@ try {
 } finally {
   await publishCiSummary();
 
-  if (tauriDriverProcess && !tauriDriverProcess.killed) {
-    tauriDriverProcess.kill('SIGTERM');
-  }
+  await terminateChildProcess(tauriDriverProcess, {
+    label: 'tauri-webdriver',
+    killProcessGroup: process.platform !== 'win32',
+  });
 
   if (mongod) {
     await mongod.stop();
@@ -311,6 +313,79 @@ async function runCommand(command, args, options) {
       reject(new Error(`${command} ${args.join(' ')} failed with code ${code ?? 'unknown'}`));
     });
   });
+}
+
+async function terminateChildProcess(child, options = {}) {
+  if (!child?.pid) {
+    return;
+  }
+
+  const { label = 'child process', killProcessGroup = false, timeoutMs = 5_000 } = options;
+  const requestKill = (signal) => {
+    try {
+      if (killProcessGroup && process.platform !== 'win32') {
+        process.kill(-child.pid, signal);
+      } else {
+        child.kill(signal);
+      }
+      return true;
+    } catch (error) {
+      if (error?.code === 'ESRCH') {
+        return false;
+      }
+      throw error;
+    }
+  };
+
+  const waitForExit = (timeout) =>
+    new Promise((resolve) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        resolve(false);
+      }, timeout);
+
+      const onExit = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        cleanup();
+        resolve(true);
+      };
+
+      const cleanup = () => {
+        child.off('exit', onExit);
+      };
+
+      child.once('exit', onExit);
+    });
+
+  const exitedBeforeKill = await waitForExit(0);
+  if (exitedBeforeKill) {
+    return;
+  }
+
+  requestKill('SIGTERM');
+  const exitedAfterSigterm = await waitForExit(timeoutMs);
+  if (exitedAfterSigterm) {
+    return;
+  }
+
+  console.error(`${label} did not exit after SIGTERM; forcing SIGKILL`);
+  if (!requestKill('SIGKILL')) {
+    return;
+  }
+
+  const exitedAfterSigkill = await waitForExit(timeoutMs);
+  if (!exitedAfterSigkill) {
+    console.error(`${label} still has not exited after SIGKILL`);
+  }
 }
 
 async function prepareArtifactsDir() {
@@ -683,7 +758,7 @@ async function createAppLauncher(applicationPath) {
   const escapedAppLogPath = shellEscape(appLogPath);
   const script = `#!/usr/bin/env bash
 set -euo pipefail
-${escapedAppPath} "$@" 2>&1 | tee -a ${escapedAppLogPath}
+exec ${escapedAppPath} "$@" >> ${escapedAppLogPath} 2>&1
 `;
   await writeFile(launcherPath, script, { mode: 0o755 });
   await chmod(launcherPath, 0o755);
