@@ -10,11 +10,9 @@ export async function resetApp() {
   } catch {
     // Some Tauri WebDriver sessions reject script execution while the webview is still settling.
   }
-  try {
-    await browser.refresh();
-  } catch {
-    await browser.reloadSession();
-  }
+  // Starting a fresh WebDriver session is slower than a page refresh, but it avoids
+  // the post-shortcut instability we see with in-place reloads in the Tauri webview.
+  await browser.reloadSession();
   await waitForAppReady();
 }
 

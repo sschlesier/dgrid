@@ -6,6 +6,7 @@ edition = "2021"
 [lib]
 name = "dgrid_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+doctest = false
 
 [dependencies]
 tauri = { version = "2", features = [] }
