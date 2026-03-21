@@ -136,6 +136,7 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - dedicated Linux GitHub Actions workflow for real-app E2E on pull requests, pushes to `main`, and manual dispatch
   - Linux CI workflow execution under Xvfb with Tauri/WebKit system dependencies and `tauri-webdriver` installation
   - CI-aware WebDriver harness timeout tuning and explicit app-path override support for Linux debugging
+  - harness-side artifact log capture for the Tauri app, `tauri-webdriver`, and the Node launcher while preserving console output
   - developer docs updated to point to `tests/webdriver/` as the active real-app suite and `pnpm e2e:ci` as the CI entrypoint
   - migrated multi-query and sidebar-context-menu specs into the real-app WebDriver suite
 - Verified:
@@ -164,10 +165,10 @@ Replace the disabled browser-only Playwright path with a real-app E2E harness bu
   - the current macOS WebDriver suite runs cleanly without the prior non-blocking `element/.../name` warning spam
   - GitHub Actions run `23104422380` completed successfully for PR `#3`
   - `main` branch protection now enforces the `e2e-linux` required check
+  - Chunk 1 CI diagnostics landed with persistent harness, `tauri-webdriver`, and Tauri app logs under `tests/webdriver/artifacts/`
 - Remaining immediate work:
   - no immediate parity gaps remain in the current planned real-app WebDriver suite
   - next follow-up should focus on CI diagnostics and be split into commit-sized chunks:
-    - Chunk 1: capture Tauri app, `tauri-webdriver`, and harness logs into artifact files from `scripts/run-tauri-e2e.mjs`, while preserving current console output
     - Chunk 2: add failure artifacts for Linux CI in `.github/workflows/linux-e2e.yml`, including uploaded logs, runtime metadata, and any persisted DOM/screenshot outputs from failed runs
     - Chunk 3: emit machine-readable WDIO results for CI, preferably JUnit alongside the existing spec reporter, and publish a short job summary with failing specs and durations
     - Chunk 4: add richer failure snapshots from the WebDriver suite itself, such as per-failure page source dumps and screenshots, written into a stable artifacts directory that CI can upload
