@@ -36,6 +36,7 @@ coverage/
 test-results/
 playwright-report/
 tests/e2e/.mongo-info.json
+tests/webdriver/artifacts/
 
 # Cache
 .cache/
