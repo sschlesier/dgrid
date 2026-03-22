@@ -113,6 +113,49 @@ class AppStore {
     return this.connections.filter((c) => c.isConnected);
   }
 
+  private setActiveTabAfterTabListChange(previousIndex: number): void {
+    if (this.tabs.length === 0) {
+      this.activeTabId = null;
+      return;
+    }
+
+    const fallbackIndex = previousIndex >= this.tabs.length ? this.tabs.length - 1 : previousIndex;
+    this.activeTabId = this.tabs[fallbackIndex].id;
+  }
+
+  private syncActiveConnectionToActiveTab(): void {
+    const activeTab = this.activeTab;
+    if (!activeTab) {
+      if (!this.activeConnection?.isConnected) {
+        this.activeConnectionId = null;
+      }
+      return;
+    }
+
+    const connection = this.connections.find((c) => c.id === activeTab.connectionId);
+    this.activeConnectionId = connection?.isConnected ? connection.id : null;
+  }
+
+  private closeTabsForConnection(connectionId: string): void {
+    const tabsToClose = this.tabs.filter((tab) => tab.connectionId === connectionId);
+    if (tabsToClose.length === 0) return;
+
+    const activeTabIndex = this.tabs.findIndex((tab) => tab.id === this.activeTabId);
+    const activeTabBelongsToConnection = tabsToClose.some((tab) => tab.id === this.activeTabId);
+
+    for (const tab of tabsToClose) {
+      queryStore.cleanupTab(tab.id);
+    }
+
+    this.tabs = this.tabs.filter((tab) => tab.connectionId !== connectionId);
+
+    if (activeTabBelongsToConnection) {
+      this.setActiveTabAfterTabListChange(activeTabIndex);
+    }
+
+    this.syncActiveConnectionToActiveTab();
+  }
+
   // Connection actions
   async loadConnections(): Promise<void> {
     this.isLoadingConnections = true;
@@ -165,8 +208,7 @@ class AppStore {
         this.databases = [];
         this.collections = new Map();
       }
-      // Close tabs for this connection
-      this.tabs = this.tabs.filter((t) => t.connectionId !== id);
+      this.closeTabsForConnection(id);
       if (connection) {
         this.notify('success', `Connection "${connection.name}" deleted`);
       }
@@ -239,6 +281,7 @@ class AppStore {
       this.databases = [];
       this.collections = new Map();
     }
+    this.closeTabsForConnection(id);
     schemaStore.clearConnection(id);
   }
 
@@ -263,6 +306,7 @@ class AppStore {
         this.databases = [];
         this.collections = new Map();
       }
+      this.closeTabsForConnection(id);
       schemaStore.clearConnection(id);
       this.notify('info', `Disconnected from "${connection.name}"`);
     } catch (error) {
@@ -429,9 +473,13 @@ class AppStore {
   }
 
   setActiveTab(id: string): void {
-    if (this.tabs.some((t) => t.id === id)) {
-      this.activeTabId = id;
-    }
+    const tab = this.tabs.find((t) => t.id === id);
+    if (!tab) return;
+
+    this.activeTabId = id;
+
+    const connection = this.connections.find((c) => c.id === tab.connectionId);
+    this.activeConnectionId = connection?.isConnected ? connection.id : null;
   }
 
   updateTab(id: string, updates: Partial<Tab>): void {

@@ -220,6 +220,44 @@ describe('appStore', () => {
       expect(appStore.connections[0].isConnected).toBe(false);
       expect(appStore.activeConnectionId).toBe(null);
     });
+
+    it('disconnect closes only tabs for the disconnected connection', async () => {
+      appStore.connections = [
+        {
+          id: '1',
+          name: 'Conn 1',
+          uri: 'mongodb://localhost:27017',
+          savePassword: true,
+          isConnected: true,
+          createdAt: '',
+          updatedAt: '',
+        },
+        {
+          id: '2',
+          name: 'Conn 2',
+          uri: 'mongodb://localhost:27018',
+          savePassword: true,
+          isConnected: true,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ];
+      const firstTab = appStore.createTab('1', 'db1');
+      const secondTab = appStore.createTab('2', 'db2');
+      appStore.setActiveTab(firstTab.id);
+
+      mockedApi.disconnectFromConnection.mockResolvedValue({
+        ...appStore.connections[0],
+        isConnected: false,
+      });
+
+      await appStore.disconnect('1');
+
+      expect(appStore.tabs).toHaveLength(1);
+      expect(appStore.tabs[0].id).toBe(secondTab.id);
+      expect(appStore.activeTabId).toBe(secondTab.id);
+      expect(appStore.activeConnectionId).toBe('2');
+    });
   });
 
   describe('tabs', () => {
@@ -254,16 +292,38 @@ describe('appStore', () => {
     });
 
     it('setActiveTab updates activeTabId', () => {
+      appStore.connections = [
+        {
+          id: 'conn-1',
+          name: 'Conn 1',
+          uri: 'mongodb://localhost:27017',
+          savePassword: true,
+          isConnected: true,
+          createdAt: '',
+          updatedAt: '',
+        },
+        {
+          id: 'conn-2',
+          name: 'Conn 2',
+          uri: 'mongodb://localhost:27018',
+          savePassword: true,
+          isConnected: true,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ];
       const tab1 = appStore.createTab('conn-1', 'db');
-      const tab2 = appStore.createTab('conn-1', 'db');
+      const tab2 = appStore.createTab('conn-2', 'db');
 
       appStore.setActiveTab(tab1.id);
 
       expect(appStore.activeTabId).toBe(tab1.id);
+      expect(appStore.activeConnectionId).toBe('conn-1');
 
       appStore.setActiveTab(tab2.id);
 
       expect(appStore.activeTabId).toBe(tab2.id);
+      expect(appStore.activeConnectionId).toBe('conn-2');
     });
 
     it('updateTab modifies tab properties', () => {
