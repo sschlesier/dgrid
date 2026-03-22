@@ -31,6 +31,13 @@ pub fn get_version() -> String {
 #[tauri::command]
 pub async fn check_for_updates(state: State<'_, AppState>) -> Result<VersionResponse, String> {
     let version = env!("CARGO_PKG_VERSION").to_string();
+    if state.config.disable_update_checks {
+        return Ok(VersionResponse {
+            version,
+            install_method: updater::detect_install_method().to_string(),
+            update: None,
+        });
+    }
 
     // Check cache first
     {

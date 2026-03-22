@@ -22,6 +22,13 @@ interface ExportProgress {
   error: string | null;
 }
 
+interface ExportStateOverrideEvent extends CustomEvent {
+  detail: {
+    tabId: string;
+    state: ExportTabState;
+  };
+}
+
 const DEFAULT_STATE: ExportTabState = {
   isExporting: false,
   exportedCount: 0,
@@ -134,3 +141,11 @@ class ExportStore {
 }
 
 export const exportStore = new ExportStore();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('dgrid:e2e-set-export-state', (event: Event) => {
+    const customEvent = event as ExportStateOverrideEvent;
+    if (!customEvent.detail?.tabId || !customEvent.detail?.state) return;
+    exportStore['setState'](customEvent.detail.tabId, customEvent.detail.state);
+  });
+}

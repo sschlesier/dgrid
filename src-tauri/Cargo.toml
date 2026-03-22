@@ -6,6 +6,7 @@ edition = "2021"
 [lib]
 name = "dgrid_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+doctest = false
 
 [dependencies]
 tauri = { version = "2", features = [] }
@@ -26,6 +27,7 @@ tokio-util = { version = "0.7", features = ["rt"] }
 indexmap = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-webdriver = "0.1"
 notify = "7"
 reqwest = { version = "0.12", features = ["json"] }
 
