@@ -66,6 +66,12 @@ export const selectors = {
       ),
     autocompleteSelectedOption: () =>
       $('.cm-tooltip-autocomplete [aria-selected="true"] .cm-completionLabel'),
+    formatButton: () => $('.toolbar-btn[title*="Format Query"]'),
+    formatAssist: () => $('.format-assist'),
+    formatAssistSuggestion: (label) =>
+      $(
+        `//*[contains(@class, "format-assist")]//button[contains(@class, "format-assist-btn")][normalize-space(.)=${quoteXPath(label)}]`
+      ),
   },
 
   tabs: {
@@ -111,6 +117,10 @@ export const selectors = {
     valueInput: () => $('#field-value'),
     saveButton: () => $('.save-btn'),
     cancelButton: () => $('.dialog-footer .cancel-btn'),
+    missingIdWarning: () => $('[data-testid="edit-warning-missing-id"]'),
+    idManipulatedWarning: () => $('[data-testid="edit-warning-id-manipulated"]'),
+    updatePreview: () => $('[data-testid="update-preview"]'),
+    copyPreviewButton: () => $('.copy-preview-btn'),
   },
 
   exportOverlay: {
@@ -121,6 +131,17 @@ export const selectors = {
 
   statusBar: {
     center: () => $('.statusbar-center'),
+  },
+
+  notification: {
+    all: () => $$('.notification'),
+    message: () => $$('.notification .notification-message'),
+    withText: (text) =>
+      $(`//*[contains(@class, "notification")]//*[contains(@class, "notification-message")][contains(normalize-space(.), ${quoteXPath(text)})]`),
+  },
+
+  tooltip: {
+    collection: () => $('.collection-tooltip'),
   },
 
   history: {
