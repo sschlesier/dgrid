@@ -7,6 +7,7 @@
     getCellTypeClass,
     isDrillable,
   } from './utils';
+  import { getObjectIdDateTooltip } from '../../lib/objectId';
   import { matchesBinding } from '../../utils/keyboard';
   import { keybindingsStore } from '../../stores/keybindings.svelte';
 
@@ -27,6 +28,7 @@
   const displayValue = $derived(formatCellValue(value, cellType));
   const typeClass = $derived(getCellTypeClass(cellType));
   const canDrill = $derived(isDrillable(value));
+  const hoverTitle = $derived(getObjectIdDateTooltip(value) ?? displayValue);
 
   function handleClick() {
     if (canDrill && ondrill && fieldKey) {
@@ -88,7 +90,7 @@
   role={canDrill ? 'button' : undefined}
   tabindex="0"
 >
-  <span class="cell-content" title={displayValue}>
+  <span class="cell-content" title={hoverTitle}>
     {displayValue}
   </span>
 
