@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  findObjectIdInTextAt,
   formatObjectIdDateTooltip,
   getObjectIdDate,
   getObjectIdDateTooltip,
@@ -34,5 +35,27 @@ describe('objectId utils', () => {
       null
     );
     expect(formatObjectIdDateTooltip('not-an-object-id')).toBe(null);
+  });
+
+  it('finds ObjectId constructor syntax at the hovered offset', () => {
+    const text = '  "_id": ObjectId("507f1f77bcf86cd799439011"),';
+    const offset = text.indexOf('507f1f77bcf86cd799439011') + 5;
+
+    expect(findObjectIdInTextAt(text, offset)).toEqual({
+      hex: '507f1f77bcf86cd799439011',
+      from: text.indexOf('ObjectId('),
+      to: text.indexOf('ObjectId(') + 'ObjectId("507f1f77bcf86cd799439011")'.length,
+    });
+  });
+
+  it('finds Extended JSON $oid syntax at the hovered offset', () => {
+    const text = '  "_id": { "$oid": "507f1f77bcf86cd799439011" }';
+    const offset = text.indexOf('$oid') + 1;
+
+    expect(findObjectIdInTextAt(text, offset)).toEqual({
+      hex: '507f1f77bcf86cd799439011',
+      from: text.indexOf('"$oid"'),
+      to: text.indexOf('"$oid"') + '"$oid": "507f1f77bcf86cd799439011"'.length,
+    });
   });
 });
