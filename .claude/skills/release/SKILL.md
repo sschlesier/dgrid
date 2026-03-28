@@ -1,6 +1,6 @@
 ---
 name: release
-description: Prepare and publish a new release — collect changes, update CHANGES.md, bump version, push to GitHub.
+description: Prepare and publish a new release — collect changes, update CHANGES.md, open a release PR, then tag after merge.
 user_invocable: true
 ---
 
@@ -60,7 +60,13 @@ Show the user the full diff of CHANGES.md so they can review the exact text. Ask
 
 If the user provides edits, apply them to CHANGES.md and show the updated diff again. Repeat until the user approves.
 
-## 5. Bump Version
+## 5. Bump Version On A Release Branch
+
+Do not release directly from `main`. If the current branch is `main`, create a dedicated release branch first, for example:
+
+```bash
+git checkout -b release/v<new-version>
+```
 
 First, commit the CHANGES.md update so the working tree is clean before `pnpm version` runs:
 
@@ -75,16 +81,38 @@ Then run `pnpm version` with the confirmed increment. This updates `package.json
 pnpm version <patch|minor|major>
 ```
 
-## 6. Push to GitHub
-
-Push the commit and tag to trigger the release workflow:
+Immediately delete the local tag after `pnpm version` succeeds. The version commit should go through a pull request first, and the tag must only be pushed after the PR is merged to `main`:
 
 ```bash
-git push origin main && git push origin v<new-version>
+git tag -d v<new-version>
 ```
+
+## 6. Push The Release Branch
+
+Push the release branch and open a pull request into `main`:
+
+```bash
+git push -u origin <release-branch>
+```
+
+Tell the user the PR is required because `main` is protected. Do not push the release tag yet.
+
+## 7. Tag After The PR Merges
+
+After the release PR has merged into `main`, update local `main`, recreate the tag from the merged commit, and push only the tag to trigger the release workflow:
+
+```bash
+git checkout main
+git pull origin main
+git tag v<new-version>
+git push origin v<new-version>
+```
+
+Verify that `HEAD` on local `main` is the merged release commit before creating the tag.
 
 ## Error Handling
 
 - If the working tree is dirty before starting, warn the user and stop.
 - If `pnpm version` fails, investigate and report the error — do not retry blindly.
-- If `git push` fails, report the error and let the user decide how to proceed.
+- If pushing `main` fails because of branch protection, switch to the release-branch workflow above instead of retrying.
+- If the tag was pushed before the release PR merged, report that state clearly and ask the user whether to delete the remote tag and recreate it after merge.
