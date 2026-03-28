@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { EditorView, lineNumbers, keymap } from '@codemirror/view';
+  import { EditorView, hoverTooltip, lineNumbers, keymap } from '@codemirror/view';
   import { EditorState } from '@codemirror/state';
   import { json } from '@codemirror/lang-json';
   import { foldGutter, foldKeymap, foldAll, unfoldAll } from '@codemirror/language';
@@ -8,6 +8,7 @@
   import type { ExecuteQueryResponse } from '../../../lib/contracts';
   import type { JsonFormat } from './formatters';
   import { formatDocuments, loadJsonFormat, saveJsonFormat } from './formatters';
+  import { findObjectIdInTextAt, formatObjectIdDateTooltip } from '../../../lib/objectId';
   import JsonToolbar from './JsonToolbar.svelte';
   import { GridPagination } from '../../grid';
   import { gridStore } from '../../../stores/grid.svelte';
@@ -68,6 +69,41 @@
     '.cm-scroller': {
       overflow: 'auto',
     },
+    '.cm-tooltip.cm-objectid-tooltip': {
+      backgroundColor: 'var(--color-bg-primary)',
+      border: '1px solid var(--color-border-medium)',
+      borderRadius: 'var(--radius-md)',
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+      color: 'var(--color-text-primary)',
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--font-size-sm)',
+      padding: 'var(--space-xs) var(--space-sm)',
+    },
+  });
+
+  const objectIdHover = hoverTooltip((view, pos) => {
+    const line = view.state.doc.lineAt(pos);
+    const match = findObjectIdInTextAt(line.text, pos - line.from);
+    if (!match) {
+      return null;
+    }
+
+    const tooltip = formatObjectIdDateTooltip(match.hex);
+    if (!tooltip) {
+      return null;
+    }
+
+    return {
+      pos: line.from + match.from,
+      end: line.from + match.to,
+      above: true,
+      create() {
+        const dom = document.createElement('div');
+        dom.className = 'cm-objectid-tooltip';
+        dom.textContent = tooltip;
+        return { dom };
+      },
+    };
   });
 
   function initEditor() {
@@ -84,6 +120,7 @@
         json(),
         editorHighlighting,
         theme,
+        objectIdHover,
         EditorState.readOnly.of(true),
         EditorView.editable.of(false),
       ],

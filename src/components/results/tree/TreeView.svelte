@@ -3,6 +3,7 @@
   import type { ExecuteQueryResponse } from '../../../lib/contracts';
   import { searchDocument, getAncestorPaths, getAllPaths, getDocumentSummary } from './tree-utils';
   import { detectValueType } from './tree-utils';
+  import { getObjectIdDateTooltip } from '../../../lib/objectId';
   import TreeField from './TreeField.svelte';
   import TypeIcon from './TypeIcon.svelte';
   import TreeToolbar from './TreeToolbar.svelte';
@@ -250,7 +251,9 @@
               <span class="doc-label">{summary.label}</span>
               <span class="doc-id">
                 <span class="id-prefix">{'{_id : '}</span>
-                <span class="id-value">{summary.idDisplay}</span>
+                <span class="id-value" title={getObjectIdDateTooltip(doc._id) ?? undefined}>
+                  {summary.idDisplay}
+                </span>
                 <span class="id-suffix">{'}'}</span>
               </span>
             </div>

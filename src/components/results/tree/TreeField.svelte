@@ -9,6 +9,7 @@
     getTypeBadge,
     buildPath,
   } from './tree-utils';
+  import { getObjectIdDateTooltip } from '../../../lib/objectId';
   import { matchesBinding } from '../../../utils/keyboard';
   import { keybindingsStore } from '../../../stores/keybindings.svelte';
 
@@ -43,6 +44,7 @@
   const displayValue = $derived(getDisplayValue(value, valueType));
   const typeClass = $derived(getTypeClass(valueType));
   const isMatch = $derived(searchMatches.has(fullPath));
+  const hoverTitle = $derived(getObjectIdDateTooltip(value) ?? undefined);
 
   // Get children for expandable types
   const children = $derived.by(() => {
@@ -139,6 +141,7 @@
   <div
     class="value-cell {typeClass}"
     tabindex="0"
+    title={hoverTitle}
     ondblclick={handleValueDblClick}
     onkeydown={handleValueKeydown}
   >
