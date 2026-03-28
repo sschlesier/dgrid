@@ -86,7 +86,9 @@ jobs:
           version: 10
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
