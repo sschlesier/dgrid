@@ -139,6 +139,13 @@ export function selectors(page: Page) {
       cancelButton: () => page.locator('.export-overlay .cancel-btn'),
     },
 
+    connectionProgress: {
+      overlay: () => page.getByTestId('connection-progress-overlay'),
+      modal: () => page.getByTestId('connection-progress-modal'),
+      cancelButton: () =>
+        page.getByTestId('connection-progress-modal').getByRole('button', { name: /cancel/i }),
+    },
+
     contextMenu: {
       menu: () => page.locator('.context-menu'),
       item: (label: string) =>

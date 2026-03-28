@@ -35,6 +35,7 @@ pub fn run() {
             commands::connections::test_connection,
             commands::connections::test_saved_connection,
             commands::connections::connect_to_connection,
+            commands::connections::cancel_connect_to_connection,
             commands::connections::disconnect_from_connection,
             commands::databases::get_databases,
             commands::databases::get_collections,

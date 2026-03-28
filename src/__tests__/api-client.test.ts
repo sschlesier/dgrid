@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   ApiError,
+  ConnectCancelledError,
   QueryCancelledError,
   getConnections,
   getConnection,
@@ -10,6 +11,7 @@ import {
   testConnection,
   testSavedConnection,
   connectToConnection,
+  cancelConnectToConnection,
   disconnectFromConnection,
   getDatabases,
   getCollections,
@@ -270,6 +272,20 @@ describe('API client', () => {
 
       expect(mockInvoke).toHaveBeenCalledWith('disconnect_from_connection', { id: '1' });
       expect(result).toEqual(disconnected);
+    });
+
+    it('connectToConnection throws ConnectCancelledError on cancellation', async () => {
+      mockInvoke.mockRejectedValueOnce('Connection was cancelled');
+
+      await expect(connectToConnection('1')).rejects.toThrow(ConnectCancelledError);
+    });
+
+    it('cancelConnectToConnection invokes cancel_connect_to_connection', async () => {
+      mockInvoke.mockResolvedValueOnce(undefined);
+
+      await cancelConnectToConnection('1');
+
+      expect(mockInvoke).toHaveBeenCalledWith('cancel_connect_to_connection', { id: '1' });
     });
   });
 

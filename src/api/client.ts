@@ -60,6 +60,13 @@ export class QueryCancelledError extends Error {
   }
 }
 
+export class ConnectCancelledError extends Error {
+  constructor() {
+    super('Connection was cancelled');
+    this.name = 'ConnectCancelledError';
+  }
+}
+
 // Version endpoints (Tauri)
 
 export async function getVersion(): Promise<{
@@ -152,6 +159,17 @@ export async function connectToConnection(
 ): Promise<ConnectionResponse> {
   try {
     return await invoke<ConnectionResponse>('connect_to_connection', { id, request: data });
+  } catch (e) {
+    if (typeof e === 'string' && e.includes('Connection was cancelled')) {
+      throw new ConnectCancelledError();
+    }
+    throw wrapInvokeError(e);
+  }
+}
+
+export async function cancelConnectToConnection(id: string): Promise<void> {
+  try {
+    await invoke<void>('cancel_connect_to_connection', { id });
   } catch (e) {
     throw wrapInvokeError(e);
   }

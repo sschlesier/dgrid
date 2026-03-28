@@ -3,7 +3,7 @@
 import type { ConnectionResponse, DatabaseInfo, CollectionInfo } from '../lib/contracts';
 import type { Tab, Notification, UIState, Theme, TreeNodeData } from '../types';
 import * as api from '../api/client';
-import { ApiError } from '../api/client';
+import { ApiError, ConnectCancelledError } from '../api/client';
 import { queryStore } from './query.svelte';
 import { schemaStore } from './schema.svelte';
 
@@ -44,6 +44,8 @@ function saveUIState(state: UIState): void {
 }
 
 class AppStore {
+  private static readonly CONNECT_MODAL_DELAY_MS = 1000;
+
   // State
   connections = $state<ConnectionResponse[]>([]);
   activeConnectionId = $state<string | null>(null);
@@ -60,10 +62,25 @@ class AppStore {
   isLoadingConnections = $state(false);
   isLoadingDatabases = $state(false);
   isConnecting = $state(false);
+  connectionProgress = $state({
+    visible: false,
+    connectionId: null as string | null,
+    connectionName: '',
+    status: 'Establishing connection...',
+    cancelling: false,
+  });
 
   // Delayed per-node loading spinners (visible after 1s)
   private _loadingTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private _loadingNodes = $state<Set<string>>(new Set());
+  private _connectAttempt: {
+    id: number;
+    connectionId: string;
+    nodeId: string;
+    cancelRequested: boolean;
+  } | null = null;
+  private _connectAttemptId = 0;
+  private _connectModalTimer: ReturnType<typeof setTimeout> | null = null;
 
   private startNodeLoading(nodeId: string): void {
     if (this._loadingTimers.has(nodeId)) return;
@@ -219,15 +236,28 @@ class AppStore {
   }
 
   async connect(id: string, password?: string, savePassword?: boolean): Promise<void> {
+    if (this._connectAttempt) {
+      await this.cancelConnect();
+    }
+
     const nodeId = `conn:${id}`;
+    const connectionName = this.connections.find((c) => c.id === id)?.name ?? id;
+    const attemptId = this.beginConnectAttempt(id, connectionName, nodeId);
     this.isConnecting = true;
     this.startNodeLoading(nodeId);
+
     try {
       const connectData =
         password !== undefined || savePassword !== undefined
           ? { password, savePassword }
           : undefined;
       const connection = await api.connectToConnection(id, connectData);
+
+      if (this.wasConnectCancelled(attemptId, id)) {
+        await this.disconnectAfterCancelledConnect(id);
+        return;
+      }
+
       this.connections = this.connections.map((c) => (c.id === id ? connection : c));
       this.activeConnectionId = id;
       this.collapseConnectionTree(id);
@@ -235,12 +265,109 @@ class AppStore {
       // Load databases after connecting (skip node loading — connect manages it)
       await this.loadDatabases(id, true);
     } catch (error) {
+      if (error instanceof ConnectCancelledError || this.wasConnectCancelled(attemptId, id)) {
+        return;
+      }
+
       const errorMessage = this.getConnectionErrorMessage((error as Error).message);
       this.notify('error', errorMessage);
       throw error;
     } finally {
+      this.finishConnectAttempt(attemptId, id, nodeId);
+    }
+  }
+
+  async cancelConnect(): Promise<void> {
+    const attempt = this._connectAttempt;
+    if (!attempt) return;
+
+    if (!attempt.cancelRequested) {
+      attempt.cancelRequested = true;
+      this.connectionProgress = {
+        ...this.connectionProgress,
+        visible: true,
+        cancelling: true,
+        status: 'Cancelling connection...',
+      };
+    }
+
+    try {
+      await api.cancelConnectToConnection(attempt.connectionId);
+    } catch {
+      // Ignore cancel errors - connect may have already completed
+    }
+  }
+
+  private beginConnectAttempt(
+    connectionId: string,
+    connectionName: string,
+    nodeId: string
+  ): number {
+    const attemptId = ++this._connectAttemptId;
+    this._connectAttempt = {
+      id: attemptId,
+      connectionId,
+      nodeId,
+      cancelRequested: false,
+    };
+    this.clearConnectModalTimer();
+    this.connectionProgress = {
+      visible: false,
+      connectionId,
+      connectionName,
+      status: 'Establishing connection...',
+      cancelling: false,
+    };
+    this._connectModalTimer = setTimeout(() => {
+      if (this._connectAttempt?.id !== attemptId) return;
+      this.connectionProgress = {
+        ...this.connectionProgress,
+        visible: true,
+      };
+    }, AppStore.CONNECT_MODAL_DELAY_MS);
+    return attemptId;
+  }
+
+  private finishConnectAttempt(attemptId: number, connectionId: string, nodeId: string): void {
+    if (this._connectAttempt?.id === attemptId) {
+      this._connectAttempt = null;
+      this.clearConnectModalTimer();
+      this.connectionProgress = {
+        visible: false,
+        connectionId: null,
+        connectionName: '',
+        status: 'Establishing connection...',
+        cancelling: false,
+      };
       this.isConnecting = false;
       this.stopNodeLoading(nodeId);
+      return;
+    }
+
+    if (this._connectAttempt?.connectionId !== connectionId) {
+      this.stopNodeLoading(nodeId);
+    }
+  }
+
+  private clearConnectModalTimer(): void {
+    if (!this._connectModalTimer) return;
+    clearTimeout(this._connectModalTimer);
+    this._connectModalTimer = null;
+  }
+
+  private wasConnectCancelled(attemptId: number, connectionId: string): boolean {
+    if (this._connectAttempt?.id !== attemptId) {
+      return this._connectAttempt?.connectionId !== connectionId;
+    }
+
+    return this._connectAttempt.cancelRequested;
+  }
+
+  private async disconnectAfterCancelledConnect(id: string): Promise<void> {
+    try {
+      await api.disconnectFromConnection(id);
+    } catch {
+      // Ignore cleanup errors - connection may not have been fully established
     }
   }
 

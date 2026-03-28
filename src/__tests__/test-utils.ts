@@ -101,6 +101,13 @@ export interface MockAppStore {
   isLoadingConnections: boolean;
   isLoadingDatabases: boolean;
   isConnecting: boolean;
+  connectionProgress: {
+    visible: boolean;
+    connectionId: string | null;
+    connectionName: string;
+    status: string;
+    cancelling: boolean;
+  };
   activeConnection: ConnectionResponse | undefined;
   activeTab: Tab | undefined;
   connectedConnections: ConnectionResponse[];
@@ -110,6 +117,7 @@ export interface MockAppStore {
   updateConnection: ReturnType<typeof vi.fn>;
   deleteConnection: ReturnType<typeof vi.fn>;
   connect: ReturnType<typeof vi.fn>;
+  cancelConnect: ReturnType<typeof vi.fn>;
   disconnect: ReturnType<typeof vi.fn>;
   setActiveConnection: ReturnType<typeof vi.fn>;
   loadDatabases: ReturnType<typeof vi.fn>;
@@ -142,6 +150,13 @@ export function createMockAppStore(overrides: Partial<MockAppStore> = {}): MockA
     isLoadingConnections: false,
     isLoadingDatabases: false,
     isConnecting: false,
+    connectionProgress: {
+      visible: false,
+      connectionId: null,
+      connectionName: '',
+      status: 'Establishing connection...',
+      cancelling: false,
+    },
     get activeConnection(): ConnectionResponse | undefined {
       return store.connections.find((c) => c.id === store.activeConnectionId);
     },
@@ -159,6 +174,7 @@ export function createMockAppStore(overrides: Partial<MockAppStore> = {}): MockA
     updateConnection: vi.fn(),
     deleteConnection: vi.fn(),
     connect: vi.fn(),
+    cancelConnect: vi.fn(),
     disconnect: vi.fn(),
     setActiveConnection: vi.fn(),
     loadDatabases: vi.fn(),

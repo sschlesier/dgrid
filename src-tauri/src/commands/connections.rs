@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 use tauri::State;
+use tokio_util::sync::CancellationToken;
 
 use crate::credentials::{get_database_from_uri, inject_credentials, strip_credentials};
 use crate::error::DgridError;
@@ -168,10 +169,7 @@ pub async fn update_connection(
         Some(sp) => sp,
         None => {
             let storage = state.storage.lock().unwrap();
-            storage
-                .get(&id)?
-                .map(|c| c.save_password)
-                .unwrap_or(true)
+            storage.get(&id)?.map(|c| c.save_password).unwrap_or(true)
         }
     };
 
@@ -203,10 +201,7 @@ pub async fn update_connection(
 }
 
 #[tauri::command]
-pub async fn delete_connection(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), DgridError> {
+pub async fn delete_connection(state: State<'_, AppState>, id: String) -> Result<(), DgridError> {
     if state.pool.is_connected(&id).await {
         state.pool.disconnect(&id).await?;
     }
@@ -221,7 +216,9 @@ pub async fn delete_connection(
 }
 
 #[tauri::command]
-pub async fn test_connection(request: TestConnectionRequest) -> Result<TestConnectionResponse, DgridError> {
+pub async fn test_connection(
+    request: TestConnectionRequest,
+) -> Result<TestConnectionResponse, DgridError> {
     let start = Instant::now();
 
     let client_options = mongodb::options::ClientOptions::parse(&request.uri)
@@ -341,12 +338,44 @@ pub async fn connect_to_connection(
     };
     let database = get_database_from_uri(&conn.uri);
 
-    state
-        .pool
-        .connect(&id, MongoConnectionOptions { uri, database })
-        .await?;
+    let token = CancellationToken::new();
+    {
+        let mut tokens = state.connection_tokens.write().await;
+        if let Some(old) = tokens.remove(&id) {
+            old.cancel();
+        }
+        tokens.insert(id.clone(), token.clone());
+    }
+
+    let result = tokio::select! {
+        result = state.pool.connect(&id, MongoConnectionOptions { uri, database }) => result,
+        _ = token.cancelled() => Err(DgridError::ConnectionCancelled),
+    };
+
+    {
+        let mut tokens = state.connection_tokens.write().await;
+        tokens.remove(&id);
+    }
+
+    if matches!(result, Err(DgridError::ConnectionCancelled)) {
+        state.pool.force_disconnect(&id).await;
+    }
+
+    result?;
 
     Ok(to_connection_response(&conn, true))
+}
+
+#[tauri::command]
+pub async fn cancel_connect_to_connection(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), DgridError> {
+    let mut tokens = state.connection_tokens.write().await;
+    if let Some(token) = tokens.remove(&id) {
+        token.cancel();
+    }
+    Ok(())
 }
 
 #[tauri::command]

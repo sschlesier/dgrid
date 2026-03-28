@@ -3,7 +3,7 @@
 //! Matches the frontend's `src/backend/db/bson.ts` format exactly:
 //! six tagged types represented as `{ _type, _value }` objects.
 
-use mongodb::bson::{self, Bson, Binary, Decimal128};
+use mongodb::bson::{self, Binary, Bson, Decimal128};
 use serde_json::{Map, Value};
 
 /// Serialize a BSON value into a JSON value, using type-tagged objects
@@ -16,11 +16,9 @@ pub fn serialize_bson_value(value: &Bson) -> Value {
         Bson::Null => Value::Null,
         Bson::Boolean(b) => Value::Bool(*b),
         Bson::Int32(i) => Value::Number((*i).into()),
-        Bson::Double(f) => {
-            serde_json::Number::from_f64(*f)
-                .map(Value::Number)
-                .unwrap_or(Value::Null)
-        }
+        Bson::Double(f) => serde_json::Number::from_f64(*f)
+            .map(Value::Number)
+            .unwrap_or(Value::Null),
         Bson::String(s) => Value::String(s.clone()),
 
         Bson::ObjectId(oid) => tagged("ObjectId", &oid.to_hex()),
@@ -44,12 +42,8 @@ pub fn serialize_bson_value(value: &Bson) -> Value {
             tagged("Binary", &b64)
         }
 
-        Bson::Array(arr) => {
-            Value::Array(arr.iter().map(serialize_bson_value).collect())
-        }
-        Bson::Document(doc) => {
-            Value::Object(serialize_document(doc))
-        }
+        Bson::Array(arr) => Value::Array(arr.iter().map(serialize_bson_value).collect()),
+        Bson::Document(doc) => Value::Object(serialize_document(doc)),
 
         // Less common types — serialize as strings
         Bson::RegularExpression(re) => {
@@ -137,18 +131,20 @@ pub fn json_to_bson(value: &Value) -> Result<Bson, String> {
                         }))
                     }
                     "Decimal128" => {
-                        let d = val.parse::<Decimal128>()
+                        let d = val
+                            .parse::<Decimal128>()
                             .map_err(|e| format!("Invalid Decimal128: {e}"))?;
                         Ok(Bson::Decimal128(d))
                     }
                     "Long" => {
-                        let i = val.parse::<i64>()
+                        let i = val
+                            .parse::<i64>()
                             .map_err(|e| format!("Invalid Long: {e}"))?;
                         Ok(Bson::Int64(i))
                     }
                     "UUID" => {
-                        let u = uuid::Uuid::parse_str(val)
-                            .map_err(|e| format!("Invalid UUID: {e}"))?;
+                        let u =
+                            uuid::Uuid::parse_str(val).map_err(|e| format!("Invalid UUID: {e}"))?;
                         Ok(Bson::Binary(Binary {
                             subtype: bson::spec::BinarySubtype::Uuid,
                             bytes: u.as_bytes().to_vec(),
@@ -218,7 +214,10 @@ mod tests {
 
     #[test]
     fn serialize_bool() {
-        assert_eq!(serialize_bson_value(&Bson::Boolean(true)), Value::Bool(true));
+        assert_eq!(
+            serialize_bson_value(&Bson::Boolean(true)),
+            Value::Bool(true)
+        );
     }
 
     #[test]
@@ -247,7 +246,10 @@ mod tests {
     fn serialize_objectid() {
         let oid = ObjectId::parse_str("507f1f77bcf86cd799439011").unwrap();
         let val = serialize_bson_value(&Bson::ObjectId(oid));
-        assert_eq!(val, serde_json::json!({"_type": "ObjectId", "_value": "507f1f77bcf86cd799439011"}));
+        assert_eq!(
+            val,
+            serde_json::json!({"_type": "ObjectId", "_value": "507f1f77bcf86cd799439011"})
+        );
     }
 
     #[test]
@@ -262,7 +264,10 @@ mod tests {
     #[test]
     fn serialize_int64() {
         let val = serialize_bson_value(&Bson::Int64(9999999999));
-        assert_eq!(val, serde_json::json!({"_type": "Long", "_value": "9999999999"}));
+        assert_eq!(
+            val,
+            serde_json::json!({"_type": "Long", "_value": "9999999999"})
+        );
     }
 
     #[test]
@@ -320,10 +325,22 @@ mod tests {
     #[test]
     fn json_to_bson_primitives() {
         assert_eq!(json_to_bson(&Value::Null).unwrap(), Bson::Null);
-        assert_eq!(json_to_bson(&Value::Bool(true)).unwrap(), Bson::Boolean(true));
-        assert_eq!(json_to_bson(&serde_json::json!(42)).unwrap(), Bson::Int32(42));
-        assert_eq!(json_to_bson(&serde_json::json!(3.14)).unwrap(), Bson::Double(3.14));
-        assert_eq!(json_to_bson(&serde_json::json!("hello")).unwrap(), Bson::String("hello".into()));
+        assert_eq!(
+            json_to_bson(&Value::Bool(true)).unwrap(),
+            Bson::Boolean(true)
+        );
+        assert_eq!(
+            json_to_bson(&serde_json::json!(42)).unwrap(),
+            Bson::Int32(42)
+        );
+        assert_eq!(
+            json_to_bson(&serde_json::json!(3.14)).unwrap(),
+            Bson::Double(3.14)
+        );
+        assert_eq!(
+            json_to_bson(&serde_json::json!("hello")).unwrap(),
+            Bson::String("hello".into())
+        );
     }
 
     #[test]

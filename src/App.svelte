@@ -9,6 +9,7 @@
   import Notification from './components/Notification.svelte';
   import ConnectionDialog from './components/ConnectionDialog.svelte';
   import PasswordPromptDialog from './components/PasswordPromptDialog.svelte';
+  import ConnectionProgressModal from './components/ConnectionProgressModal.svelte';
   import './styles/global.css';
 
   // Dialog state
@@ -65,6 +66,10 @@
   function closePasswordPrompt() {
     showPasswordPrompt = false;
     promptConnectionId = null;
+  }
+
+  function cancelConnectionAttempt() {
+    void appStore.cancelConnect();
   }
 
   onMount(() => {
@@ -158,6 +163,15 @@
       username={promptUsername}
       onSubmit={handlePasswordSubmit}
       onClose={closePasswordPrompt}
+    />
+  {/if}
+
+  {#if appStore.connectionProgress.visible && appStore.connectionProgress.connectionId}
+    <ConnectionProgressModal
+      connectionName={appStore.connectionProgress.connectionName}
+      status={appStore.connectionProgress.status}
+      isCancelling={appStore.connectionProgress.cancelling}
+      oncancel={cancelConnectionAttempt}
     />
   {/if}
 </div>
