@@ -20,6 +20,7 @@
   import Editor from './Editor.svelte';
   import QueryHistory from './QueryHistory.svelte';
   import Spinner from './Spinner.svelte';
+  import MessageLog from './MessageLog.svelte';
 
   const QUERY_FILE_FILTERS = [{ name: 'MongoDB Scripts', extensions: ['js', 'mongodb', 'json'] }];
   import { ResultsContainer } from './results';
@@ -208,7 +209,10 @@
     gridStore.resetAllSubResults(tab.id, queries.length);
 
     const pageSize = gridStore.getPageSize(tab.id);
-    await queryStore.executeQueries(tab.id, tab.connectionId, tab.database, queries, pageSize);
+    await queryStore.executeQueries(tab.id, tab.connectionId, tab.database, queries, pageSize, {
+      connectionName: appStore.activeConnection?.name,
+      tabTitle: tab.title,
+    });
 
     // Enrich schema cache from result documents
     const queryResults = queryStore.getResults(tab.id);
@@ -792,137 +796,143 @@
   <div class="splitter" onmousedown={onSplitterMouseDown}></div>
 
   <div class="results-section">
-    {#if hasMultipleResults}
-      <!-- Sub-result tab bar -->
-      <div class="sub-result-tabs">
-        {#each subResults as sub, i}
-          <button
-            class="sub-result-tab"
-            class:active={i === activeResultIndex}
-            class:has-error={sub.error !== null}
-            class:is-executing={sub.isExecuting}
-            onclick={() => switchSubResult(i)}
-          >
-            <span class="sub-tab-label">Query {i + 1}</span>
-            {#if sub.error}
-              <span class="sub-tab-error-dot" title="Error"></span>
-            {:else if sub.isExecuting}
-              <Spinner size="xs" />
-            {:else if sub.result}
-              <span class="sub-tab-count">{sub.result.documents.length}</span>
-            {/if}
-          </button>
-        {/each}
-      </div>
-
-      <!-- Active sub-result content -->
-      {#if activeSubResult}
-        {#if activeSubResult.error}
-          {@const errorInfo = categorizeError(activeSubResult.error)}
-          <div class="error-display">
-            <div class="error-header">
-              <span class="error-type">{errorInfo.type}</span>
-              <button
-                class="copy-error-btn"
-                onclick={() => copyError(activeSubResult?.error ?? '')}
-                title="Copy error to clipboard"
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                  <path
-                    d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"
-                  />
-                  <path
-                    d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"
-                  />
-                </svg>
-              </button>
-            </div>
-            <pre class="error-message">{activeSubResult.error}</pre>
-            {#if errorInfo.suggestion}
-              <div class="error-suggestion">
-                <strong>Suggestion:</strong>
-                {errorInfo.suggestion}
-              </div>
-            {/if}
-          </div>
-        {:else if activeSubResult.isExecuting}
-          <div class="loading-display">
-            <Spinner size="lg" />
-            <span>{executingMessage}</span>
-          </div>
-        {:else if activeSubResult.result}
-          <ResultsContainer
-            tabId={tab.id}
-            results={activeSubResult.result}
-            connectionId={tab.connectionId}
-            database={tab.database}
-            collection={collectionName}
-            query={activeSubResult.query}
-            onpagechange={handlePageChange}
-            onpagesizechange={handlePageSizeChange}
-          />
-        {:else}
-          <div class="empty-results">
-            <p class="empty-title">No results yet</p>
-          </div>
-        {/if}
-      {/if}
-    {:else if error}
-      {@const errorInfo = categorizeError(error)}
-      <div class="error-display">
-        <div class="error-header">
-          <span class="error-type">{errorInfo.type}</span>
-          <button
-            class="copy-error-btn"
-            onclick={() => copyError(error)}
-            title="Copy error to clipboard"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-              <path
-                d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"
-              />
-              <path
-                d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"
-              />
-            </svg>
-          </button>
+    <div class="results-main">
+      {#if hasMultipleResults}
+        <!-- Sub-result tab bar -->
+        <div class="sub-result-tabs">
+          {#each subResults as sub, i}
+            <button
+              class="sub-result-tab"
+              class:active={i === activeResultIndex}
+              class:has-error={sub.error !== null}
+              class:is-executing={sub.isExecuting}
+              onclick={() => switchSubResult(i)}
+            >
+              <span class="sub-tab-label">Query {i + 1}</span>
+              {#if sub.error}
+                <span class="sub-tab-error-dot" title="Error"></span>
+              {:else if sub.isExecuting}
+                <Spinner size="xs" />
+              {:else if sub.result}
+                <span class="sub-tab-count">{sub.result.documents.length}</span>
+              {/if}
+            </button>
+          {/each}
         </div>
-        <pre class="error-message">{error}</pre>
-        {#if errorInfo.suggestion}
-          <div class="error-suggestion">
-            <strong>Suggestion:</strong>
-            {errorInfo.suggestion}
-          </div>
+
+        <!-- Active sub-result content -->
+        {#if activeSubResult}
+          {#if activeSubResult.error}
+            {@const errorInfo = categorizeError(activeSubResult.error)}
+            <div class="error-display">
+              <div class="error-header">
+                <span class="error-type">{errorInfo.type}</span>
+                <button
+                  class="copy-error-btn"
+                  onclick={() => copyError(activeSubResult?.error ?? '')}
+                  title="Copy error to clipboard"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <path
+                      d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"
+                    />
+                    <path
+                      d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <pre class="error-message">{activeSubResult.error}</pre>
+              {#if errorInfo.suggestion}
+                <div class="error-suggestion">
+                  <strong>Suggestion:</strong>
+                  {errorInfo.suggestion}
+                </div>
+              {/if}
+            </div>
+          {:else if activeSubResult.isExecuting}
+            <div class="loading-display">
+              <Spinner size="lg" />
+              <span>{executingMessage}</span>
+            </div>
+          {:else if activeSubResult.result}
+            <ResultsContainer
+              tabId={tab.id}
+              results={activeSubResult.result}
+              connectionId={tab.connectionId}
+              database={tab.database}
+              collection={collectionName}
+              query={activeSubResult.query}
+              onpagechange={handlePageChange}
+              onpagesizechange={handlePageSizeChange}
+            />
+          {:else}
+            <div class="empty-results">
+              <p class="empty-title">No results yet</p>
+            </div>
+          {/if}
         {/if}
-      </div>
-    {:else if isExecuting}
-      <div class="loading-display">
-        <Spinner size="lg" />
-        <span>{executingMessage}</span>
-      </div>
-    {:else if results}
-      <ResultsContainer
-        tabId={tab.id}
-        {results}
-        connectionId={tab.connectionId}
-        database={tab.database}
-        collection={collectionName}
-        query={queryText}
-        onpagechange={handlePageChange}
-        onpagesizechange={handlePageSizeChange}
-      />
-    {:else}
-      <div class="empty-results">
-        <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor" class="empty-icon">
-          <path
-            d="M11.28 3.22a.75.75 0 0 1 0 1.06L6.56 9l4.72 4.72a.75.75 0 1 1-1.06 1.06l-5.25-5.25a.75.75 0 0 1 0-1.06l5.25-5.25a.75.75 0 0 1 1.06 0Z"
-          />
-        </svg>
-        <p class="empty-title">Execute a query to see results</p>
-        <p class="empty-hint">
-          Press <kbd>{keybindingsStore.getFormatted('execute-all')}</kbd> to run all queries
-        </p>
-      </div>
+      {:else if error}
+        {@const errorInfo = categorizeError(error)}
+        <div class="error-display">
+          <div class="error-header">
+            <span class="error-type">{errorInfo.type}</span>
+            <button
+              class="copy-error-btn"
+              onclick={() => copyError(error)}
+              title="Copy error to clipboard"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <path
+                  d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"
+                />
+                <path
+                  d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"
+                />
+              </svg>
+            </button>
+          </div>
+          <pre class="error-message">{error}</pre>
+          {#if errorInfo.suggestion}
+            <div class="error-suggestion">
+              <strong>Suggestion:</strong>
+              {errorInfo.suggestion}
+            </div>
+          {/if}
+        </div>
+      {:else if isExecuting}
+        <div class="loading-display">
+          <Spinner size="lg" />
+          <span>{executingMessage}</span>
+        </div>
+      {:else if results}
+        <ResultsContainer
+          tabId={tab.id}
+          {results}
+          connectionId={tab.connectionId}
+          database={tab.database}
+          collection={collectionName}
+          query={queryText}
+          onpagechange={handlePageChange}
+          onpagesizechange={handlePageSizeChange}
+        />
+      {:else}
+        <div class="empty-results">
+          <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor" class="empty-icon">
+            <path
+              d="M11.28 3.22a.75.75 0 0 1 0 1.06L6.56 9l4.72 4.72a.75.75 0 1 1-1.06 1.06l-5.25-5.25a.75.75 0 0 1 0-1.06l5.25-5.25a.75.75 0 0 1 1.06 0Z"
+            />
+          </svg>
+          <p class="empty-title">Execute a query to see results</p>
+          <p class="empty-hint">
+            Press <kbd>{keybindingsStore.getFormatted('execute-all')}</kbd> to run all queries
+          </p>
+        </div>
+      {/if}
+    </div>
+
+    {#if appStore.ui.logOpen}
+      <MessageLog />
     {/if}
   </div>
 </div>
@@ -1135,6 +1145,14 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+  }
+
+  .results-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
     overflow: hidden;
   }
 

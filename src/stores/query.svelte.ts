@@ -5,6 +5,7 @@ import type { QueryHistoryItem, SubQueryResult, ExecuteMode } from '../types';
 import type { QuerySlice } from '../lib/querySplitter';
 import * as api from '../api/client';
 import { ApiError, QueryCancelledError } from '../api/client';
+import { logStore } from './log.svelte';
 
 // localStorage keys
 const HISTORY_KEY = 'dgrid-query-history';
@@ -13,6 +14,11 @@ const MAX_HISTORY_ITEMS = 20;
 // Generate unique IDs
 function generateId(): string {
   return crypto.randomUUID();
+}
+
+interface QueryLogContext {
+  connectionName?: string;
+  tabTitle?: string;
 }
 
 // Load history from localStorage
@@ -120,7 +126,8 @@ class QueryStore {
     query: string,
     page = 1,
     pageSize: 50 | 100 | 250 | 500 = 50,
-    silent = false
+    silent = false,
+    logContext?: QueryLogContext
   ): Promise<ExecuteQueryResponse | null> {
     // Cancel any existing query for this tab
     this.cancelQuery(tabId);
@@ -149,6 +156,16 @@ class QueryStore {
     newErrors.set(tabId, null);
     this.errors = newErrors;
 
+    if (page === 1) {
+      this.logQueryEvent('info', 'Started query', {
+        connectionId,
+        database,
+        tabId,
+        query,
+        ...logContext,
+      });
+    }
+
     try {
       const result = await api.executeQuery(
         connectionId,
@@ -176,12 +193,31 @@ class QueryStore {
           timestamp: new Date().toISOString(),
           executionTimeMs: result.executionTimeMs,
         });
+
+        this.logQueryEvent('success', 'Query completed', {
+          connectionId,
+          database,
+          tabId,
+          query,
+          executionTimeMs: result.executionTimeMs,
+          documentCount: result.documents.length,
+          ...logContext,
+        });
       }
 
       return result;
     } catch (error) {
       // Don't store error for cancelled queries
       if (error instanceof QueryCancelledError) {
+        if (page === 1) {
+          this.logQueryEvent('warning', 'Query cancelled', {
+            connectionId,
+            database,
+            tabId,
+            query,
+            ...logContext,
+          });
+        }
         return null;
       }
 
@@ -202,6 +238,16 @@ class QueryStore {
       newResults.set(tabId, null);
       this.results = newResults;
 
+      if (page === 1) {
+        this.logQueryEvent('error', `Query failed: ${(error as Error).message}`, {
+          connectionId,
+          database,
+          tabId,
+          query,
+          ...logContext,
+        });
+      }
+
       return null;
     } finally {
       // Clean up running tab
@@ -220,11 +266,21 @@ class QueryStore {
     connectionId: string,
     database: string,
     queries: QuerySlice[],
-    pageSize: 50 | 100 | 250 | 500 = 50
+    pageSize: 50 | 100 | 250 | 500 = 50,
+    logContext?: QueryLogContext
   ): Promise<void> {
     // If only one query, use the single-query path for backward compat
     if (queries.length === 1) {
-      await this.executeQuery(tabId, connectionId, database, queries[0].text, 1, pageSize);
+      await this.executeQuery(
+        tabId,
+        connectionId,
+        database,
+        queries[0].text,
+        1,
+        pageSize,
+        false,
+        logContext
+      );
       return;
     }
 
@@ -282,6 +338,15 @@ class QueryStore {
 
         // Mark current sub-result as executing
         this.updateSubResult(tabId, i, { isExecuting: true });
+        this.logQueryEvent('info', `Started query ${i + 1} of ${queries.length}`, {
+          connectionId,
+          database,
+          tabId,
+          query: queries[i].text,
+          queryIndex: i,
+          queryCount: queries.length,
+          ...logContext,
+        });
 
         try {
           const result = await api.executeQuery(
@@ -299,10 +364,30 @@ class QueryStore {
             result,
             isExecuting: false,
           });
+          this.logQueryEvent('success', `Query ${i + 1} completed`, {
+            connectionId,
+            database,
+            tabId,
+            query: queries[i].text,
+            queryIndex: i,
+            queryCount: queries.length,
+            executionTimeMs: result.executionTimeMs,
+            documentCount: result.documents.length,
+            ...logContext,
+          });
         } catch (error) {
           if (error instanceof QueryCancelledError) {
             // Mark this and all remaining as not executing
             this.updateSubResult(tabId, i, { isExecuting: false });
+            this.logQueryEvent('warning', `Query ${i + 1} cancelled`, {
+              connectionId,
+              database,
+              tabId,
+              query: queries[i].text,
+              queryIndex: i,
+              queryCount: queries.length,
+              ...logContext,
+            });
             cancelled = true;
             break;
           }
@@ -317,6 +402,15 @@ class QueryStore {
           this.updateSubResult(tabId, i, {
             error: (error as Error).message,
             isExecuting: false,
+          });
+          this.logQueryEvent('error', `Query ${i + 1} failed: ${(error as Error).message}`, {
+            connectionId,
+            database,
+            tabId,
+            query: queries[i].text,
+            queryIndex: i,
+            queryCount: queries.length,
+            ...logContext,
           });
         }
       }
@@ -392,6 +486,62 @@ class QueryStore {
     }
 
     return this.executeQuery(tabId, connectionId, database, query, page, pageSize, silent);
+  }
+
+  private logQueryEvent(
+    level: 'success' | 'error' | 'info' | 'warning',
+    action: string,
+    details: {
+      connectionId: string;
+      database: string;
+      tabId: string;
+      query: string;
+      connectionName?: string;
+      tabTitle?: string;
+      queryIndex?: number;
+      queryCount?: number;
+      executionTimeMs?: number;
+      documentCount?: number;
+    }
+  ): void {
+    const context: string[] = [];
+
+    if (details.connectionName) {
+      context.push(details.connectionName);
+    } else {
+      context.push(details.connectionId);
+    }
+
+    context.push(details.database);
+
+    if (details.tabTitle) {
+      context.push(details.tabTitle);
+    }
+
+    if (details.queryIndex !== undefined && details.queryCount !== undefined) {
+      context.push(`[${details.queryIndex + 1}/${details.queryCount}]`);
+    }
+
+    const suffix: string[] = [];
+    if (details.executionTimeMs !== undefined) {
+      suffix.push(`${details.executionTimeMs}ms`);
+    }
+    if (details.documentCount !== undefined) {
+      suffix.push(`${details.documentCount} document${details.documentCount === 1 ? '' : 's'}`);
+    }
+
+    const contextLabel = context.join(' / ');
+    const suffixLabel = suffix.length > 0 ? ` (${suffix.join(', ')})` : '';
+
+    logStore.append({
+      level,
+      source: 'query',
+      message: `${action}: ${contextLabel}${suffixLabel}`,
+      connectionId: details.connectionId,
+      connectionName: details.connectionName,
+      tabId: details.tabId,
+      tabTitle: details.tabTitle,
+    });
   }
 
   // Clear results for a tab

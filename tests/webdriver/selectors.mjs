@@ -80,7 +80,9 @@ export const selectors = {
     tab: (name) => $(`//*[@role="tab"][contains(normalize-space(.), ${quoteXPath(name)})]`),
     activeTab: () => $('.tab.active'),
     closeButton: (name) =>
-      $(`//*[@role="tab"][contains(normalize-space(.), ${quoteXPath(name)})]//*[contains(@class, "tab-close")]`),
+      $(
+        `//*[@role="tab"][contains(normalize-space(.), ${quoteXPath(name)})]//*[contains(@class, "tab-close")]`
+      ),
     newTabButton: () => $('.new-tab-btn'),
   },
 
@@ -89,7 +91,10 @@ export const selectors = {
     gridViewport: () => $('.grid-viewport'),
     gridRow: (index) => $(`.grid-row[data-row-index="${index}"]`),
     gridCell: () => $$('.grid-cell'),
-    gridCellWithText: (text) => $(`//*[contains(@class, "grid-cell")]//*[contains(normalize-space(.), ${quoteXPath(text)})]/ancestor::*[contains(@class, "grid-cell")]`),
+    gridCellWithText: (text) =>
+      $(
+        `//*[contains(@class, "grid-cell")]//*[contains(normalize-space(.), ${quoteXPath(text)})]/ancestor::*[contains(@class, "grid-cell")]`
+      ),
     viewSelector: () => $('.view-selector'),
     viewButton: (name) => $(`.view-btn[title="${name} View"]`),
     pagination: () => $('.pagination'),
@@ -111,7 +116,8 @@ export const selectors = {
   },
 
   editDialog: {
-    overlay: () => $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Edit Field']]`),
+    overlay: () =>
+      $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Edit Field']]`),
     fieldPath: () => $('.field-path-display'),
     typeSelect: () => $('#field-type'),
     valueInput: () => $('#field-value'),
@@ -130,14 +136,25 @@ export const selectors = {
   },
 
   statusBar: {
+    root: () => $('.statusbar'),
     center: () => $('.statusbar-center'),
+    logToggle: () => $('[title="Toggle message log"]'),
+  },
+
+  log: {
+    panel: () => $('.message-log'),
+    clearButton: () => $('.message-log .clear-btn'),
+    entry: () => $$('.message-log-entry'),
+    emptyState: () => $('.message-log-empty'),
   },
 
   notification: {
     all: () => $$('.notification'),
     message: () => $$('.notification .notification-message'),
     withText: (text) =>
-      $(`//*[contains(@class, "notification")]//*[contains(@class, "notification-message")][contains(normalize-space(.), ${quoteXPath(text)})]`),
+      $(
+        `//*[contains(@class, "notification")]//*[contains(@class, "notification-message")][contains(normalize-space(.), ${quoteXPath(text)})]`
+      ),
   },
 
   tooltip: {
@@ -146,7 +163,9 @@ export const selectors = {
 
   history: {
     toolbarButton: () =>
-      $(`//*[contains(@class, "toolbar-btn")][.//*[contains(normalize-space(.), ${quoteXPath('History')})]]`),
+      $(
+        `//*[contains(@class, "toolbar-btn")][.//*[contains(normalize-space(.), ${quoteXPath('History')})]]`
+      ),
     dropdown: () => $('.history-dropdown'),
     item: () => $$('.history-item'),
     itemQuery: () => $$('.item-query'),

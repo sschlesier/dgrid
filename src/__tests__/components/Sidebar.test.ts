@@ -8,7 +8,13 @@ vi.mock('../../stores/app.svelte', () => ({
   appStore: {
     connections: [],
     treeData: [],
-    ui: { selectedTreeNode: null, sidebarOpen: true, theme: 'light', treeExpanded: {} },
+    ui: {
+      selectedTreeNode: null,
+      sidebarOpen: true,
+      theme: 'light',
+      treeExpanded: {},
+      logOpen: false,
+    },
     connect: vi.fn(),
     toggleTreeNode: vi.fn(),
     createTab: vi.fn(),

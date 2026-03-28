@@ -74,6 +74,7 @@ export function createMockUIState(overrides: Partial<UIState> = {}): UIState {
     theme: 'light',
     treeExpanded: {},
     selectedTreeNode: null,
+    logOpen: false,
     ...overrides,
   };
 }
@@ -119,6 +120,7 @@ export interface MockAppStore {
   setActiveTab: ReturnType<typeof vi.fn>;
   updateTab: ReturnType<typeof vi.fn>;
   toggleSidebar: ReturnType<typeof vi.fn>;
+  toggleLog: ReturnType<typeof vi.fn>;
   setTheme: ReturnType<typeof vi.fn>;
   applyTheme: ReturnType<typeof vi.fn>;
   toggleTreeNode: ReturnType<typeof vi.fn>;
@@ -168,6 +170,7 @@ export function createMockAppStore(overrides: Partial<MockAppStore> = {}): MockA
     setActiveTab: vi.fn(),
     updateTab: vi.fn(),
     toggleSidebar: vi.fn(),
+    toggleLog: vi.fn(),
     setTheme: vi.fn(),
     applyTheme: vi.fn(),
     toggleTreeNode: vi.fn(),

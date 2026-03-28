@@ -26,6 +26,7 @@ vi.mock('../api/client', () => ({
 // Import after mocking
 import * as api from '../api/client';
 import { queryStore } from '../stores/query.svelte';
+import { logStore } from '../stores/log.svelte';
 
 const mockedApi = api as unknown as {
   executeQuery: ReturnType<typeof vi.fn>;
@@ -39,6 +40,9 @@ describe('queryStore', () => {
     queryStore.isExecuting = new Map();
     queryStore.errors = new Map();
     queryStore.history = [];
+    queryStore.subResults = new Map();
+    queryStore.activeResultIndex = new Map();
+    logStore.clear();
 
     // Reset mocks
     vi.clearAllMocks();
@@ -167,6 +171,54 @@ describe('queryStore', () => {
       await queryStore.executeQuery('tab1', 'conn1', 'db', 'query', 2);
 
       expect(queryStore.history).toHaveLength(0);
+    });
+
+    it('logs query start and success entries', async () => {
+      mockedApi.executeQuery.mockResolvedValue({
+        documents: [{ _id: '1' }],
+        page: 1,
+        pageSize: 50,
+        hasMore: false,
+        executionTimeMs: 12,
+      });
+
+      await queryStore.executeQuery('tab1', 'conn1', 'testdb', 'db.test.find()', 1, 50, false, {
+        connectionName: 'Local Mongo',
+        tabTitle: 'Users',
+      });
+
+      expect(logStore.getEntries()).toHaveLength(2);
+      expect(logStore.getEntries()[0].message).toContain('Started query');
+      expect(logStore.getEntries()[1].message).toContain('Query completed');
+      expect(logStore.getEntries()[1].message).toContain('12ms');
+    });
+
+    it('logs query failures', async () => {
+      mockedApi.executeQuery.mockRejectedValue(new Error('Bad query'));
+
+      await queryStore.executeQuery('tab1', 'conn1', 'testdb', 'db.test.find(');
+
+      expect(logStore.getEntries()).toHaveLength(2);
+      expect(logStore.getEntries()[1]).toMatchObject({
+        level: 'error',
+        source: 'query',
+      });
+      expect(logStore.getEntries()[1].message).toContain('Bad query');
+    });
+
+    it('logs query cancellation', async () => {
+      mockedApi.executeQuery.mockRejectedValue(
+        new (api as typeof import('../api/client')).QueryCancelledError()
+      );
+
+      await queryStore.executeQuery('tab1', 'conn1', 'testdb', 'db.test.find()');
+
+      expect(logStore.getEntries()).toHaveLength(2);
+      expect(logStore.getEntries()[1]).toMatchObject({
+        level: 'warning',
+        source: 'query',
+      });
+      expect(logStore.getEntries()[1].message).toContain('cancelled');
     });
   });
 

@@ -16,6 +16,22 @@ export interface Notification {
   duration: number;
 }
 
+export type LogLevel = Notification['type'];
+
+export type LogSource = 'app' | 'query';
+
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  level: LogLevel;
+  source: LogSource;
+  message: string;
+  connectionId?: string;
+  connectionName?: string;
+  tabId?: string;
+  tabTitle?: string;
+}
+
 export type Theme = 'light' | 'dark' | 'system';
 
 export interface UIState {
@@ -23,6 +39,7 @@ export interface UIState {
   theme: Theme;
   treeExpanded: Record<string, boolean>;
   selectedTreeNode: string | null;
+  logOpen: boolean;
 }
 
 export type TreeNodeType =

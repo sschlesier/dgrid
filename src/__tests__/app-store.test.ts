@@ -15,6 +15,7 @@ vi.mock('../api/client', () => ({
 // Import after mocking
 import * as api from '../api/client';
 import { appStore } from '../stores/app.svelte';
+import { logStore } from '../stores/log.svelte';
 
 const mockedApi = api as unknown as {
   getConnections: ReturnType<typeof vi.fn>;
@@ -37,6 +38,14 @@ describe('appStore', () => {
     appStore.tabs = [];
     appStore.activeTabId = null;
     appStore.notifications = [];
+    appStore.ui = {
+      sidebarOpen: true,
+      theme: 'system',
+      treeExpanded: {},
+      selectedTreeNode: null,
+      logOpen: false,
+    };
+    logStore.clear();
 
     // Reset mocks
     vi.clearAllMocks();
@@ -389,7 +398,13 @@ describe('appStore', () => {
 
   describe('UI', () => {
     it('toggleSidebar toggles sidebarOpen', () => {
-      appStore.ui = { sidebarOpen: true, theme: 'light', treeExpanded: {}, selectedTreeNode: null };
+      appStore.ui = {
+        sidebarOpen: true,
+        theme: 'light',
+        treeExpanded: {},
+        selectedTreeNode: null,
+        logOpen: false,
+      };
 
       appStore.toggleSidebar();
 
@@ -423,6 +438,20 @@ describe('appStore', () => {
       appStore.dismiss(id);
 
       expect(appStore.notifications).toHaveLength(0);
+    });
+  });
+
+  describe('logging', () => {
+    it('mirrors notifications into the log store', () => {
+      appStore.notify('success', 'Connections refreshed');
+
+      expect(appStore.notifications).toHaveLength(1);
+      expect(logStore.getEntries()).toHaveLength(1);
+      expect(logStore.getEntries()[0]).toMatchObject({
+        level: 'success',
+        source: 'app',
+        message: 'Connections refreshed',
+      });
     });
   });
 });

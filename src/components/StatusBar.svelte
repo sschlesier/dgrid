@@ -82,6 +82,19 @@
   </div>
 
   <div class="statusbar-right">
+    <button
+      class="log-toggle"
+      class:active={appStore.ui.logOpen}
+      onclick={() => appStore.toggleLog()}
+      title="Toggle message log"
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path
+          d="M2.75 2A1.75 1.75 0 0 0 1 3.75v8.5C1 13.216 1.784 14 2.75 14h10.5A1.75 1.75 0 0 0 15 12.25v-8.5A1.75 1.75 0 0 0 13.25 2Zm0 1.5h10.5a.25.25 0 0 1 .25.25v5H2.5v-5a.25.25 0 0 1 .25-.25Zm-.25 8.75v-2h11v2a.25.25 0 0 1-.25.25H2.75a.25.25 0 0 1-.25-.25Zm2-6a.75.75 0 0 1 .75-.75h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1-.75-.75Z"
+        />
+      </svg>
+    </button>
+
     <button class="theme-toggle" onclick={cycleTheme} title={`Theme: ${appStore.ui.theme}`}>
       {getThemeIcon()}
     </button>
@@ -151,8 +164,29 @@
     color: var(--color-text-secondary);
   }
 
+  .log-toggle:hover,
   .theme-toggle:hover {
     background-color: var(--color-bg-hover);
     color: var(--color-text-primary);
+  }
+
+  .log-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    transition: background-color var(--transition-fast);
+    color: var(--color-text-secondary);
+  }
+
+  .log-toggle.active {
+    color: var(--color-primary);
+    background-color: var(--color-bg-hover);
+  }
+
+  .theme-toggle:hover {
+    background-color: var(--color-bg-hover);
   }
 </style>

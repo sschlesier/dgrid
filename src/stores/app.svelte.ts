@@ -6,6 +6,7 @@ import * as api from '../api/client';
 import { ApiError } from '../api/client';
 import { queryStore } from './query.svelte';
 import { schemaStore } from './schema.svelte';
+import { logStore } from './log.svelte';
 
 // Generate unique IDs
 function generateId(): string {
@@ -26,12 +27,19 @@ function loadUIState(): UIState {
         theme: parsed.theme ?? 'system',
         treeExpanded: parsed.treeExpanded ?? {},
         selectedTreeNode: parsed.selectedTreeNode ?? null,
+        logOpen: parsed.logOpen ?? false,
       };
     }
   } catch {
     // Ignore parse errors
   }
-  return { sidebarOpen: true, theme: 'system', treeExpanded: {}, selectedTreeNode: null };
+  return {
+    sidebarOpen: true,
+    theme: 'system',
+    treeExpanded: {},
+    selectedTreeNode: null,
+    logOpen: false,
+  };
 }
 
 // Save UI state to localStorage
@@ -492,6 +500,11 @@ class AppStore {
     saveUIState(this.ui);
   }
 
+  toggleLog(): void {
+    this.ui = { ...this.ui, logOpen: !this.ui.logOpen };
+    saveUIState(this.ui);
+  }
+
   setTheme(theme: Theme): void {
     this.ui = { ...this.ui, theme };
     saveUIState(this.ui);
@@ -643,6 +656,11 @@ class AppStore {
       duration,
     };
     this.notifications = [...this.notifications, notification];
+    logStore.append({
+      level: type,
+      source: 'app',
+      message,
+    });
 
     // Auto-dismiss
     if (duration > 0) {
