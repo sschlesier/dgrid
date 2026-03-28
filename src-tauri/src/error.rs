@@ -26,6 +26,12 @@ pub enum DgridError {
 
     #[error("Query was cancelled")]
     QueryCancelled,
+
+    #[error("Connection was cancelled")]
+    ConnectionCancelled,
+
+    #[error("Connection test was cancelled")]
+    TestConnectionCancelled,
 }
 
 impl From<std::io::Error> for DgridError {
@@ -118,5 +124,17 @@ mod tests {
         let json_err = serde_json::from_str::<String>("invalid").unwrap_err();
         let err: DgridError = json_err.into();
         assert!(matches!(err, DgridError::Storage(_)));
+    }
+
+    #[test]
+    fn connection_cancelled_error_display() {
+        let err = DgridError::ConnectionCancelled;
+        assert_eq!(err.to_string(), "Connection was cancelled");
+    }
+
+    #[test]
+    fn test_connection_cancelled_error_display() {
+        let err = DgridError::TestConnectionCancelled;
+        assert_eq!(err.to_string(), "Connection test was cancelled");
     }
 }

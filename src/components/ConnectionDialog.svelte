@@ -194,9 +194,16 @@
     isTesting = true;
     testResult = null;
     error = null;
+    const operationId = crypto.randomUUID();
 
     try {
-      const result = await api.testSavedConnection(id);
+      const result = await appStore.runSlowCancelableOperation({
+        targetName: name.trim() || 'Untitled',
+        run: () => api.testSavedConnection(id, undefined, operationId),
+        cancel: () => api.cancelTestConnection(operationId),
+        isCancelledError: (err) => err instanceof api.TestConnectionCancelledError,
+      });
+      if (!result) return;
       testResult = result;
     } catch (err) {
       testResult = {
@@ -213,9 +220,16 @@
     isTesting = true;
     testResult = null;
     error = null;
+    const operationId = crypto.randomUUID();
 
     try {
-      const result = await api.testConnection({ uri });
+      const result = await appStore.runSlowCancelableOperation({
+        targetName: name.trim() || 'Untitled',
+        run: () => api.testConnection({ uri, operationId }),
+        cancel: () => api.cancelTestConnection(operationId),
+        isCancelledError: (err) => err instanceof api.TestConnectionCancelledError,
+      });
+      if (!result) return;
       testResult = result;
     } catch (err) {
       testResult = {
@@ -254,7 +268,7 @@
   function handleTestPasswordSubmit(pwd: string) {
     showTestPasswordPrompt = false;
     const uri = injectPasswordIntoUri(testPromptUri, pwd);
-    executeTest(uri);
+    void executeTest(uri);
   }
 
   async function handleSave() {

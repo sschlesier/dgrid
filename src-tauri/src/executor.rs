@@ -247,7 +247,10 @@ async fn execute_collection_query(
         }
 
         CollectionOperation::Distinct => {
-            let field = query.field.as_deref().ok_or("distinct requires a field name")?;
+            let field = query
+                .field
+                .as_deref()
+                .ok_or("distinct requires a field name")?;
             let filter = value_to_doc(&query.filter)?;
 
             let values = collection
@@ -311,7 +314,9 @@ async fn execute_collection_query(
             m.insert("acknowledged".into(), Value::Bool(true));
             m.insert(
                 "insertedId".into(),
-                bson_ser::serialize_bson_value(&Bson::ObjectId(result.inserted_id.as_object_id().unwrap_or_default())),
+                bson_ser::serialize_bson_value(&Bson::ObjectId(
+                    result.inserted_id.as_object_id().unwrap_or_default(),
+                )),
             );
 
             Ok(ExecuteQueryResponse {
@@ -378,9 +383,25 @@ async fn execute_collection_query(
 
             let mut m = Map::new();
             m.insert("acknowledged".into(), Value::Bool(true));
-            m.insert("matchedCount".into(), Value::Number(result.matched_count.into()));
-            m.insert("modifiedCount".into(), Value::Number(result.modified_count.into()));
-            m.insert("upsertedCount".into(), Value::Number(if result.upserted_id.is_some() { 1u64 } else { 0u64 }.into()));
+            m.insert(
+                "matchedCount".into(),
+                Value::Number(result.matched_count.into()),
+            );
+            m.insert(
+                "modifiedCount".into(),
+                Value::Number(result.modified_count.into()),
+            );
+            m.insert(
+                "upsertedCount".into(),
+                Value::Number(
+                    if result.upserted_id.is_some() {
+                        1u64
+                    } else {
+                        0u64
+                    }
+                    .into(),
+                ),
+            );
             if let Some(id) = &result.upserted_id {
                 m.insert("upsertedId".into(), bson_ser::serialize_bson_value(id));
             } else {
@@ -418,9 +439,25 @@ async fn execute_collection_query(
 
             let mut m = Map::new();
             m.insert("acknowledged".into(), Value::Bool(true));
-            m.insert("matchedCount".into(), Value::Number(result.matched_count.into()));
-            m.insert("modifiedCount".into(), Value::Number(result.modified_count.into()));
-            m.insert("upsertedCount".into(), Value::Number(if result.upserted_id.is_some() { 1u64 } else { 0u64 }.into()));
+            m.insert(
+                "matchedCount".into(),
+                Value::Number(result.matched_count.into()),
+            );
+            m.insert(
+                "modifiedCount".into(),
+                Value::Number(result.modified_count.into()),
+            );
+            m.insert(
+                "upsertedCount".into(),
+                Value::Number(
+                    if result.upserted_id.is_some() {
+                        1u64
+                    } else {
+                        0u64
+                    }
+                    .into(),
+                ),
+            );
             if let Some(id) = &result.upserted_id {
                 m.insert("upsertedId".into(), bson_ser::serialize_bson_value(id));
             } else {
@@ -440,14 +477,23 @@ async fn execute_collection_query(
             let filter = value_to_doc(&query.filter)?;
 
             let result = if query.operation == CollectionOperation::DeleteOne {
-                collection.delete_one(filter).await.map_err(|e| e.to_string())?
+                collection
+                    .delete_one(filter)
+                    .await
+                    .map_err(|e| e.to_string())?
             } else {
-                collection.delete_many(filter).await.map_err(|e| e.to_string())?
+                collection
+                    .delete_many(filter)
+                    .await
+                    .map_err(|e| e.to_string())?
             };
 
             let mut m = Map::new();
             m.insert("acknowledged".into(), Value::Bool(true));
-            m.insert("deletedCount".into(), Value::Number(result.deleted_count.into()));
+            m.insert(
+                "deletedCount".into(),
+                Value::Number(result.deleted_count.into()),
+            );
 
             Ok(ExecuteQueryResponse {
                 documents: vec![m],
@@ -719,37 +765,64 @@ async fn execute_collection_query(
             for op in &ops {
                 if let Ok(insert) = op.get_document("insertOne") {
                     let document = insert.get_document("document").unwrap_or(insert).clone();
-                    collection.insert_one(document).await.map_err(|e| e.to_string())?;
+                    collection
+                        .insert_one(document)
+                        .await
+                        .map_err(|e| e.to_string())?;
                     inserted_count += 1;
                 } else if let Ok(delete) = op.get_document("deleteOne") {
                     let filter = delete.get_document("filter").cloned().unwrap_or_default();
-                    let r = collection.delete_one(filter).await.map_err(|e| e.to_string())?;
+                    let r = collection
+                        .delete_one(filter)
+                        .await
+                        .map_err(|e| e.to_string())?;
                     deleted_count += r.deleted_count;
                 } else if let Ok(delete) = op.get_document("deleteMany") {
                     let filter = delete.get_document("filter").cloned().unwrap_or_default();
-                    let r = collection.delete_many(filter).await.map_err(|e| e.to_string())?;
+                    let r = collection
+                        .delete_many(filter)
+                        .await
+                        .map_err(|e| e.to_string())?;
                     deleted_count += r.deleted_count;
                 } else if let Ok(update) = op.get_document("updateOne") {
                     let filter = update.get_document("filter").cloned().unwrap_or_default();
                     let update_doc = update.get_document("update").cloned().unwrap_or_default();
-                    let r = collection.update_one(filter, update_doc).await.map_err(|e| e.to_string())?;
+                    let r = collection
+                        .update_one(filter, update_doc)
+                        .await
+                        .map_err(|e| e.to_string())?;
                     matched_count += r.matched_count;
                     modified_count += r.modified_count;
-                    if r.upserted_id.is_some() { upserted_count += 1; }
+                    if r.upserted_id.is_some() {
+                        upserted_count += 1;
+                    }
                 } else if let Ok(update) = op.get_document("updateMany") {
                     let filter = update.get_document("filter").cloned().unwrap_or_default();
                     let update_doc = update.get_document("update").cloned().unwrap_or_default();
-                    let r = collection.update_many(filter, update_doc).await.map_err(|e| e.to_string())?;
+                    let r = collection
+                        .update_many(filter, update_doc)
+                        .await
+                        .map_err(|e| e.to_string())?;
                     matched_count += r.matched_count;
                     modified_count += r.modified_count;
-                    if r.upserted_id.is_some() { upserted_count += 1; }
+                    if r.upserted_id.is_some() {
+                        upserted_count += 1;
+                    }
                 } else if let Ok(replace) = op.get_document("replaceOne") {
                     let filter = replace.get_document("filter").cloned().unwrap_or_default();
-                    let replacement = replace.get_document("replacement").cloned().unwrap_or_default();
-                    let r = collection.replace_one(filter, replacement).await.map_err(|e| e.to_string())?;
+                    let replacement = replace
+                        .get_document("replacement")
+                        .cloned()
+                        .unwrap_or_default();
+                    let r = collection
+                        .replace_one(filter, replacement)
+                        .await
+                        .map_err(|e| e.to_string())?;
                     matched_count += r.matched_count;
                     modified_count += r.modified_count;
-                    if r.upserted_id.is_some() { upserted_count += 1; }
+                    if r.upserted_id.is_some() {
+                        upserted_count += 1;
+                    }
                 }
             }
 
@@ -825,14 +898,17 @@ async fn execute_db_command(
                 .cloned()
                 .unwrap_or_default();
 
-            batch.iter()
+            batch
+                .iter()
                 .filter_map(|b| b.as_document())
                 .map(bson_ser::serialize_document)
                 .collect()
         }
 
         "stats" => {
-            let scale = command.args.first()
+            let scale = command
+                .args
+                .first()
                 .and_then(|a| a.get("scale"))
                 .and_then(|v| v.as_i64())
                 .unwrap_or(1);
@@ -880,7 +956,9 @@ async fn execute_db_command(
         }
 
         "createCollection" => {
-            let name = command.args.first()
+            let name = command
+                .args
+                .first()
                 .and_then(|v| v.as_str())
                 .ok_or("createCollection requires a collection name")?;
 
@@ -890,12 +968,17 @@ async fn execute_db_command(
 
             let mut m = Map::new();
             m.insert("ok".into(), Value::Number(1.into()));
-            m.insert("message".into(), Value::String(format!("Collection '{name}' created")));
+            m.insert(
+                "message".into(),
+                Value::String(format!("Collection '{name}' created")),
+            );
             vec![m]
         }
 
         "dropCollection" => {
-            let name = command.args.first()
+            let name = command
+                .args
+                .first()
                 .and_then(|v| v.as_str())
                 .ok_or("dropCollection requires a collection name")?;
 
@@ -911,10 +994,14 @@ async fn execute_db_command(
         }
 
         "renameCollection" => {
-            let from = command.args.first()
+            let from = command
+                .args
+                .first()
                 .and_then(|v| v.as_str())
                 .ok_or("renameCollection requires source name")?;
-            let to = command.args.get(1)
+            let to = command
+                .args
+                .get(1)
                 .and_then(|v| v.as_str())
                 .ok_or("renameCollection requires target name")?;
 
@@ -929,7 +1016,10 @@ async fn execute_db_command(
 
             let mut m = Map::new();
             m.insert("ok".into(), Value::Number(1.into()));
-            m.insert("message".into(), Value::String(format!("Collection renamed from '{from}' to '{to}'")));
+            m.insert(
+                "message".into(),
+                Value::String(format!("Collection renamed from '{from}' to '{to}'")),
+            );
             vec![m]
         }
 
@@ -953,7 +1043,8 @@ async fn execute_db_command(
                 .cloned()
                 .unwrap_or_default();
 
-            batch.iter()
+            batch
+                .iter()
                 .filter_map(|b| b.as_document())
                 .map(bson_ser::serialize_document)
                 .collect()
@@ -982,8 +1073,7 @@ async fn execute_db_command(
         }
 
         "killOp" => {
-            let op_id = command.args.first()
-                .ok_or("killOp requires an op ID")?;
+            let op_id = command.args.first().ok_or("killOp requires an op ID")?;
             let bson_id = bson_ser::json_to_bson(op_id)?;
 
             let result = db
@@ -1056,9 +1146,7 @@ fn serialize_docs(docs: &[Document]) -> Vec<Map<String, Value>> {
     docs.iter().map(bson_ser::serialize_document).collect()
 }
 
-fn parse_update_options(
-    value: &Option<Value>,
-) -> Result<mongodb::options::UpdateOptions, String> {
+fn parse_update_options(value: &Option<Value>) -> Result<mongodb::options::UpdateOptions, String> {
     let mut opts = mongodb::options::UpdateOptions::default();
     if let Some(v) = value {
         if let Some(upsert) = v.get("upsert").and_then(|u| u.as_bool()) {
@@ -1219,11 +1307,26 @@ mod tests {
     #[test]
     fn deserialize_all_operations() {
         let operations = vec![
-            "find", "findOne", "aggregate", "count", "distinct",
-            "insertOne", "insertMany", "updateOne", "updateMany",
-            "replaceOne", "deleteOne", "deleteMany",
-            "findOneAndUpdate", "findOneAndReplace", "findOneAndDelete",
-            "createIndex", "dropIndex", "getIndexes", "bulkWrite", "explain",
+            "find",
+            "findOne",
+            "aggregate",
+            "count",
+            "distinct",
+            "insertOne",
+            "insertMany",
+            "updateOne",
+            "updateMany",
+            "replaceOne",
+            "deleteOne",
+            "deleteMany",
+            "findOneAndUpdate",
+            "findOneAndReplace",
+            "findOneAndDelete",
+            "createIndex",
+            "dropIndex",
+            "getIndexes",
+            "bulkWrite",
+            "explain",
         ];
         for op in operations {
             let json = serde_json::json!({

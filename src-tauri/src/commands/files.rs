@@ -163,10 +163,7 @@ pub async fn watch_file(
 }
 
 #[tauri::command]
-pub async fn unwatch_file(
-    path: String,
-    state: State<'_, AppState>,
-) -> Result<(), DgridError> {
+pub async fn unwatch_file(path: String, state: State<'_, AppState>) -> Result<(), DgridError> {
     let mut watchers = state
         .file_watchers
         .lock()
@@ -264,5 +261,4 @@ mod tests {
         let err = result.unwrap_err();
         assert!(err.to_string().contains("maximum size"));
     }
-
 }

@@ -36,10 +36,7 @@ pub struct CollectionSchemaResponse {
 
 // --- Helpers ---
 
-async fn get_collection_stats(
-    db: &mongodb::Database,
-    collection_name: &str,
-) -> (i64, f64, i64) {
+async fn get_collection_stats(db: &mongodb::Database, collection_name: &str) -> (i64, f64, i64) {
     // Try $collStats first
     if let Ok(mut cursor) = db
         .collection::<Document>(collection_name)
@@ -157,10 +154,7 @@ pub async fn get_databases(
     for db in databases {
         if let Bson::Document(db_doc) = db {
             infos.push(DatabaseInfo {
-                name: db_doc
-                    .get_str("name")
-                    .unwrap_or_default()
-                    .to_string(),
+                name: db_doc.get_str("name").unwrap_or_default().to_string(),
                 size_on_disk: get_i64(db_doc, "sizeOnDisk").unwrap_or(0),
                 empty: db_doc.get_bool("empty").unwrap_or(false),
             });

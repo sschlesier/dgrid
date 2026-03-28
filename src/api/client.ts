@@ -60,6 +60,20 @@ export class QueryCancelledError extends Error {
   }
 }
 
+export class ConnectCancelledError extends Error {
+  constructor() {
+    super('Connection was cancelled');
+    this.name = 'ConnectCancelledError';
+  }
+}
+
+export class TestConnectionCancelledError extends Error {
+  constructor() {
+    super('Connection test was cancelled');
+    this.name = 'TestConnectionCancelledError';
+  }
+}
+
 // Version endpoints (Tauri)
 
 export async function getVersion(): Promise<{
@@ -131,16 +145,35 @@ export async function testConnection(data: TestConnectionRequest): Promise<TestC
   try {
     return await invoke<TestConnectionResponse>('test_connection', { request: data });
   } catch (e) {
+    if (typeof e === 'string' && e.includes('Connection test was cancelled')) {
+      throw new TestConnectionCancelledError();
+    }
     throw wrapInvokeError(e);
   }
 }
 
 export async function testSavedConnection(
   id: string,
-  password?: string
+  password?: string,
+  operationId?: string
 ): Promise<TestConnectionResponse> {
   try {
-    return await invoke<TestConnectionResponse>('test_saved_connection', { id, password });
+    return await invoke<TestConnectionResponse>('test_saved_connection', {
+      id,
+      password,
+      operationId,
+    });
+  } catch (e) {
+    if (typeof e === 'string' && e.includes('Connection test was cancelled')) {
+      throw new TestConnectionCancelledError();
+    }
+    throw wrapInvokeError(e);
+  }
+}
+
+export async function cancelTestConnection(operationId: string): Promise<void> {
+  try {
+    await invoke<void>('cancel_test_connection', { operationId });
   } catch (e) {
     throw wrapInvokeError(e);
   }
@@ -152,6 +185,17 @@ export async function connectToConnection(
 ): Promise<ConnectionResponse> {
   try {
     return await invoke<ConnectionResponse>('connect_to_connection', { id, request: data });
+  } catch (e) {
+    if (typeof e === 'string' && e.includes('Connection was cancelled')) {
+      throw new ConnectCancelledError();
+    }
+    throw wrapInvokeError(e);
+  }
+}
+
+export async function cancelConnectToConnection(id: string): Promise<void> {
+  try {
+    await invoke<void>('cancel_connect_to_connection', { id });
   } catch (e) {
     throw wrapInvokeError(e);
   }
