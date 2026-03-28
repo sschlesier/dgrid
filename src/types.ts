@@ -38,6 +38,7 @@ export interface TreeNodeData {
   type: TreeNodeType;
   label: string;
   count?: number;
+  totalCount?: number;
   isLoading?: boolean;
   children?: TreeNodeData[];
   connectionId?: string;

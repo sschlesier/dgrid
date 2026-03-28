@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { appStore } from '../stores/app.svelte';
   import TreeNode from './TreeNode.svelte';
@@ -13,6 +13,102 @@
   }
 
   let { onEditConnection, onConnect }: Props = $props();
+  let filterOpen = $state(false);
+  let filterText = $state('');
+  let filterInputEl = $state<HTMLInputElement | undefined>();
+
+  function normalizeFilterQuery(query: string): string {
+    return query.trim().toLocaleLowerCase();
+  }
+
+  function filterTree(nodes: TreeNodeData[], query: string): TreeNodeData[] {
+    const normalizedQuery = normalizeFilterQuery(query);
+
+    if (!normalizedQuery) {
+      return nodes;
+    }
+
+    function filterNode(node: TreeNodeData): TreeNodeData | null {
+      switch (node.type) {
+        case 'collection':
+        case 'view':
+          return node.label.toLocaleLowerCase().includes(normalizedQuery) ? node : null;
+        case 'connection':
+        case 'database':
+        case 'collection-group':
+        case 'view-group': {
+          const filteredChildren = node.children
+            ?.map(filterNode)
+            .filter((child): child is TreeNodeData => child !== null);
+
+          if (!filteredChildren?.length) {
+            return null;
+          }
+
+          const filteredNode: TreeNodeData = {
+            ...node,
+            children: filteredChildren,
+          };
+
+          if (node.type === 'collection-group' || node.type === 'view-group') {
+            filteredNode.count = filteredChildren.length;
+            filteredNode.totalCount =
+              node.count ?? node.children?.length ?? filteredChildren.length;
+          }
+
+          return filteredNode;
+        }
+        default:
+          return null;
+      }
+    }
+
+    return nodes.map(filterNode).filter((node): node is TreeNodeData => node !== null);
+  }
+
+  const filterActive = $derived(normalizeFilterQuery(filterText).length > 0);
+  const filteredTreeData = $derived(filterTree(appStore.treeData, filterText));
+
+  function clearFilter() {
+    filterText = '';
+  }
+
+  function closeFilter() {
+    filterOpen = false;
+    filterText = '';
+  }
+
+  async function toggleFilter() {
+    if (filterOpen) {
+      closeFilter();
+      return;
+    }
+
+    filterOpen = true;
+    await tick();
+    filterInputEl?.focus();
+  }
+
+  function handleFilterKeyDown(event: KeyboardEvent) {
+    if (event.key !== 'Escape') return;
+
+    event.preventDefault();
+
+    if (filterText) {
+      clearFilter();
+      return;
+    }
+
+    closeFilter();
+  }
+
+  $effect(() => {
+    if (!filterOpen) return;
+
+    tick().then(() => {
+      filterInputEl?.focus();
+    });
+  });
 
   async function handleNodeClick(node: TreeNodeData) {
     tooltip = null;
@@ -272,7 +368,61 @@
 <aside class="sidebar">
   <div class="sidebar-header">
     <h2>Connections</h2>
+    <button
+      class="filter-toggle action-btn"
+      onclick={toggleFilter}
+      title={filterOpen ? 'Hide collection filter' : 'Filter collections'}
+      aria-label={filterOpen ? 'Hide collection filter' : 'Filter collections'}
+      aria-pressed={filterOpen}
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path
+          d="M6.75 2.5a4.25 4.25 0 1 0 0 8.5 4.25 4.25 0 0 0 0-8.5ZM1 6.75a5.75 5.75 0 1 1 10.173 3.652l3.212 3.213a.75.75 0 1 1-1.06 1.06l-3.213-3.212A5.75 5.75 0 0 1 1 6.75Z"
+        />
+      </svg>
+    </button>
   </div>
+
+  {#if filterOpen}
+    <div class="sidebar-filter">
+      <div class="filter-input-wrap">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="currentColor"
+          class="filter-icon"
+          aria-hidden="true"
+        >
+          <path
+            d="M6.75 2.5a4.25 4.25 0 1 0 0 8.5 4.25 4.25 0 0 0 0-8.5ZM1 6.75a5.75 5.75 0 1 1 10.173 3.652l3.212 3.213a.75.75 0 1 1-1.06 1.06l-3.213-3.212A5.75 5.75 0 0 1 1 6.75Z"
+          />
+        </svg>
+        <input
+          bind:this={filterInputEl}
+          bind:value={filterText}
+          type="text"
+          placeholder="Filter collections..."
+          onkeydown={handleFilterKeyDown}
+          aria-label="Filter collections"
+        />
+        {#if filterText}
+          <button
+            class="filter-clear"
+            onclick={clearFilter}
+            title="Clear filter"
+            aria-label="Clear filter"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path
+                d="M3.22 3.22a.75.75 0 0 1 1.06 0L8 6.94l3.72-3.72a.75.75 0 1 1 1.06 1.06L9.06 8l3.72 3.72a.75.75 0 1 1-1.06 1.06L8 9.06l-3.72 3.72a.75.75 0 1 1-1.06-1.06L6.94 8 3.22 4.28a.75.75 0 0 1 0-1.06Z"
+              />
+            </svg>
+          </button>
+        {/if}
+      </div>
+    </div>
+  {/if}
 
   <div class="sidebar-content" role="tree" onscroll={() => (tooltip = null)}>
     {#if appStore.connections.length === 0}
@@ -285,11 +435,17 @@
         <p class="empty-title">No connections yet</p>
         <p class="empty-hint">Create a new connection to get started</p>
       </div>
+    {:else if filterActive && filteredTreeData.length === 0}
+      <div class="empty-state empty-state-filtered">
+        <p class="empty-title">No matches</p>
+        <p class="empty-hint">Try a different collection or view name</p>
+      </div>
     {:else}
-      {#each appStore.treeData as node (node.id)}
+      {#each filteredTreeData as node (node.id)}
         <div class="connection-tree-item">
           <TreeNode
             {node}
+            {filterActive}
             onNodeClick={handleNodeClick}
             onNodeExpand={handleNodeExpand}
             onRefresh={handleNodeRefresh}
@@ -397,12 +553,71 @@
   .sidebar-header {
     padding: var(--space-md);
     border-bottom: 1px solid var(--color-border-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
   }
 
   .sidebar-header h2 {
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-semibold);
     color: var(--color-text-primary);
+  }
+
+  .sidebar-filter {
+    padding: var(--space-xs) var(--space-sm);
+    border-bottom: 1px solid var(--color-border-light);
+  }
+
+  .filter-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    min-height: 28px;
+    padding: 0 var(--space-xs);
+    background-color: var(--color-bg-primary);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-sm);
+  }
+
+  .filter-icon {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+  }
+
+  .sidebar-filter input {
+    flex: 1;
+    min-width: 0;
+    height: 28px;
+    border: 0;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+  }
+
+  .sidebar-filter input:focus {
+    outline: none;
+  }
+
+  .sidebar-filter input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .filter-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: var(--color-text-muted);
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+  }
+
+  .filter-clear:hover {
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-tertiary);
   }
 
   .sidebar-content {
@@ -471,6 +686,10 @@
   .action-btn:hover {
     background-color: var(--color-bg-tertiary);
     color: var(--color-text-primary);
+  }
+
+  .filter-toggle {
+    flex-shrink: 0;
   }
 
   .version-link {
