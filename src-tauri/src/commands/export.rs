@@ -119,10 +119,7 @@ pub async fn export_csv(
 }
 
 #[tauri::command]
-pub async fn cancel_export(
-    state: State<'_, AppState>,
-    tab_id: String,
-) -> Result<(), DgridError> {
+pub async fn cancel_export(state: State<'_, AppState>, tab_id: String) -> Result<(), DgridError> {
     let mut tokens = state.cancellation_tokens.write().await;
     if let Some(token) = tokens.remove(&tab_id) {
         token.cancel();
@@ -278,8 +275,7 @@ async fn get_total_count(
     match query.operation {
         CollectionOperation::Find => {
             let filter = match &query.filter {
-                Some(v) => bson_ser::json_to_document(v)
-                    .map_err(DgridError::Validation)?,
+                Some(v) => bson_ser::json_to_document(v).map_err(DgridError::Validation)?,
                 None => Document::new(),
             };
             collection
@@ -328,23 +324,17 @@ async fn open_cursor(
     match query.operation {
         CollectionOperation::Find => {
             let filter = match &query.filter {
-                Some(v) => bson_ser::json_to_document(v)
-                    .map_err(DgridError::Validation)?,
+                Some(v) => bson_ser::json_to_document(v).map_err(DgridError::Validation)?,
                 None => Document::new(),
             };
 
             let mut opts = mongodb::options::FindOptions::default();
             if let Some(ref proj) = query.projection {
-                opts.projection = Some(
-                    bson_ser::json_to_document(proj)
-                        .map_err(DgridError::Validation)?,
-                );
+                opts.projection =
+                    Some(bson_ser::json_to_document(proj).map_err(DgridError::Validation)?);
             }
             if let Some(ref sort) = query.sort {
-                opts.sort = Some(
-                    bson_ser::json_to_document(sort)
-                        .map_err(DgridError::Validation)?,
-                );
+                opts.sort = Some(bson_ser::json_to_document(sort).map_err(DgridError::Validation)?);
             }
 
             collection

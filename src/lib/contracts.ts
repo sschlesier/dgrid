@@ -32,6 +32,7 @@ export interface ConnectRequest {
 
 export interface TestConnectionRequest {
   uri: string; // full URI (may contain credentials)
+  operationId?: string; // optional request id for cancellation
 }
 
 export interface TestConnectionResponse {

@@ -25,6 +25,8 @@ pub struct AppState {
     pub passwords: Box<dyn PasswordStorage>,
     pub pool: ConnectionPool,
     pub cancellation_tokens: RwLock<HashMap<String, CancellationToken>>,
+    pub connection_tokens: RwLock<HashMap<String, CancellationToken>>,
+    pub test_connection_tokens: RwLock<HashMap<String, CancellationToken>>,
     pub file_watchers: Mutex<HashMap<String, RecommendedWatcher>>,
     pub update_cache: RwLock<Option<CachedUpdateCheck>>,
 }
@@ -44,6 +46,8 @@ impl AppState {
             passwords,
             pool: ConnectionPool::new(),
             cancellation_tokens: RwLock::new(HashMap::new()),
+            connection_tokens: RwLock::new(HashMap::new()),
+            test_connection_tokens: RwLock::new(HashMap::new()),
             file_watchers: Mutex::new(HashMap::new()),
             update_cache: RwLock::new(None),
         }

@@ -64,10 +64,7 @@ pub async fn execute_query(
 }
 
 #[tauri::command]
-pub async fn cancel_query(
-    state: State<'_, AppState>,
-    tab_id: String,
-) -> Result<(), DgridError> {
+pub async fn cancel_query(state: State<'_, AppState>, tab_id: String) -> Result<(), DgridError> {
     let mut tokens = state.cancellation_tokens.write().await;
     if let Some(token) = tokens.remove(&tab_id) {
         token.cancel();

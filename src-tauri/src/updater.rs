@@ -72,7 +72,10 @@ pub async fn check_for_update(current_version: &str) -> Option<UpdateInfo> {
     }
 
     let release: GitHubRelease = response.json().await.ok()?;
-    let latest_version = release.tag_name.strip_prefix('v').unwrap_or(&release.tag_name);
+    let latest_version = release
+        .tag_name
+        .strip_prefix('v')
+        .unwrap_or(&release.tag_name);
 
     if is_newer(current_version, latest_version) {
         Some(UpdateInfo {

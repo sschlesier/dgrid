@@ -361,7 +361,11 @@ mod tests {
                 r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
             )
             .unwrap();
-            assert!(re.is_match(&conn.id), "ID should be UUID format: {}", conn.id);
+            assert!(
+                re.is_match(&conn.id),
+                "ID should be UUID format: {}",
+                conn.id
+            );
         }
 
         #[test]

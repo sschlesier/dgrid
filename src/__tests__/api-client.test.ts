@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   ApiError,
+  ConnectCancelledError,
   QueryCancelledError,
+  TestConnectionCancelledError,
   getConnections,
   getConnection,
   createConnection,
@@ -9,7 +11,9 @@ import {
   deleteConnection,
   testConnection,
   testSavedConnection,
+  cancelTestConnection,
   connectToConnection,
+  cancelConnectToConnection,
   disconnectFromConnection,
   getDatabases,
   getCollections,
@@ -236,17 +240,34 @@ describe('API client', () => {
       expect(result).toEqual(testResult);
     });
 
+    it('testConnection throws TestConnectionCancelledError on cancellation', async () => {
+      mockInvoke.mockRejectedValueOnce('Connection test was cancelled');
+
+      await expect(testConnection({ uri: 'mongodb://localhost:27017' })).rejects.toThrow(
+        TestConnectionCancelledError
+      );
+    });
+
     it('testSavedConnection invokes test_saved_connection', async () => {
       const testResult = { success: true, message: 'Connected', latencyMs: 10 };
       mockInvoke.mockResolvedValueOnce(testResult);
 
-      const result = await testSavedConnection('1', 'secret');
+      const result = await testSavedConnection('1', 'secret', 'op-1');
 
       expect(mockInvoke).toHaveBeenCalledWith('test_saved_connection', {
         id: '1',
         password: 'secret',
+        operationId: 'op-1',
       });
       expect(result).toEqual(testResult);
+    });
+
+    it('cancelTestConnection invokes cancel_test_connection', async () => {
+      mockInvoke.mockResolvedValueOnce(undefined);
+
+      await cancelTestConnection('op-1');
+
+      expect(mockInvoke).toHaveBeenCalledWith('cancel_test_connection', { operationId: 'op-1' });
     });
 
     it('connectToConnection invokes connect_to_connection', async () => {
@@ -270,6 +291,20 @@ describe('API client', () => {
 
       expect(mockInvoke).toHaveBeenCalledWith('disconnect_from_connection', { id: '1' });
       expect(result).toEqual(disconnected);
+    });
+
+    it('connectToConnection throws ConnectCancelledError on cancellation', async () => {
+      mockInvoke.mockRejectedValueOnce('Connection was cancelled');
+
+      await expect(connectToConnection('1')).rejects.toThrow(ConnectCancelledError);
+    });
+
+    it('cancelConnectToConnection invokes cancel_connect_to_connection', async () => {
+      mockInvoke.mockResolvedValueOnce(undefined);
+
+      await cancelConnectToConnection('1');
+
+      expect(mockInvoke).toHaveBeenCalledWith('cancel_connect_to_connection', { id: '1' });
     });
   });
 

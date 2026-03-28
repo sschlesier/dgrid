@@ -120,9 +120,8 @@ pub fn collect_columns(docs: &[Document]) -> Vec<String> {
 
 /// Build a single CSV row from a document given an ordered list of columns.
 pub fn build_csv_row(doc: &Document, columns: &[String]) -> String {
-    let flat: std::collections::HashMap<String, String> = flatten_document(doc, "")
-        .into_iter()
-        .collect();
+    let flat: std::collections::HashMap<String, String> =
+        flatten_document(doc, "").into_iter().collect();
 
     columns
         .iter()
@@ -348,11 +347,7 @@ mod tests {
     #[test]
     fn build_row_missing_fields() {
         let doc = doc! { "_id": "1", "name": "Alice" };
-        let columns = vec![
-            "_id".to_string(),
-            "name".to_string(),
-            "email".to_string(),
-        ];
+        let columns = vec!["_id".to_string(), "name".to_string(), "email".to_string()];
         let row = build_csv_row(&doc, &columns);
         assert_eq!(row, "1,Alice,");
     }

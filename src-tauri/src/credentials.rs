@@ -135,8 +135,7 @@ mod tests {
 
         #[test]
         fn handles_url_encoded_special_characters() {
-            let result =
-                strip_credentials("mongodb://user%40domain:p%40ss%3Aword@localhost:27017");
+            let result = strip_credentials("mongodb://user%40domain:p%40ss%3Aword@localhost:27017");
             assert_eq!(result.username, "user@domain");
             assert_eq!(result.password, "p@ss:word");
             assert_eq!(result.stripped_uri, "mongodb://localhost:27017");

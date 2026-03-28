@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use mongodb::bson::doc;
 use mongodb::options::ClientOptions;
@@ -6,6 +7,8 @@ use mongodb::{Client, Database};
 use tokio::sync::RwLock;
 
 use crate::error::DgridError;
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub struct MongoConnectionOptions {
     pub uri: String,
@@ -47,8 +50,12 @@ impl ConnectionPool {
             .await
             .map_err(|e| DgridError::Connection(e.to_string()))?;
 
-        let client =
-            Client::with_options(client_options).map_err(|e| DgridError::Connection(e.to_string()))?;
+        let mut client_options = client_options;
+        client_options.server_selection_timeout = Some(CONNECT_TIMEOUT);
+        client_options.connect_timeout = Some(CONNECT_TIMEOUT);
+
+        let client = Client::with_options(client_options)
+            .map_err(|e| DgridError::Connection(e.to_string()))?;
 
         // Verify connectivity with a ping
         client

@@ -2,11 +2,27 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock the API module before importing the store
 vi.mock('../api/client', () => ({
+  ApiError: class ApiError extends Error {
+    isConnected?: boolean;
+    constructor(
+      public statusCode: number,
+      public errorType: string,
+      message: string
+    ) {
+      super(message);
+    }
+  },
+  ConnectCancelledError: class ConnectCancelledError extends Error {
+    constructor() {
+      super('Connection was cancelled');
+    }
+  },
   getConnections: vi.fn(),
   createConnection: vi.fn(),
   updateConnection: vi.fn(),
   deleteConnection: vi.fn(),
   connectToConnection: vi.fn(),
+  cancelConnectToConnection: vi.fn(),
   disconnectFromConnection: vi.fn(),
   getDatabases: vi.fn(),
   getCollections: vi.fn(),
@@ -22,6 +38,7 @@ const mockedApi = api as unknown as {
   updateConnection: ReturnType<typeof vi.fn>;
   deleteConnection: ReturnType<typeof vi.fn>;
   connectToConnection: ReturnType<typeof vi.fn>;
+  cancelConnectToConnection: ReturnType<typeof vi.fn>;
   disconnectFromConnection: ReturnType<typeof vi.fn>;
   getDatabases: ReturnType<typeof vi.fn>;
   getCollections: ReturnType<typeof vi.fn>;
@@ -37,9 +54,16 @@ describe('appStore', () => {
     appStore.tabs = [];
     appStore.activeTabId = null;
     appStore.notifications = [];
+    appStore.isConnecting = false;
+    appStore.slowOperation = {
+      visible: false,
+      targetName: '',
+      cancelling: false,
+    };
 
     // Reset mocks
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   describe('connections', () => {
@@ -144,6 +168,125 @@ describe('appStore', () => {
       expect(appStore.connections[0].isConnected).toBe(true);
       expect(appStore.activeConnectionId).toBe('1');
       expect(appStore.databases).toHaveLength(1);
+    });
+
+    it('shows the connection modal only after the delay for slow connects', async () => {
+      vi.useFakeTimers();
+      appStore.connections = [
+        {
+          id: '1',
+          name: 'Slow Test',
+          uri: 'mongodb://localhost:27017',
+          savePassword: true,
+          isConnected: false,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ];
+      const connected = {
+        ...appStore.connections[0],
+        isConnected: true,
+      };
+      mockedApi.connectToConnection.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve(connected), 1500);
+          })
+      );
+      mockedApi.getDatabases.mockResolvedValue([]);
+
+      const connectPromise = appStore.connect('1');
+
+      await vi.advanceTimersByTimeAsync(999);
+      expect(appStore.slowOperation.visible).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(appStore.slowOperation.visible).toBe(true);
+      expect(appStore.slowOperation.targetName).toBe('Slow Test');
+
+      await vi.advanceTimersByTimeAsync(500);
+      await connectPromise;
+
+      expect(appStore.slowOperation.visible).toBe(false);
+    });
+
+    it('cancelSlowOperation cancels the attempt without showing an error or success', async () => {
+      vi.useFakeTimers();
+      appStore.connections = [
+        {
+          id: '1',
+          name: 'Blocked Test',
+          uri: 'mongodb://localhost:27017',
+          savePassword: true,
+          isConnected: false,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ];
+      mockedApi.connectToConnection.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Connection was cancelled')), 1500);
+          })
+      );
+      mockedApi.cancelConnectToConnection.mockResolvedValue(undefined);
+
+      const connectPromise = appStore.connect('1');
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const cancelPromise = appStore.cancelSlowOperation();
+      expect(appStore.slowOperation.cancelling).toBe(true);
+
+      await cancelPromise;
+      await vi.advanceTimersByTimeAsync(500);
+      await connectPromise;
+
+      expect(mockedApi.cancelConnectToConnection).toHaveBeenCalledWith('1');
+      expect(appStore.notifications).toHaveLength(0);
+      expect(appStore.connections[0].isConnected).toBe(false);
+      expect(appStore.slowOperation.visible).toBe(false);
+      expect(appStore.isConnecting).toBe(false);
+    });
+
+    it('disconnects immediately if connect resolves after the user cancelled', async () => {
+      vi.useFakeTimers();
+      appStore.connections = [
+        {
+          id: '1',
+          name: 'Racy Test',
+          uri: 'mongodb://localhost:27017',
+          savePassword: true,
+          isConnected: false,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ];
+      const connected = {
+        ...appStore.connections[0],
+        isConnected: true,
+      };
+      mockedApi.connectToConnection.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve(connected), 25);
+          })
+      );
+      mockedApi.cancelConnectToConnection.mockResolvedValue(undefined);
+      mockedApi.disconnectFromConnection.mockResolvedValue({
+        ...connected,
+        isConnected: false,
+      });
+
+      const connectPromise = appStore.connect('1');
+      const cancelPromise = appStore.cancelSlowOperation();
+
+      await cancelPromise;
+      await vi.advanceTimersByTimeAsync(25);
+      await connectPromise;
+
+      expect(mockedApi.disconnectFromConnection).toHaveBeenCalledWith('1');
+      expect(appStore.notifications).toHaveLength(0);
+      expect(appStore.connections[0].isConnected).toBe(false);
     });
 
     it('allows creating tabs immediately after connecting', async () => {
