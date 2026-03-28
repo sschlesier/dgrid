@@ -10,11 +10,19 @@ vi.mock('../../stores/app.svelte', () => ({
     createConnection: vi.fn(),
     updateConnection: vi.fn(),
     deleteConnection: vi.fn(),
+    runSlowCancelableOperation: vi.fn(async ({ run }: { run: () => Promise<unknown> }) => run()),
   },
 }));
 
 vi.mock('../../api/client', () => ({
+  TestConnectionCancelledError: class TestConnectionCancelledError extends Error {
+    constructor() {
+      super('Connection test was cancelled');
+    }
+  },
   testConnection: vi.fn(),
+  testSavedConnection: vi.fn(),
+  cancelTestConnection: vi.fn(),
 }));
 
 import { appStore } from '../../stores/app.svelte';

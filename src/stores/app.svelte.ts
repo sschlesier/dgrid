@@ -44,7 +44,7 @@ function saveUIState(state: UIState): void {
 }
 
 class AppStore {
-  private static readonly CONNECT_MODAL_DELAY_MS = 1000;
+  private static readonly SLOW_OPERATION_MODAL_DELAY_MS = 1000;
 
   // State
   connections = $state<ConnectionResponse[]>([]);
@@ -62,25 +62,22 @@ class AppStore {
   isLoadingConnections = $state(false);
   isLoadingDatabases = $state(false);
   isConnecting = $state(false);
-  connectionProgress = $state({
+  slowOperation = $state({
     visible: false,
-    connectionId: null as string | null,
-    connectionName: '',
-    status: 'Establishing connection...',
+    targetName: '',
     cancelling: false,
   });
 
   // Delayed per-node loading spinners (visible after 1s)
   private _loadingTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private _loadingNodes = $state<Set<string>>(new Set());
-  private _connectAttempt: {
+  private _slowOperation: {
     id: number;
-    connectionId: string;
-    nodeId: string;
     cancelRequested: boolean;
+    cancel: () => Promise<void>;
   } | null = null;
-  private _connectAttemptId = 0;
-  private _connectModalTimer: ReturnType<typeof setTimeout> | null = null;
+  private _slowOperationId = 0;
+  private _slowOperationTimer: ReturnType<typeof setTimeout> | null = null;
 
   private startNodeLoading(nodeId: string): void {
     if (this._loadingTimers.has(nodeId)) return;
@@ -236,13 +233,8 @@ class AppStore {
   }
 
   async connect(id: string, password?: string, savePassword?: boolean): Promise<void> {
-    if (this._connectAttempt) {
-      await this.cancelConnect();
-    }
-
     const nodeId = `conn:${id}`;
     const connectionName = this.connections.find((c) => c.id === id)?.name ?? id;
-    const attemptId = this.beginConnectAttempt(id, connectionName, nodeId);
     this.isConnecting = true;
     this.startNodeLoading(nodeId);
 
@@ -251,12 +243,17 @@ class AppStore {
         password !== undefined || savePassword !== undefined
           ? { password, savePassword }
           : undefined;
-      const connection = await api.connectToConnection(id, connectData);
-
-      if (this.wasConnectCancelled(attemptId, id)) {
-        await this.disconnectAfterCancelledConnect(id);
-        return;
-      }
+      const result = await this.runSlowCancelableOperation({
+        targetName: connectionName,
+        run: () => api.connectToConnection(id, connectData),
+        cancel: () => api.cancelConnectToConnection(id),
+        isCancelledError: (error) => error instanceof ConnectCancelledError,
+        onCancelledAfterSuccess: async () => {
+          await this.disconnectAfterCancelledConnect(id);
+        },
+      });
+      if (!result) return;
+      const connection = result;
 
       this.connections = this.connections.map((c) => (c.id === id ? connection : c));
       this.activeConnectionId = id;
@@ -265,102 +262,113 @@ class AppStore {
       // Load databases after connecting (skip node loading — connect manages it)
       await this.loadDatabases(id, true);
     } catch (error) {
-      if (error instanceof ConnectCancelledError || this.wasConnectCancelled(attemptId, id)) {
-        return;
-      }
-
       const errorMessage = this.getConnectionErrorMessage((error as Error).message);
       this.notify('error', errorMessage);
       throw error;
     } finally {
-      this.finishConnectAttempt(attemptId, id, nodeId);
+      this.isConnecting = false;
+      this.stopNodeLoading(nodeId);
     }
   }
 
-  async cancelConnect(): Promise<void> {
-    const attempt = this._connectAttempt;
-    if (!attempt) return;
+  async cancelSlowOperation(): Promise<void> {
+    const operation = this._slowOperation;
+    if (!operation) return;
 
-    if (!attempt.cancelRequested) {
-      attempt.cancelRequested = true;
-      this.connectionProgress = {
-        ...this.connectionProgress,
+    if (!operation.cancelRequested) {
+      operation.cancelRequested = true;
+      this.slowOperation = {
+        ...this.slowOperation,
         visible: true,
         cancelling: true,
-        status: 'Cancelling connection...',
       };
     }
 
     try {
-      await api.cancelConnectToConnection(attempt.connectionId);
+      await operation.cancel();
     } catch {
-      // Ignore cancel errors - connect may have already completed
+      // Ignore cancel errors - operation may already be complete
     }
   }
 
-  private beginConnectAttempt(
-    connectionId: string,
-    connectionName: string,
-    nodeId: string
-  ): number {
-    const attemptId = ++this._connectAttemptId;
-    this._connectAttempt = {
-      id: attemptId,
-      connectionId,
-      nodeId,
+  async runSlowCancelableOperation<T>({
+    targetName,
+    run,
+    cancel,
+    isCancelledError,
+    onCancelledAfterSuccess,
+  }: {
+    targetName: string;
+    run: () => Promise<T>;
+    cancel: () => Promise<void>;
+    isCancelledError: (error: unknown) => boolean;
+    onCancelledAfterSuccess?: (result: T) => Promise<void>;
+  }): Promise<T | null> {
+    if (this._slowOperation) {
+      await this.cancelSlowOperation();
+    }
+
+    const operationId = ++this._slowOperationId;
+    this._slowOperation = {
+      id: operationId,
       cancelRequested: false,
+      cancel,
     };
-    this.clearConnectModalTimer();
-    this.connectionProgress = {
+    this.clearSlowOperationTimer();
+    this.slowOperation = {
       visible: false,
-      connectionId,
-      connectionName,
-      status: 'Establishing connection...',
+      targetName,
       cancelling: false,
     };
-    this._connectModalTimer = setTimeout(() => {
-      if (this._connectAttempt?.id !== attemptId) return;
-      this.connectionProgress = {
-        ...this.connectionProgress,
+    this._slowOperationTimer = setTimeout(() => {
+      if (this._slowOperation?.id !== operationId) return;
+      this.slowOperation = {
+        ...this.slowOperation,
         visible: true,
       };
-    }, AppStore.CONNECT_MODAL_DELAY_MS);
-    return attemptId;
-  }
+    }, AppStore.SLOW_OPERATION_MODAL_DELAY_MS);
 
-  private finishConnectAttempt(attemptId: number, connectionId: string, nodeId: string): void {
-    if (this._connectAttempt?.id === attemptId) {
-      this._connectAttempt = null;
-      this.clearConnectModalTimer();
-      this.connectionProgress = {
-        visible: false,
-        connectionId: null,
-        connectionName: '',
-        status: 'Establishing connection...',
-        cancelling: false,
-      };
-      this.isConnecting = false;
-      this.stopNodeLoading(nodeId);
-      return;
-    }
-
-    if (this._connectAttempt?.connectionId !== connectionId) {
-      this.stopNodeLoading(nodeId);
+    try {
+      const result = await run();
+      if (this.wasSlowOperationCancelled(operationId)) {
+        await onCancelledAfterSuccess?.(result);
+        return null;
+      }
+      return result;
+    } catch (error) {
+      if (isCancelledError(error) || this.wasSlowOperationCancelled(operationId)) {
+        return null;
+      }
+      throw error;
+    } finally {
+      this.finishSlowOperation(operationId);
     }
   }
 
-  private clearConnectModalTimer(): void {
-    if (!this._connectModalTimer) return;
-    clearTimeout(this._connectModalTimer);
-    this._connectModalTimer = null;
+  private clearSlowOperationTimer(): void {
+    if (!this._slowOperationTimer) return;
+    clearTimeout(this._slowOperationTimer);
+    this._slowOperationTimer = null;
   }
 
-  private wasConnectCancelled(attemptId: number, connectionId: string): boolean {
-    if (this._connectAttempt?.id !== attemptId) {
-      return this._connectAttempt?.connectionId !== connectionId;
+  private wasSlowOperationCancelled(operationId: number): boolean {
+    if (this._slowOperation?.id !== operationId) {
+      return true;
     }
 
-    return this._connectAttempt.cancelRequested;
+    return this._slowOperation.cancelRequested;
+  }
+
+  private finishSlowOperation(operationId: number): void {
+    if (this._slowOperation?.id !== operationId) return;
+
+    this._slowOperation = null;
+    this.clearSlowOperationTimer();
+    this.slowOperation = {
+      visible: false,
+      targetName: '',
+      cancelling: false,
+    };
   }
 
   private async disconnectAfterCancelledConnect(id: string): Promise<void> {

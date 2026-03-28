@@ -29,6 +29,9 @@ pub enum DgridError {
 
     #[error("Connection was cancelled")]
     ConnectionCancelled,
+
+    #[error("Connection test was cancelled")]
+    TestConnectionCancelled,
 }
 
 impl From<std::io::Error> for DgridError {
@@ -127,5 +130,11 @@ mod tests {
     fn connection_cancelled_error_display() {
         let err = DgridError::ConnectionCancelled;
         assert_eq!(err.to_string(), "Connection was cancelled");
+    }
+
+    #[test]
+    fn test_connection_cancelled_error_display() {
+        let err = DgridError::TestConnectionCancelled;
+        assert_eq!(err.to_string(), "Connection test was cancelled");
     }
 }

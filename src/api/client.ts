@@ -67,6 +67,13 @@ export class ConnectCancelledError extends Error {
   }
 }
 
+export class TestConnectionCancelledError extends Error {
+  constructor() {
+    super('Connection test was cancelled');
+    this.name = 'TestConnectionCancelledError';
+  }
+}
+
 // Version endpoints (Tauri)
 
 export async function getVersion(): Promise<{
@@ -138,16 +145,35 @@ export async function testConnection(data: TestConnectionRequest): Promise<TestC
   try {
     return await invoke<TestConnectionResponse>('test_connection', { request: data });
   } catch (e) {
+    if (typeof e === 'string' && e.includes('Connection test was cancelled')) {
+      throw new TestConnectionCancelledError();
+    }
     throw wrapInvokeError(e);
   }
 }
 
 export async function testSavedConnection(
   id: string,
-  password?: string
+  password?: string,
+  operationId?: string
 ): Promise<TestConnectionResponse> {
   try {
-    return await invoke<TestConnectionResponse>('test_saved_connection', { id, password });
+    return await invoke<TestConnectionResponse>('test_saved_connection', {
+      id,
+      password,
+      operationId,
+    });
+  } catch (e) {
+    if (typeof e === 'string' && e.includes('Connection test was cancelled')) {
+      throw new TestConnectionCancelledError();
+    }
+    throw wrapInvokeError(e);
+  }
+}
+
+export async function cancelTestConnection(operationId: string): Promise<void> {
+  try {
+    await invoke<void>('cancel_test_connection', { operationId });
   } catch (e) {
     throw wrapInvokeError(e);
   }

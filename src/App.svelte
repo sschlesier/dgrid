@@ -69,7 +69,7 @@
   }
 
   function cancelConnectionAttempt() {
-    void appStore.cancelConnect();
+    void appStore.cancelSlowOperation();
   }
 
   onMount(() => {
@@ -166,11 +166,10 @@
     />
   {/if}
 
-  {#if appStore.connectionProgress.visible && appStore.connectionProgress.connectionId}
+  {#if appStore.slowOperation.visible}
     <ConnectionProgressModal
-      connectionName={appStore.connectionProgress.connectionName}
-      status={appStore.connectionProgress.status}
-      isCancelling={appStore.connectionProgress.cancelling}
+      targetName={appStore.slowOperation.targetName}
+      isCancelling={appStore.slowOperation.cancelling}
       oncancel={cancelConnectionAttempt}
     />
   {/if}

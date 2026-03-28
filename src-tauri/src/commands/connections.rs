@@ -51,6 +51,7 @@ pub struct ConnectionResponse {
 #[serde(rename_all = "camelCase")]
 pub struct TestConnectionRequest {
     pub uri: String,
+    pub operation_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -217,40 +218,82 @@ pub async fn delete_connection(state: State<'_, AppState>, id: String) -> Result
 
 #[tauri::command]
 pub async fn test_connection(
+    state: State<'_, AppState>,
     request: TestConnectionRequest,
+) -> Result<TestConnectionResponse, DgridError> {
+    execute_test_connection(&state, request.uri, request.operation_id).await
+}
+
+async fn execute_test_connection(
+    state: &AppState,
+    uri: String,
+    operation_id: Option<String>,
 ) -> Result<TestConnectionResponse, DgridError> {
     let start = Instant::now();
 
-    let client_options = mongodb::options::ClientOptions::parse(&request.uri)
-        .await
-        .map_err(|e| DgridError::Connection(e.to_string()))?;
-
-    let mut opts = client_options;
-    opts.server_selection_timeout = Some(std::time::Duration::from_secs(5));
-    opts.connect_timeout = Some(std::time::Duration::from_secs(5));
-
-    let client =
-        mongodb::Client::with_options(opts).map_err(|e| DgridError::Connection(e.to_string()))?;
-
-    match client
-        .database("admin")
-        .run_command(mongodb::bson::doc! { "ping": 1 })
-        .await
-    {
-        Ok(_) => {
-            let latency_ms = start.elapsed().as_millis() as u64;
-            Ok(TestConnectionResponse {
-                success: true,
-                message: "Connection successful".to_string(),
-                latency_ms: Some(latency_ms),
-            })
+    let token = CancellationToken::new();
+    if let Some(ref operation_id) = operation_id {
+        let mut tokens = state.test_connection_tokens.write().await;
+        if let Some(old) = tokens.remove(operation_id) {
+            old.cancel();
         }
-        Err(e) => Ok(TestConnectionResponse {
-            success: false,
-            message: e.to_string(),
-            latency_ms: None,
-        }),
+        tokens.insert(operation_id.clone(), token.clone());
     }
+
+    let result = tokio::select! {
+        result = async {
+            let client_options = mongodb::options::ClientOptions::parse(&uri)
+                .await
+                .map_err(|e| DgridError::Connection(e.to_string()))?;
+
+            let mut opts = client_options;
+            opts.server_selection_timeout = Some(std::time::Duration::from_secs(5));
+            opts.connect_timeout = Some(std::time::Duration::from_secs(5));
+
+            let client = mongodb::Client::with_options(opts)
+                .map_err(|e| DgridError::Connection(e.to_string()))?;
+
+            match client
+                .database("admin")
+                .run_command(mongodb::bson::doc! { "ping": 1 })
+                .await
+            {
+                Ok(_) => {
+                    let latency_ms = start.elapsed().as_millis() as u64;
+                    Ok(TestConnectionResponse {
+                        success: true,
+                        message: "Connection successful".to_string(),
+                        latency_ms: Some(latency_ms),
+                    })
+                }
+                Err(e) => Ok(TestConnectionResponse {
+                    success: false,
+                    message: e.to_string(),
+                    latency_ms: None,
+                }),
+            }
+        } => result,
+        _ = token.cancelled() => Err(DgridError::TestConnectionCancelled),
+    };
+
+    if let Some(ref operation_id) = operation_id {
+        let mut tokens = state.test_connection_tokens.write().await;
+        tokens.remove(operation_id);
+    }
+
+    result
+}
+
+#[tauri::command]
+pub async fn cancel_test_connection(
+    state: State<'_, AppState>,
+    operation_id: String,
+) -> Result<(), DgridError> {
+    let mut tokens = state.test_connection_tokens.write().await;
+    if let Some(token) = tokens.remove(&operation_id) {
+        token.cancel();
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -258,6 +301,7 @@ pub async fn test_saved_connection(
     state: State<'_, AppState>,
     id: String,
     password: Option<String>,
+    operation_id: Option<String>,
 ) -> Result<TestConnectionResponse, DgridError> {
     let conn = {
         let storage = state.storage.lock().unwrap();
@@ -280,7 +324,7 @@ pub async fn test_saved_connection(
         conn.uri.clone()
     };
 
-    test_connection(TestConnectionRequest { uri }).await
+    execute_test_connection(&state, uri, operation_id).await
 }
 
 #[tauri::command]

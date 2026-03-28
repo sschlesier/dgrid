@@ -2,30 +2,24 @@
   import Spinner from './Spinner.svelte';
 
   interface Props {
-    connectionName: string;
-    status?: string;
+    targetName: string;
     isCancelling?: boolean;
     oncancel: () => void;
   }
 
-  let {
-    connectionName,
-    status = 'Establishing connection...',
-    isCancelling = false,
-    oncancel,
-  }: Props = $props();
+  let { targetName, isCancelling = false, oncancel }: Props = $props();
 </script>
 
 <div class="modal-overlay connection-progress-overlay" data-testid="connection-progress-overlay">
   <div class="modal connection-progress-modal" data-testid="connection-progress-modal">
     <div class="modal-header">
-      <h2>Connecting to "{connectionName}"</h2>
+      <h2>Working on "{targetName}"</h2>
     </div>
 
     <div class="modal-content">
       <div class="status-row">
         <Spinner size="md" />
-        <p>{status}</p>
+        <p>This is taking longer than expected.</p>
       </div>
     </div>
 

@@ -3,6 +3,7 @@ import {
   ApiError,
   ConnectCancelledError,
   QueryCancelledError,
+  TestConnectionCancelledError,
   getConnections,
   getConnection,
   createConnection,
@@ -10,6 +11,7 @@ import {
   deleteConnection,
   testConnection,
   testSavedConnection,
+  cancelTestConnection,
   connectToConnection,
   cancelConnectToConnection,
   disconnectFromConnection,
@@ -238,17 +240,34 @@ describe('API client', () => {
       expect(result).toEqual(testResult);
     });
 
+    it('testConnection throws TestConnectionCancelledError on cancellation', async () => {
+      mockInvoke.mockRejectedValueOnce('Connection test was cancelled');
+
+      await expect(testConnection({ uri: 'mongodb://localhost:27017' })).rejects.toThrow(
+        TestConnectionCancelledError
+      );
+    });
+
     it('testSavedConnection invokes test_saved_connection', async () => {
       const testResult = { success: true, message: 'Connected', latencyMs: 10 };
       mockInvoke.mockResolvedValueOnce(testResult);
 
-      const result = await testSavedConnection('1', 'secret');
+      const result = await testSavedConnection('1', 'secret', 'op-1');
 
       expect(mockInvoke).toHaveBeenCalledWith('test_saved_connection', {
         id: '1',
         password: 'secret',
+        operationId: 'op-1',
       });
       expect(result).toEqual(testResult);
+    });
+
+    it('cancelTestConnection invokes cancel_test_connection', async () => {
+      mockInvoke.mockResolvedValueOnce(undefined);
+
+      await cancelTestConnection('op-1');
+
+      expect(mockInvoke).toHaveBeenCalledWith('cancel_test_connection', { operationId: 'op-1' });
     });
 
     it('connectToConnection invokes connect_to_connection', async () => {

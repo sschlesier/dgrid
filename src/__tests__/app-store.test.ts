@@ -55,11 +55,9 @@ describe('appStore', () => {
     appStore.activeTabId = null;
     appStore.notifications = [];
     appStore.isConnecting = false;
-    appStore.connectionProgress = {
+    appStore.slowOperation = {
       visible: false,
-      connectionId: null,
-      connectionName: '',
-      status: 'Establishing connection...',
+      targetName: '',
       cancelling: false,
     };
 
@@ -200,19 +198,19 @@ describe('appStore', () => {
       const connectPromise = appStore.connect('1');
 
       await vi.advanceTimersByTimeAsync(999);
-      expect(appStore.connectionProgress.visible).toBe(false);
+      expect(appStore.slowOperation.visible).toBe(false);
 
       await vi.advanceTimersByTimeAsync(1);
-      expect(appStore.connectionProgress.visible).toBe(true);
-      expect(appStore.connectionProgress.connectionName).toBe('Slow Test');
+      expect(appStore.slowOperation.visible).toBe(true);
+      expect(appStore.slowOperation.targetName).toBe('Slow Test');
 
       await vi.advanceTimersByTimeAsync(500);
       await connectPromise;
 
-      expect(appStore.connectionProgress.visible).toBe(false);
+      expect(appStore.slowOperation.visible).toBe(false);
     });
 
-    it('cancelConnect cancels the attempt without showing an error or success', async () => {
+    it('cancelSlowOperation cancels the attempt without showing an error or success', async () => {
       vi.useFakeTimers();
       appStore.connections = [
         {
@@ -236,8 +234,8 @@ describe('appStore', () => {
       const connectPromise = appStore.connect('1');
       await vi.advanceTimersByTimeAsync(1000);
 
-      const cancelPromise = appStore.cancelConnect();
-      expect(appStore.connectionProgress.cancelling).toBe(true);
+      const cancelPromise = appStore.cancelSlowOperation();
+      expect(appStore.slowOperation.cancelling).toBe(true);
 
       await cancelPromise;
       await vi.advanceTimersByTimeAsync(500);
@@ -246,7 +244,7 @@ describe('appStore', () => {
       expect(mockedApi.cancelConnectToConnection).toHaveBeenCalledWith('1');
       expect(appStore.notifications).toHaveLength(0);
       expect(appStore.connections[0].isConnected).toBe(false);
-      expect(appStore.connectionProgress.visible).toBe(false);
+      expect(appStore.slowOperation.visible).toBe(false);
       expect(appStore.isConnecting).toBe(false);
     });
 
@@ -280,7 +278,7 @@ describe('appStore', () => {
       });
 
       const connectPromise = appStore.connect('1');
-      const cancelPromise = appStore.cancelConnect();
+      const cancelPromise = appStore.cancelSlowOperation();
 
       await cancelPromise;
       await vi.advanceTimersByTimeAsync(25);
