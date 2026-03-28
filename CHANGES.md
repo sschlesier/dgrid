@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+
+- Add sidebar collection filter
+- Add cancellable slow-operation modal when testing a connection
+- Show ObjectId timestamps on hover in grid, tree, and JSON views
+
 ## 1.2.0
 
 - Add update preview in edit field dialog showing the operation that will be executed
