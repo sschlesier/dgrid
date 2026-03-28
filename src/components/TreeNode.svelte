@@ -7,6 +7,7 @@
   interface Props {
     node: TreeNodeData;
     depth?: number;
+    filterActive?: boolean;
     onNodeClick?: (_node: TreeNodeData) => void;
     onNodeExpand?: (_node: TreeNodeData) => void;
     onRefresh?: (_node: TreeNodeData) => void;
@@ -17,6 +18,7 @@
   let {
     node,
     depth = 0,
+    filterActive = false,
     onNodeClick,
     onNodeExpand,
     onRefresh,
@@ -28,7 +30,7 @@
   const supportsRefresh = $derived(node.type === 'database' || node.type === 'collection-group');
 
   const hasChildren = $derived(node.children && node.children.length > 0);
-  const isExpanded = $derived(appStore.isTreeNodeExpanded(node.id));
+  const isExpanded = $derived(filterActive || appStore.isTreeNodeExpanded(node.id));
   const isSelected = $derived(appStore.ui.selectedTreeNode === node.id);
 
   function getIconForType(type: TreeNodeType): string {
@@ -151,8 +153,12 @@
 
       <!-- Label with optional count -->
       <span class="node-label">
-        {node.label}{#if node.count !== undefined}
-          <span class="node-count">({node.count})</span>{/if}
+        {node.label}
+        {#if node.totalCount !== undefined && node.count !== undefined}
+          <span class="node-count">({node.count} of {node.totalCount})</span>
+        {:else if node.count !== undefined}
+          <span class="node-count">({node.count})</span>
+        {/if}
       </span>
     </div>
 
@@ -173,6 +179,7 @@
         <TreeNode
           node={child}
           depth={depth + 1}
+          {filterActive}
           {onNodeClick}
           {onNodeExpand}
           {onRefresh}
