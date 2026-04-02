@@ -793,6 +793,29 @@ describe('Query Parser', () => {
       }
     });
 
+    it('handles newline before operation', () => {
+      const result = parseQuery('db.myCollection\n  .find({})');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.collection).toBe('myCollection');
+        expect(result.value.operation).toBe('find');
+        expect(result.value.filter).toEqual({});
+      }
+    });
+
+    it('handles newline before operation with chain methods', () => {
+      const result = parseQuery('db.users\n  .find({ age: 25 })\n  .sort({ name: 1 })');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.collection).toBe('users');
+        expect(result.value.operation).toBe('find');
+        expect(result.value.filter).toEqual({ age: 25 });
+        expect(result.value.sort).toEqual({ name: 1 });
+      }
+    });
+
     it('handles semicolon at end', () => {
       const result = parseQuery('db.users.find({});');
 
