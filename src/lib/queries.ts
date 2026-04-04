@@ -243,7 +243,7 @@ function extractCollectionAccess(text: string): CollectionAccess | null {
   }
 
   // 3. db.name (dot notation — collection name must not contain dots or brackets)
-  const dotMatch = text.match(/^db\.([^.[\]]+)/);
+  const dotMatch = text.match(/^db\.([^.[\]\s]+)/);
   if (dotMatch) {
     return { collection: dotMatch[1], restIndex: dotMatch[0].length };
   }
@@ -742,7 +742,7 @@ export function parseCollectionQuery(queryText: string): Result<ParsedCollection
 
   // Match .operation( from the rest of the text
   const rest = text.slice(access.restIndex);
-  const opMatch = rest.match(/^\.(\w+)\s*\(/);
+  const opMatch = rest.match(/^\s*\.(\w+)\s*\(/);
   if (!opMatch) {
     return {
       ok: false,
