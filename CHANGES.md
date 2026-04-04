@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1
+
+- Fix: allow whitespace and newlines between collection name and operation in queries
+
 ## 1.3.0
 
 - Add sidebar collection filter
