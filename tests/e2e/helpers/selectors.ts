@@ -153,6 +153,19 @@ export function selectors(page: Page) {
       separator: () => page.locator('.context-menu-separator'),
     },
 
+    confirmDialog: {
+      overlay: () =>
+        page
+          .locator('.dialog-overlay')
+          .filter({ has: page.locator('h2', { hasText: 'Delete Document' }) }),
+      confirmButton: () => page.getByRole('button', { name: 'Delete', exact: true }),
+      cancelButton: () =>
+        page
+          .locator('.dialog-overlay')
+          .filter({ has: page.locator('h2', { hasText: 'Delete Document' }) })
+          .getByRole('button', { name: 'Cancel', exact: true }),
+    },
+
     history: {
       toolbarButton: () => page.locator('.toolbar-btn', { hasText: 'History' }),
       dropdown: () => page.locator('.history-dropdown'),

@@ -217,11 +217,12 @@ test.describe('Grid Context Menu', () => {
     const cell = s.results.gridCell().filter({ hasText: 'ToDelete' }).first();
     const row = page.locator('.grid-row').filter({ has: cell });
 
-    page.on('dialog', (dialog) => dialog.accept());
-
     await row.click({ button: 'right' });
     await expect(s.contextMenu.menu()).toBeVisible();
     await s.contextMenu.item('Delete Document').click();
+
+    await expect(s.confirmDialog.overlay()).toBeVisible();
+    await s.confirmDialog.confirmButton().click();
 
     await expect(s.results.gridViewport()).not.toContainText('ToDelete');
     await expect(s.results.gridViewport()).toContainText('ToKeep');
@@ -233,14 +234,15 @@ test.describe('Grid Context Menu', () => {
 
     await expect(s.results.gridViewport()).toContainText('StayHere');
 
-    page.on('dialog', (dialog) => dialog.dismiss());
-
     const row = s.results.gridRow(0);
     await row.click({ button: 'right' });
     await expect(s.contextMenu.menu()).toBeVisible();
     await s.contextMenu.item('Delete Document').click();
 
-    await expect(s.contextMenu.menu()).not.toBeVisible();
+    await expect(s.confirmDialog.overlay()).toBeVisible();
+    await s.confirmDialog.cancelButton().click();
+
+    await expect(s.confirmDialog.overlay()).not.toBeVisible();
     await expect(s.results.gridViewport()).toContainText('StayHere');
   });
 });
