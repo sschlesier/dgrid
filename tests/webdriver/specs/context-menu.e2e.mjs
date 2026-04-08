@@ -86,10 +86,10 @@ describe('Grid Context Menu', () => {
     await expect(s.results.gridViewport()).toHaveText(expect.stringContaining('ToDelete'));
     const cell = await s.results.gridCellWithText('ToDelete');
     await openContextMenuFromFocusedCell(cell);
-    await browser.execute(() => {
-      window.confirm = () => true;
-    });
     await (await s.contextMenu.item('Delete Document')).click();
+
+    await expect(s.confirmDialog.overlay()).toBeDisplayed();
+    await (await s.confirmDialog.confirmButton()).click();
 
     await browser.waitUntil(
       async () => !(await (await s.results.gridViewport()).getText()).includes('ToDelete'),
@@ -103,11 +103,12 @@ describe('Grid Context Menu', () => {
 
     const cell = await s.results.gridCellWithText('StayHere');
     await openContextMenuFromFocusedCell(cell);
-    await browser.execute(() => {
-      window.confirm = () => false;
-    });
     await (await s.contextMenu.item('Delete Document')).click();
 
+    await expect(s.confirmDialog.overlay()).toBeDisplayed();
+    await (await s.confirmDialog.cancelButton()).click();
+
+    await expect(s.confirmDialog.overlay()).not.toBeDisplayed();
     await expect(s.results.gridViewport()).toHaveText(expect.stringContaining('StayHere'));
   });
 });
