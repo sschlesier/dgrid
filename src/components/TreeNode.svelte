@@ -46,6 +46,9 @@
         return treeIcons.collection;
       case 'view':
         return treeIcons.view;
+      case 'index-group':
+      case 'index':
+        return treeIcons.index;
       default:
         return treeIcons.folder;
     }

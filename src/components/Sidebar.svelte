@@ -5,6 +5,7 @@
   import TreeNode from './TreeNode.svelte';
   import ContextMenu from './ContextMenu.svelte';
   import CollectionTooltip from './CollectionTooltip.svelte';
+  import IndexTooltip from './IndexTooltip.svelte';
   import type { TreeNodeData } from '../types';
 
   interface Props {
@@ -32,7 +33,12 @@
       switch (node.type) {
         case 'collection':
         case 'view':
+          // Keep the node (with its index children intact) if label matches
           return node.label.toLocaleLowerCase().includes(normalizedQuery) ? node : null;
+        case 'index-group':
+        case 'index':
+          // Index nodes are not searchable — they follow their parent collection
+          return node;
         case 'connection':
         case 'database':
         case 'collection-group':
@@ -149,6 +155,18 @@
         }
         break;
       }
+      case 'collection': {
+        if (node.connectionId && node.databaseName && node.collectionName) {
+          const key = appStore.indexKey(node.connectionId, node.databaseName, node.collectionName);
+          if (!appStore.indexes.has(key)) {
+            await appStore.loadIndexes(node.connectionId, node.databaseName, node.collectionName);
+          }
+          // Auto-expand the "Indexes" group when expanding a collection
+          const idxGroupId = `idx-group:${node.connectionId}:${node.databaseName}:${node.collectionName}`;
+          appStore.setTreeNodeExpanded(idxGroupId, true);
+        }
+        break;
+      }
     }
   }
 
@@ -198,7 +216,7 @@
       clearTimeout(tooltipTimer);
       tooltipTimer = null;
     }
-    if (!node || (node.type !== 'collection' && node.type !== 'view')) {
+    if (!node || (node.type !== 'collection' && node.type !== 'view' && node.type !== 'index')) {
       tooltip = null;
       return;
     }
@@ -216,6 +234,15 @@
     if (!node.databaseName || !node.collectionName) return null;
     const colls = appStore.collections.get(node.databaseName);
     return colls?.find((c) => c.name === node.collectionName) ?? null;
+  });
+
+  const tooltipIndexInfo = $derived(() => {
+    if (!tooltip || tooltip.node.type !== 'index') return null;
+    const { node } = tooltip;
+    if (!node.connectionId || !node.databaseName || !node.collectionName) return null;
+    const key = appStore.indexKey(node.connectionId, node.databaseName, node.collectionName);
+    const idxList = appStore.indexes.get(key);
+    return idxList?.find((i) => i.name === node.label) ?? null;
   });
 
   onDestroy(() => {
@@ -527,17 +554,32 @@
 {/if}
 
 {#if tooltip}
-  {@const stats = tooltipStats()}
-  <CollectionTooltip
-    x={tooltip.x}
-    y={tooltip.y}
-    name={tooltip.node.collectionName ?? tooltip.node.label}
-    type={tooltip.node.type === 'view' ? 'view' : 'collection'}
-    documentCount={stats?.documentCount ?? 0}
-    avgDocumentSize={stats?.avgDocumentSize ?? 0}
-    totalSize={stats?.totalSize ?? 0}
-    statsLoaded={stats !== null && stats.totalSize > 0}
-  />
+  {#if tooltip.node.type === 'index'}
+    {@const indexInfo = tooltipIndexInfo()}
+    {#if indexInfo}
+      <IndexTooltip
+        x={tooltip.x}
+        y={tooltip.y}
+        name={indexInfo.name}
+        keyPattern={indexInfo.key}
+        unique={indexInfo.unique}
+        sparse={indexInfo.sparse}
+        expireAfterSeconds={indexInfo.expireAfterSeconds}
+      />
+    {/if}
+  {:else}
+    {@const stats = tooltipStats()}
+    <CollectionTooltip
+      x={tooltip.x}
+      y={tooltip.y}
+      name={tooltip.node.collectionName ?? tooltip.node.label}
+      type={tooltip.node.type === 'view' ? 'view' : 'collection'}
+      documentCount={stats?.documentCount ?? 0}
+      avgDocumentSize={stats?.avgDocumentSize ?? 0}
+      totalSize={stats?.totalSize ?? 0}
+      statsLoaded={stats !== null && stats.totalSize > 0}
+    />
+  {/if}
 {/if}
 
 <style>

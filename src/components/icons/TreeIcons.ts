@@ -31,6 +31,9 @@ export const treeIcons = {
 
   // Refresh/reload icon
   refresh: `<path d="M13.5 8a5.5 5.5 0 1 1-1.1-3.3M13.5 2v3h-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+
+  // Index icon (grid with columns - represents an index/key structure)
+  index: `<path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9zm1.5 0v9h9v-9h-9zM5.5 2v12M2 5.5h12M2 8h12M2 10.5h12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>`,
 } as const;
 
 export type TreeIconName = keyof typeof treeIcons;
