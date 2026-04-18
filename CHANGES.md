@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.0
+
+- Display indexes in sidebar tree under collection nodes
+
 ## 1.3.1
 
 - Fix: allow whitespace and newlines between collection name and operation in queries
