@@ -30,6 +30,7 @@
   const supportsRefresh = $derived(node.type === 'database' || node.type === 'collection-group');
 
   const hasChildren = $derived(node.children && node.children.length > 0);
+  const canExpand = $derived(Boolean(hasChildren) || node.type === 'collection');
   const isExpanded = $derived(filterActive || appStore.isTreeNodeExpanded(node.id));
   const isSelected = $derived(appStore.ui.selectedTreeNode === node.id);
 
@@ -80,11 +81,11 @@
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       handleClick(event as unknown as MouseEvent);
-    } else if (event.key === 'ArrowRight' && hasChildren && !isExpanded) {
+    } else if (event.key === 'ArrowRight' && canExpand && !isExpanded) {
       event.preventDefault();
       appStore.toggleTreeNode(node.id);
       onNodeExpand?.(node);
-    } else if (event.key === 'ArrowLeft' && isExpanded) {
+    } else if (event.key === 'ArrowLeft' && canExpand && isExpanded) {
       event.preventDefault();
       appStore.toggleTreeNode(node.id);
     }
@@ -123,13 +124,13 @@
       onmouseleave={(e) => onNodeHover?.(null, e)}
       role="treeitem"
       tabindex="0"
-      aria-expanded={hasChildren ? isExpanded : undefined}
+      aria-expanded={canExpand ? isExpanded : undefined}
       aria-selected={isSelected}
     >
       <!-- Expand/collapse chevron -->
       <span
         class="chevron"
-        class:invisible={!hasChildren}
+        class:invisible={!canExpand}
         class:loading={node.isLoading}
         onclick={handleExpandClick}
         onkeydown={handleChevronKeyDown}

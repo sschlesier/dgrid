@@ -11,14 +11,20 @@ vi.mock('../../stores/app.svelte', () => ({
     connections: [],
     treeData: [],
     collections: new Map(),
+    indexes: new Map(),
     ui: { selectedTreeNode: null, sidebarOpen: true, theme: 'light', treeExpanded: {} },
     connect: vi.fn(),
     disconnect: vi.fn(),
     toggleTreeNode: vi.fn(),
+    setTreeNodeExpanded: vi.fn(),
     refreshDatabases: vi.fn(),
     refreshCollections: vi.fn(),
     deleteConnection: vi.fn(),
     createTab: vi.fn(),
+    loadIndexes: vi.fn(),
+    indexKey: vi.fn((connectionId: string, database: string, collection: string) => {
+      return `${connectionId}:${database}:${collection}`;
+    }),
     isTreeNodeExpanded: vi.fn().mockReturnValue(false),
   },
 }));
@@ -30,8 +36,38 @@ describe('Sidebar', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (appStore as { connections: unknown[]; treeData: unknown[] }).connections = [];
-    (appStore as { connections: unknown[]; treeData: unknown[] }).treeData = [];
+    (
+      appStore as {
+        connections: unknown[];
+        treeData: unknown[];
+        indexes: Map<string, unknown[]>;
+        collections: Map<string, unknown[]>;
+      }
+    ).connections = [];
+    (
+      appStore as {
+        connections: unknown[];
+        treeData: unknown[];
+        indexes: Map<string, unknown[]>;
+        collections: Map<string, unknown[]>;
+      }
+    ).treeData = [];
+    (
+      appStore as {
+        connections: unknown[];
+        treeData: unknown[];
+        indexes: Map<string, unknown[]>;
+        collections: Map<string, unknown[]>;
+      }
+    ).indexes = new Map();
+    (
+      appStore as {
+        connections: unknown[];
+        treeData: unknown[];
+        indexes: Map<string, unknown[]>;
+        collections: Map<string, unknown[]>;
+      }
+    ).collections = new Map();
   });
 
   describe('empty state display', () => {
@@ -316,6 +352,41 @@ describe('Sidebar', () => {
 
       expect(screen.getByText('No matches')).toBeInTheDocument();
       expect(screen.getByText('Try a different collection or view name')).toBeInTheDocument();
+    });
+  });
+
+  describe('lazy index loading', () => {
+    it('loads indexes when a collection expands before index children exist', async () => {
+      (appStore as { connections: unknown[]; treeData: unknown[] }).connections = [
+        createMockConnection({ id: 'conn-1', name: 'Primary', isConnected: true }),
+      ];
+      (appStore as { treeData: unknown[] }).treeData = [
+        createMockTreeNode({
+          id: 'coll:conn-1:alpha:users',
+          type: 'collection',
+          label: 'users',
+          connectionId: 'conn-1',
+          databaseName: 'alpha',
+          collectionName: 'users',
+        }),
+      ];
+
+      const { container } = render(Sidebar, {
+        props: { onEditConnection: mockOnEditConnection, onConnect: mockOnConnect },
+      });
+
+      const chevron = container.querySelector('.chevron');
+      expect(chevron).toBeInTheDocument();
+      expect(chevron).not.toHaveClass('invisible');
+
+      await fireEvent.click(chevron!);
+
+      expect(appStore.toggleTreeNode).toHaveBeenCalledWith('coll:conn-1:alpha:users');
+      expect(appStore.loadIndexes).toHaveBeenCalledWith('conn-1', 'alpha', 'users');
+      expect(appStore.setTreeNodeExpanded).toHaveBeenCalledWith(
+        'idx-group:conn-1:alpha:users',
+        true
+      );
     });
   });
 });
