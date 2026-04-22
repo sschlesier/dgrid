@@ -110,6 +110,12 @@ export const selectors = {
     separator: () => $('.context-menu-separator'),
   },
 
+  confirmDialog: {
+    overlay: () => $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Delete Document']]`),
+    confirmButton: () => $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Delete Document']]//button[normalize-space(.)='Delete']`),
+    cancelButton: () => $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Delete Document']]//button[normalize-space(.)='Cancel']`),
+  },
+
   editDialog: {
     overlay: () => $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Edit Field']]`),
     fieldPath: () => $('.field-path-display'),

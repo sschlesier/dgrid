@@ -24,6 +24,7 @@
   import GridBreadcrumb from './GridBreadcrumb.svelte';
   import GridPagination from './GridPagination.svelte';
   import EditFieldDialog from '../EditFieldDialog.svelte';
+  import ConfirmDialog from '../ConfirmDialog.svelte';
   import ContextMenu from '../ContextMenu.svelte';
   import { deleteDocument } from '../../api/client';
   import { appStore } from '../../stores/app.svelte';
@@ -69,6 +70,7 @@
   }
 
   let contextMenu = $state<ContextMenuState | null>(null);
+  let deleteConfirmDoc = $state<Record<string, unknown> | null>(null);
 
   // Virtual scroll constants
   const ROW_HEIGHT = 32;
@@ -383,9 +385,14 @@
     return items;
   }
 
-  async function handleDeleteDocument(doc: Record<string, unknown>) {
-    const confirmed = window.confirm('Delete this document? This cannot be undone.');
-    if (!confirmed) return;
+  function handleDeleteDocument(doc: Record<string, unknown>) {
+    deleteConfirmDoc = doc;
+  }
+
+  async function confirmDeleteDocument() {
+    const doc = deleteConfirmDoc;
+    deleteConfirmDoc = null;
+    if (!doc) return;
 
     const docId = doc._docId ?? doc._id;
 
@@ -483,6 +490,16 @@
     }}
     onclose={() => (editingField = null)}
     onsaved={handleEditSaved}
+  />
+{/if}
+
+{#if deleteConfirmDoc}
+  <ConfirmDialog
+    title="Delete Document"
+    message="Delete this document? This cannot be undone."
+    confirmLabel="Delete"
+    onconfirm={confirmDeleteDocument}
+    oncancel={() => (deleteConfirmDoc = null)}
   />
 {/if}
 
