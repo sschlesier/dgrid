@@ -2,6 +2,7 @@ use mongodb::bson::{doc, Bson, Document};
 use serde::Serialize;
 use tauri::State;
 
+use crate::bson_ser;
 use crate::error::DgridError;
 use crate::state::AppState;
 
@@ -25,6 +26,16 @@ pub struct CollectionInfo {
     pub avg_document_size: f64,
     pub total_size: i64,
     pub indexes: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexInfo {
+    pub name: String,
+    pub key: serde_json::Value,
+    pub unique: bool,
+    pub sparse: bool,
+    pub expire_after_seconds: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -368,6 +379,63 @@ pub async fn get_schema(
         fields,
         sample_size,
     })
+}
+
+#[tauri::command]
+pub async fn list_indexes(
+    state: State<'_, AppState>,
+    id: String,
+    database: String,
+    collection: String,
+) -> Result<Vec<IndexInfo>, DgridError> {
+    let client = state
+        .pool
+        .get_client(&id)
+        .await
+        .ok_or_else(|| DgridError::NotFound {
+            entity: "Connection".into(),
+            id: id.clone(),
+        })?;
+
+    let coll = client
+        .database(&database)
+        .collection::<Document>(&collection);
+
+    use futures_util::TryStreamExt;
+    let indexes: Vec<mongodb::IndexModel> = coll
+        .list_indexes()
+        .await
+        .map_err(|e| DgridError::Database(e.to_string()))?
+        .try_collect()
+        .await
+        .map_err(|e| DgridError::Database(e.to_string()))?;
+
+    let infos = indexes
+        .iter()
+        .map(|idx| {
+            let key = serde_json::Value::Object(bson_ser::serialize_document(&idx.keys));
+            let (name, unique, sparse, expire_after_seconds) =
+                if let Some(opts) = &idx.options {
+                    (
+                        opts.name.clone().unwrap_or_default(),
+                        opts.unique.unwrap_or(false),
+                        opts.sparse.unwrap_or(false),
+                        opts.expire_after.map(|d| d.as_secs() as i64),
+                    )
+                } else {
+                    (String::new(), false, false, None)
+                };
+            IndexInfo {
+                name,
+                key,
+                unique,
+                sparse,
+                expire_after_seconds,
+            }
+        })
+        .collect();
+
+    Ok(infos)
 }
 
 #[cfg(test)]

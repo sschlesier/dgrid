@@ -10,6 +10,7 @@ import type {
   ConnectRequest,
   DatabaseInfo,
   CollectionInfo,
+  IndexInfo,
   CollectionSchemaResponse,
   ExecuteQueryRequest,
   ExecuteQueryResponse,
@@ -252,6 +253,18 @@ export async function getAllCollectionStats(
       database,
       collectionNames,
     });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
+}
+
+export async function listIndexes(
+  connectionId: string,
+  database: string,
+  collection: string
+): Promise<IndexInfo[]> {
+  try {
+    return await invoke<IndexInfo[]>('list_indexes', { id: connectionId, database, collection });
   } catch (e) {
     throw wrapInvokeError(e);
   }

@@ -31,7 +31,9 @@ export type TreeNodeType =
   | 'collection-group'
   | 'view-group'
   | 'collection'
-  | 'view';
+  | 'view'
+  | 'index-group'
+  | 'index';
 
 export interface TreeNodeData {
   id: string;

@@ -56,6 +56,15 @@ export interface CollectionInfo {
   totalSize: number;
 }
 
+// Indexes
+export interface IndexInfo {
+  name: string;
+  key: Record<string, unknown>;
+  unique: boolean;
+  sparse: boolean;
+  expireAfterSeconds?: number;
+}
+
 // Query Execution
 export interface ExecuteQueryRequest {
   query: string;

@@ -1,6 +1,6 @@
 // App Store - Svelte 5 runes-based state management
 
-import type { ConnectionResponse, DatabaseInfo, CollectionInfo } from '../lib/contracts';
+import type { ConnectionResponse, DatabaseInfo, CollectionInfo, IndexInfo } from '../lib/contracts';
 import type { Tab, Notification, UIState, Theme, TreeNodeData } from '../types';
 import * as api from '../api/client';
 import { ApiError, ConnectCancelledError } from '../api/client';
@@ -51,6 +51,7 @@ class AppStore {
   activeConnectionId = $state<string | null>(null);
   databases = $state<DatabaseInfo[]>([]);
   collections = $state<Map<string, CollectionInfo[]>>(new Map());
+  indexes = $state<Map<string, IndexInfo[]>>(new Map());
   tabs = $state<Tab[]>([]);
   activeTabId = $state<string | null>(null);
   ui = $state<UIState>(loadUIState());
@@ -416,6 +417,7 @@ class AppStore {
       this.databases = [];
       this.collections = new Map();
     }
+    this.clearIndexesForConnection(id);
     this.closeTabsForConnection(id);
     schemaStore.clearConnection(id);
   }
@@ -441,6 +443,7 @@ class AppStore {
         this.databases = [];
         this.collections = new Map();
       }
+      this.clearIndexesForConnection(id);
       this.closeTabsForConnection(id);
       schemaStore.clearConnection(id);
       this.notify('info', `Disconnected from "${connection.name}"`);
@@ -564,6 +567,40 @@ class AppStore {
       this.notify('success', 'Collections refreshed');
     } catch {
       // Error already notified in loadCollections
+    }
+  }
+
+  // Index actions
+  private clearIndexesForConnection(connectionId: string): void {
+    const newMap = new Map(this.indexes);
+    for (const key of newMap.keys()) {
+      if (key.startsWith(`${connectionId}:`)) {
+        newMap.delete(key);
+      }
+    }
+    this.indexes = newMap;
+  }
+
+  indexKey(connectionId: string, database: string, collection: string): string {
+    return `${connectionId}:${database}:${collection}`;
+  }
+
+  async loadIndexes(connectionId: string, database: string, collection: string): Promise<void> {
+    const nodeId = `coll:${connectionId}:${database}:${collection}`;
+    this.startNodeLoading(nodeId);
+    try {
+      const result = await api.listIndexes(connectionId, database, collection);
+      const newMap = new Map(this.indexes);
+      newMap.set(this.indexKey(connectionId, database, collection), result);
+      this.indexes = newMap;
+    } catch (error) {
+      this.handlePossibleDisconnect(error, connectionId);
+      if (!(error instanceof ApiError && error.isConnected === false)) {
+        this.notify('error', `Failed to load indexes: ${(error as Error).message}`);
+      }
+      throw error;
+    } finally {
+      this.stopNodeLoading(nodeId);
     }
   }
 
@@ -720,6 +757,9 @@ class AppStore {
                     databaseName: db.name,
                     children: regularCollections.map((coll): TreeNodeData => {
                       const collNodeId = `coll:${connection.id}:${db.name}:${coll.name}`;
+                      const collIndexes = this.indexes.get(
+                        this.indexKey(connection.id, db.name, coll.name)
+                      );
                       return {
                         id: collNodeId,
                         type: 'collection',
@@ -727,6 +767,30 @@ class AppStore {
                         connectionId: connection.id,
                         databaseName: db.name,
                         collectionName: coll.name,
+                        isLoading: this._loadingNodes.has(collNodeId),
+                        children: collIndexes
+                          ? [
+                              {
+                                id: `idx-group:${connection.id}:${db.name}:${coll.name}`,
+                                type: 'index-group',
+                                label: 'Indexes',
+                                count: collIndexes.length,
+                                connectionId: connection.id,
+                                databaseName: db.name,
+                                collectionName: coll.name,
+                                children: collIndexes.map(
+                                  (idx): TreeNodeData => ({
+                                    id: `idx:${connection.id}:${db.name}:${coll.name}:${idx.name}`,
+                                    type: 'index',
+                                    label: idx.name,
+                                    connectionId: connection.id,
+                                    databaseName: db.name,
+                                    collectionName: coll.name,
+                                  })
+                                ),
+                              },
+                            ]
+                          : undefined,
                       };
                     }),
                   },

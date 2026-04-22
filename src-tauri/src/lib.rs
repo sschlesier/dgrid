@@ -44,6 +44,7 @@ pub fn run() {
             commands::databases::get_all_collection_stats,
             commands::databases::get_collection_stats_cmd,
             commands::databases::get_schema,
+            commands::databases::list_indexes,
             commands::query::execute_query,
             commands::query::cancel_query,
             commands::documents::update_field,
