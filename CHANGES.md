@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1
+
+- Replace native confirm dialog with custom ConfirmDialog component
+- Fix: restore lazy index expansion in sidebar
+
 ## 1.4.0
 
 - Display indexes in sidebar tree under collection nodes
