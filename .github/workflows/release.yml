@@ -4,12 +4,35 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6.0.1
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION=$(node -p "require('./package.json').version")
+            TAG="v${VERSION}"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git tag "$TAG"
+            git push origin "$TAG"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
   build-macos:
+    needs: prepare
     runs-on: macos-15
 
     steps:
@@ -57,6 +80,7 @@ jobs:
             src-tauri/target/release/bundle/dmg/*.sha256
 
   build-windows:
+    needs: prepare
     runs-on: windows-latest
 
     steps:
@@ -105,6 +129,7 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.sha256
 
   build-linux:
+    needs: prepare
     runs-on: ubuntu-22.04
 
     steps:
@@ -159,7 +184,7 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.sha256
 
   release:
-    needs: [build-macos, build-windows, build-linux]
+    needs: [prepare, build-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
 
     steps:
@@ -174,6 +199,7 @@ jobs:
       - name: Create Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           set -euo pipefail
 
@@ -186,11 +212,11 @@ jobs:
           \) | sort)
 
           prerelease_args=()
-          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+          if [[ "${TAG}" == *-* ]]; then
             prerelease_args+=(--prerelease)
           fi
 
-          gh release create "${GITHUB_REF_NAME}" \
+          gh release create "${TAG}" \
             "${assets[@]}" \
             --verify-tag \
             --generate-notes \
@@ -198,8 +224,8 @@ jobs:
 
   update-homebrew:
     name: Update Homebrew Tap
-    if: ${{ !contains(github.ref_name, '-') }}
-    needs: release
+    if: ${{ !contains(needs.prepare.outputs.tag, '-') }}
+    needs: [prepare, release]
     runs-on: ubuntu-latest
 
     steps:
@@ -217,8 +243,10 @@ jobs:
           path: artifacts
 
       - name: Update Cask
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/}
+          TAG_NAME="${TAG}"
           VERSION=${TAG_NAME#v}
           SHA256=$(awk '{print $1}' artifacts/*.sha256)
 
@@ -231,6 +259,8 @@ jobs:
           cat "$CASK"
 
       - name: Push changes
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           cd homebrew-tap
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -242,5 +272,5 @@ jobs:
           fi
 
           git add Casks/dgrid.rb
-          git commit -m "Update dgrid to ${GITHUB_REF#refs/tags/}"
+          git commit -m "Update dgrid to ${TAG}"
           git push origin main

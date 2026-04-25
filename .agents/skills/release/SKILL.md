@@ -97,18 +97,21 @@ git push -u origin <release-branch>
 
 Tell the user the PR is required because `main` is protected. Do not push the release tag yet.
 
-## 7. Tag After The PR Merges
+## 7. Trigger Release After The PR Merges
 
-After the release PR has merged into `main`, update local `main`, recreate the tag from the merged commit, and push only the tag to trigger the release workflow:
+After the release PR has merged into `main`, trigger the release workflow:
 
 ```bash
-git checkout main
-git pull origin main
-git tag v<new-version>
-git push origin v<new-version>
+gh workflow run release.yml --ref main
 ```
 
-Verify that `HEAD` on local `main` is the merged release commit before creating the tag.
+The workflow reads the version from `package.json`, creates the `v*` tag on `main`, builds all platform releases, creates the GitHub release, and updates the Homebrew cask.
+
+Monitor progress with:
+
+```bash
+gh run list --workflow=release.yml --limit 3
+```
 
 ## Error Handling
 
