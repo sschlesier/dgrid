@@ -544,6 +544,76 @@ describe('ConnectionDialog', () => {
     });
   });
 
+  describe('multi-host URI support', () => {
+    const multiHostUri =
+      'mongodb://user:pass@host1:27017,host2:27017,host3:27017/admin?authSource=admin&ssl=true';
+    // Credential-free variant — avoids the confirm() dialog that fires when
+    // savePassword is off but the URI contains a password.
+    const multiHostUriNoPass =
+      'mongodb://host1:27017,host2:27017,host3:27017/admin?authSource=admin&ssl=true';
+
+    it('saves multi-host URI without modification', async () => {
+      (appStore.createConnection as ReturnType<typeof vi.fn>).mockResolvedValue({});
+
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      const nameInput = screen.getByLabelText(/Name/);
+      await fireEvent.input(nameInput, { target: { value: 'Replica Set' } });
+
+      await fireEvent.click(screen.getByTestId('uri-tab'));
+      const uriInput = screen.getByTestId('uri-input');
+      await fireEvent.input(uriInput, { target: { value: multiHostUriNoPass } });
+
+      await fireEvent.click(screen.getByText('Save'));
+
+      await vi.waitFor(() => {
+        expect(appStore.createConnection).toHaveBeenCalledWith(
+          expect.objectContaining({ uri: multiHostUriNoPass })
+        );
+      });
+    });
+
+    it('prompts for password when testing multi-host URI with username but no password', async () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      const nameInput = screen.getByLabelText(/Name/);
+      await fireEvent.input(nameInput, { target: { value: 'Replica Set' } });
+
+      await fireEvent.click(screen.getByTestId('uri-tab'));
+      const uriInput = screen.getByTestId('uri-input');
+      await fireEvent.input(uriInput, {
+        target: { value: 'mongodb://user@host1:27017,host2:27017,host3:27017/admin' },
+      });
+
+      await fireEvent.click(screen.getByText('Test Connection'));
+
+      await vi.waitFor(() => {
+        expect(screen.getByText('Password Required')).toBeInTheDocument();
+      });
+    });
+
+    it('extracts credentials from multi-host URI when switching to Form tab', async () => {
+      render(ConnectionDialog, {
+        props: { connectionId: null, onClose: mockOnClose },
+      });
+
+      await fireEvent.click(screen.getByTestId('uri-tab'));
+      const uriInput = screen.getByTestId('uri-input');
+      await fireEvent.input(uriInput, { target: { value: multiHostUri } });
+
+      await fireEvent.click(screen.getByTestId('form-tab'));
+
+      await vi.waitFor(() => {
+        expect(screen.getByLabelText('Username')).toHaveValue('user');
+        expect(screen.getByLabelText('Database')).toHaveValue('admin');
+      });
+    });
+  });
+
   describe('SRV toggle', () => {
     it('hides port field and auto-checks TLS when SRV is enabled', async () => {
       render(ConnectionDialog, {

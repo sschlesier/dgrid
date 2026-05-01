@@ -59,7 +59,7 @@
   } {
     // Groups: 1=scheme  2=user  3=pass  4=hosts  5=path  6=query
     const match = uri.match(
-      /^(mongodb(?:\+srv)?):\/\/(?:([^:@/?#]*)(?::([^@/?#]*))?@)?([^/?#]*)(?:(\/[^?#]*))?(?:\?(.*))?$/,
+      /^(mongodb(?:\+srv)?):\/\/(?:([^:@/?#]*)(?::([^@/?#]*))?@)?([^/?#]*)(?:(\/[^?#]*))?(?:\?(.*))?$/
     );
     if (!match) {
       return {
@@ -77,16 +77,28 @@
     const parsedIsSrv = scheme === 'mongodb+srv';
     const searchParams = new URLSearchParams(queryPart ?? '');
 
-    // For multi-host URIs keep all hosts in the host field; the form tab will
-    // display them as-is (the URI tab is the intended UI for multi-host setups).
-    const firstHost = (hosts ?? '').split(',')[0] ?? '';
-    const colonIdx = firstHost.lastIndexOf(':');
-    const portStr = colonIdx !== -1 ? firstHost.slice(colonIdx + 1) : '';
-    const portNum = portStr && /^\d+$/.test(portStr) ? parseInt(portStr, 10) : 27017;
+    // For multi-host URIs (replica sets) the host field gets all hosts as-is.
+    // For single-host URIs split the hostname and port, matching new URL() behaviour.
+    const isMultiHost = (hosts ?? '').includes(',');
+    let hostField: string;
+    let portNum: number;
+    if (isMultiHost) {
+      hostField = hosts ?? 'localhost';
+      const firstHost = hostField.split(',')[0] ?? '';
+      const ci = firstHost.lastIndexOf(':');
+      const ps = ci !== -1 ? firstHost.slice(ci + 1) : '';
+      portNum = ps && /^\d+$/.test(ps) ? parseInt(ps, 10) : 27017;
+    } else {
+      const ci = (hosts ?? '').lastIndexOf(':');
+      const ps = ci !== -1 ? (hosts ?? '').slice(ci + 1) : '';
+      const hasPort = !!ps && /^\d+$/.test(ps);
+      hostField = hasPort ? (hosts ?? '').slice(0, ci) || 'localhost' : (hosts ?? 'localhost');
+      portNum = hasPort ? parseInt(ps, 10) : 27017;
+    }
 
     return {
       isSrv: parsedIsSrv,
-      host: hosts ?? 'localhost',
+      host: hostField,
       port: portNum,
       database: pathPart ? pathPart.slice(1) : '',
       username: rawUser ? decodeURIComponent(rawUser) : '',
@@ -199,9 +211,7 @@
     if (!parsed.username) return uri;
 
     const scheme = parsed.isSrv ? 'mongodb+srv://' : 'mongodb://';
-    const match = uri.match(
-      /^mongodb(?:\+srv)?:\/\/(?:[^@/?#]*@)?([^/?#]*)(.*)$/,
-    );
+    const match = uri.match(/^mongodb(?:\+srv)?:\/\/(?:[^@/?#]*@)?([^/?#]*)(.*)$/);
     if (!match) return uri;
     const [, hosts, rest] = match;
     const encodedUser = encodeURIComponent(parsed.username);
