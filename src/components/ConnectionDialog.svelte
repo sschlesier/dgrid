@@ -43,7 +43,10 @@
   let testPromptUsername = $state('');
   let testPromptUri = $state('');
 
-  /** Parse a MongoDB URI into form fields. */
+  /** Parse a MongoDB URI into form fields.
+   * Uses regex instead of `new URL()` because the browser URL parser rejects
+   * multi-host URIs (comma-separated hosts required by MongoDB's replica-set spec).
+   */
   function parseMongoUri(uri: string): {
     isSrv: boolean;
     host: string;
@@ -54,20 +57,11 @@
     authSource: string;
     tls: boolean;
   } {
-    try {
-      const parsed = new URL(uri);
-      const parsedIsSrv = parsed.protocol === 'mongodb+srv:';
-      return {
-        isSrv: parsedIsSrv,
-        host: parsed.hostname,
-        port: parsed.port ? parseInt(parsed.port) : 27017,
-        database: parsed.pathname.slice(1) || '',
-        username: decodeURIComponent(parsed.username),
-        password: decodeURIComponent(parsed.password),
-        authSource: parsed.searchParams.get('authSource') || '',
-        tls: parsedIsSrv || parsed.searchParams.get('tls') === 'true',
-      };
-    } catch {
+    // Groups: 1=scheme  2=user  3=pass  4=hosts  5=path  6=query
+    const match = uri.match(
+      /^(mongodb(?:\+srv)?):\/\/(?:([^:@/?#]*)(?::([^@/?#]*))?@)?([^/?#]*)(?:(\/[^?#]*))?(?:\?(.*))?$/
+    );
+    if (!match) {
       return {
         isSrv: false,
         host: 'localhost',
@@ -79,6 +73,39 @@
         tls: false,
       };
     }
+    const [, scheme, rawUser, rawPass, hosts, pathPart, queryPart] = match;
+    const parsedIsSrv = scheme === 'mongodb+srv';
+    const searchParams = new URLSearchParams(queryPart ?? '');
+
+    // For multi-host URIs (replica sets) the host field gets all hosts as-is.
+    // For single-host URIs split the hostname and port, matching new URL() behaviour.
+    const isMultiHost = (hosts ?? '').includes(',');
+    let hostField: string;
+    let portNum: number;
+    if (isMultiHost) {
+      hostField = hosts ?? 'localhost';
+      const firstHost = hostField.split(',')[0] ?? '';
+      const ci = firstHost.lastIndexOf(':');
+      const ps = ci !== -1 ? firstHost.slice(ci + 1) : '';
+      portNum = ps && /^\d+$/.test(ps) ? parseInt(ps, 10) : 27017;
+    } else {
+      const ci = (hosts ?? '').lastIndexOf(':');
+      const ps = ci !== -1 ? (hosts ?? '').slice(ci + 1) : '';
+      const hasPort = !!ps && /^\d+$/.test(ps);
+      hostField = hasPort ? (hosts ?? '').slice(0, ci) || 'localhost' : (hosts ?? 'localhost');
+      portNum = hasPort ? parseInt(ps, 10) : 27017;
+    }
+
+    return {
+      isSrv: parsedIsSrv,
+      host: hostField,
+      port: portNum,
+      database: pathPart ? pathPart.slice(1) : '',
+      username: rawUser ? decodeURIComponent(rawUser) : '',
+      password: rawPass ? decodeURIComponent(rawPass) : '',
+      authSource: searchParams.get('authSource') ?? '',
+      tls: parsedIsSrv || searchParams.get('tls') === 'true' || searchParams.get('ssl') === 'true',
+    };
   }
 
   /** Build a MongoDB URI from form fields. */
@@ -178,15 +205,18 @@
     activeTab = 'form';
   }
 
-  /** Inject a password into a MongoDB URI. */
+  /** Inject a password into a MongoDB URI (handles multi-host URIs). */
   function injectPasswordIntoUri(uri: string, pwd: string): string {
-    try {
-      const parsed = new URL(uri);
-      parsed.password = pwd;
-      return parsed.toString();
-    } catch {
-      return uri;
-    }
+    const parsed = parseMongoUri(uri);
+    if (!parsed.username) return uri;
+
+    const scheme = parsed.isSrv ? 'mongodb+srv://' : 'mongodb://';
+    const match = uri.match(/^mongodb(?:\+srv)?:\/\/(?:[^@/?#]*@)?([^/?#]*)(.*)$/);
+    if (!match) return uri;
+    const [, hosts, rest] = match;
+    const encodedUser = encodeURIComponent(parsed.username);
+    const encodedPass = encodeURIComponent(pwd);
+    return `${scheme}${encodedUser}:${encodedPass}@${hosts}${rest}`;
   }
 
   /** Execute test against a saved connection (uses keyring password). */

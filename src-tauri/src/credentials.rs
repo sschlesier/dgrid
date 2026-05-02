@@ -1,5 +1,4 @@
 use percent_encoding::{percent_decode_str, utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
-use url::Url;
 
 /// Characters that must be percent-encoded in MongoDB userinfo (RFC 3986 userinfo set).
 /// We encode everything except unreserved characters (ALPHA / DIGIT / "-" / "." / "_" / "~").
@@ -15,26 +14,72 @@ pub struct StrippedCredentials {
     pub password: String,
 }
 
+struct MongoUriParts {
+    scheme: String,
+    userinfo: Option<String>,
+    /// Hosts string — may be comma-separated for replica set / sharded URIs.
+    hosts: String,
+    /// Includes the leading slash, e.g. "/admin" or "".
+    path: String,
+    query: Option<String>,
+}
+
+/// Parse a MongoDB URI without using the `url` crate, which rejects multi-host URIs
+/// (comma-separated hosts are not valid per RFC 3986 but are required by MongoDB's URI spec).
+fn parse_mongo_uri_parts(uri: &str) -> Option<MongoUriParts> {
+    let (scheme, rest) = uri.split_once("://")?;
+
+    // Split path+query from the authority/hosts portion at the first '/'.
+    let (authority_and_hosts, path_and_query) = match rest.find('/') {
+        Some(pos) => (&rest[..pos], &rest[pos..]),
+        None => (rest, ""),
+    };
+
+    let (path, query) = match path_and_query.find('?') {
+        Some(pos) => (&path_and_query[..pos], Some(&path_and_query[pos + 1..])),
+        None => (path_and_query, None),
+    };
+
+    // Use rfind so that a literal '@' that slipped through encoding still resolves to the
+    // last '@', which is always the userinfo/host separator.
+    let (userinfo, hosts) = match authority_and_hosts.rfind('@') {
+        Some(pos) => (
+            Some(&authority_and_hosts[..pos]),
+            &authority_and_hosts[pos + 1..],
+        ),
+        None => (None, authority_and_hosts),
+    };
+
+    Some(MongoUriParts {
+        scheme: scheme.to_string(),
+        userinfo: userinfo.map(|s| s.to_string()),
+        hosts: hosts.to_string(),
+        path: path.to_string(),
+        query: query.map(|s| s.to_string()),
+    })
+}
+
 /// Strip credentials from a MongoDB URI, returning the cleaned URI plus extracted username/password.
 pub fn strip_credentials(uri: &str) -> StrippedCredentials {
-    let parsed = Url::parse(uri).expect("invalid URI");
+    let parts = parse_mongo_uri_parts(uri).expect("invalid URI");
 
-    let username = percent_decode_str(parsed.username())
-        .decode_utf8_lossy()
-        .into_owned();
-    let password = parsed
-        .password()
-        .map(|p| percent_decode_str(p).decode_utf8_lossy().into_owned())
-        .unwrap_or_default();
+    let (username, password) = match &parts.userinfo {
+        None => (String::new(), String::new()),
+        Some(userinfo) => match userinfo.split_once(':') {
+            Some((user, pass)) => (
+                percent_decode_str(user).decode_utf8_lossy().into_owned(),
+                percent_decode_str(pass).decode_utf8_lossy().into_owned(),
+            ),
+            None => (
+                percent_decode_str(userinfo).decode_utf8_lossy().into_owned(),
+                String::new(),
+            ),
+        },
+    };
 
-    // Build stripped URI from parts to avoid re-encoding issues
-    let mut stripped = format!("{}://", parsed.scheme());
-    stripped.push_str(parsed.host_str().unwrap_or(""));
-    if let Some(port) = parsed.port() {
-        stripped.push_str(&format!(":{}", port));
-    }
-    stripped.push_str(parsed.path());
-    if let Some(query) = parsed.query() {
+    let mut stripped = format!("{}://{}", parts.scheme, parts.hosts);
+    stripped.push_str(&parts.path);
+    if let Some(query) = &parts.query {
         stripped.push('?');
         stripped.push_str(query);
     }
@@ -52,11 +97,10 @@ pub fn inject_credentials(uri: &str, username: &str, password: &str) -> String {
         return uri.to_string();
     }
 
-    let parsed = Url::parse(uri).expect("invalid URI");
+    let parts = parse_mongo_uri_parts(uri).expect("invalid URI");
 
     let encoded_user = utf8_percent_encode(username, USERINFO_ENCODE_SET).to_string();
-
-    let mut result = format!("{}://", parsed.scheme());
+    let mut result = format!("{}://", parts.scheme);
     result.push_str(&encoded_user);
 
     if !password.is_empty() {
@@ -66,12 +110,9 @@ pub fn inject_credentials(uri: &str, username: &str, password: &str) -> String {
     }
 
     result.push('@');
-    result.push_str(parsed.host_str().unwrap_or(""));
-    if let Some(port) = parsed.port() {
-        result.push_str(&format!(":{}", port));
-    }
-    result.push_str(parsed.path());
-    if let Some(query) = parsed.query() {
+    result.push_str(&parts.hosts);
+    result.push_str(&parts.path);
+    if let Some(query) = &parts.query {
         result.push('?');
         result.push_str(query);
     }
@@ -81,9 +122,8 @@ pub fn inject_credentials(uri: &str, username: &str, password: &str) -> String {
 
 /// Extract database name from a MongoDB URI.
 pub fn get_database_from_uri(uri: &str) -> Option<String> {
-    let parsed = Url::parse(uri).ok()?;
-    let path = parsed.path();
-    let db = path.strip_prefix('/').unwrap_or(path);
+    let parts = parse_mongo_uri_parts(uri)?;
+    let db = parts.path.strip_prefix('/').unwrap_or(&parts.path);
     if db.is_empty() {
         None
     } else {
@@ -151,6 +191,31 @@ mod tests {
                 "mongodb://localhost:27017/mydb?authSource=admin&tls=true"
             );
         }
+
+        #[test]
+        fn handles_multi_host_uri() {
+            let result = strip_credentials(
+                "mongodb://user:pass@host1:27017,host2:27017,host3:27017/admin?ssl=true&authSource=admin",
+            );
+            assert_eq!(result.username, "user");
+            assert_eq!(result.password, "pass");
+            assert_eq!(
+                result.stripped_uri,
+                "mongodb://host1:27017,host2:27017,host3:27017/admin?ssl=true&authSource=admin"
+            );
+        }
+
+        #[test]
+        fn handles_multi_host_uri_without_credentials() {
+            let result =
+                strip_credentials("mongodb://host1:27017,host2:27017,host3:27017/admin");
+            assert_eq!(result.username, "");
+            assert_eq!(result.password, "");
+            assert_eq!(
+                result.stripped_uri,
+                "mongodb://host1:27017,host2:27017,host3:27017/admin"
+            );
+        }
     }
 
     mod inject_credentials_tests {
@@ -209,6 +274,19 @@ mod tests {
                 "mongodb://user:pass@localhost:27017/mydb?authSource=admin"
             );
         }
+
+        #[test]
+        fn handles_multi_host_uri() {
+            let result = inject_credentials(
+                "mongodb://host1:27017,host2:27017,host3:27017/admin?authSource=admin",
+                "user",
+                "pass",
+            );
+            assert_eq!(
+                result,
+                "mongodb://user:pass@host1:27017,host2:27017,host3:27017/admin?authSource=admin"
+            );
+        }
     }
 
     mod get_database_from_uri_tests {
@@ -235,6 +313,16 @@ mod tests {
         #[test]
         fn returns_none_for_invalid_uri() {
             assert_eq!(get_database_from_uri("not-a-uri"), None);
+        }
+
+        #[test]
+        fn extracts_database_from_multi_host_uri() {
+            assert_eq!(
+                get_database_from_uri(
+                    "mongodb://host1:27017,host2:27017,host3:27017/admin?ssl=true"
+                ),
+                Some("admin".to_string())
+            );
         }
     }
 }
