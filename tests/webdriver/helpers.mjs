@@ -25,9 +25,9 @@ export async function resetApp() {
 }
 
 export async function waitForAppReady() {
-  await $('body').waitForExist({ timeout: 15_000 });
+  await $('body').waitForExist({ timeout: 8_000 });
   try {
-    await s.header.root().waitForDisplayed({ timeout: 15_000 });
+    await s.header.root().waitForDisplayed({ timeout: 8_000 });
   } catch (error) {
     const source = await browser.getPageSource().catch(() => '');
     throw new Error(
