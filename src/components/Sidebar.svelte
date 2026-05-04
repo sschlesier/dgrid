@@ -233,8 +233,9 @@
   const tooltipStats = $derived(() => {
     if (!tooltip) return null;
     const { node } = tooltip;
-    if (!node.databaseName || !node.collectionName) return null;
-    const colls = appStore.collections.get(node.databaseName);
+    if (!node.connectionId || !node.databaseName || !node.collectionName) return null;
+    const key = appStore.collectionKey(node.connectionId, node.databaseName);
+    const colls = appStore.collections.get(key);
     return colls?.find((c) => c.name === node.collectionName) ?? null;
   });
 
