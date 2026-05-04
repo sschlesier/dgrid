@@ -53,10 +53,76 @@ jobs:
 
           echo "release_only=true" >> "$GITHUB_OUTPUT"
 
-  e2e-linux:
+  build:
+    name: Build Tauri App
     needs: changes
     if: ${{ needs.changes.outputs.release_only != 'true' }}
     runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.1
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5.0.0
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Install Rust stable
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build Tauri app (debug)
+        run: pnpm tauri build --debug --no-bundle --ci
+
+      - name: Install tauri-webdriver
+        run: cargo install tauri-webdriver
+
+      - name: Upload app binary
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: tauri-app-binary
+          path: src-tauri/target/debug/dgrid
+          retention-days: 1
+
+      - name: Upload tauri-webdriver binary
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: tauri-webdriver-binary
+          path: ~/.cargo/bin/tauri-webdriver
+          retention-days: 1
+
+  e2e-test:
+    name: E2E Tests (shard ${{ matrix.shard }}/3)
+    needs: [changes, build]
+    if: ${{ needs.changes.outputs.release_only != 'true' }}
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
 
     steps:
       - name: Checkout
@@ -81,32 +147,39 @@ jobs:
           node-version: '24'
           cache: 'pnpm'
 
-      - name: Install Rust stable
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
       - name: Install frontend dependencies
         run: pnpm install
 
-      - name: Install tauri-webdriver
-        run: cargo install tauri-webdriver
+      - name: Download app binary
+        uses: actions/download-artifact@v4
+        with:
+          name: tauri-app-binary
+          path: src-tauri/target/debug/
 
-      - name: Run Linux E2E suite
+      - name: Download tauri-webdriver binary
+        uses: actions/download-artifact@v4
+        with:
+          name: tauri-webdriver-binary
+          path: bin/
+
+      - name: Make binaries executable
+        run: |
+          chmod +x src-tauri/target/debug/dgrid
+          chmod +x bin/tauri-webdriver
+
+      - name: Run E2E shard ${{ matrix.shard }}/3
         env:
+          TAURI_WEBDRIVER_BIN: ${{ github.workspace }}/bin/tauri-webdriver
           DGRID_E2E_PRESERVE_APP_BINARY_ON_FAILURE: '1'
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" pnpm e2e:ci
+        run: >-
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24"
+          node scripts/run-tauri-e2e.mjs --ci --shard ${{ matrix.shard }}/3
 
       - name: Upload JUnit results
         if: always()
         uses: actions/upload-artifact@v6.0.0
         with:
-          name: linux-e2e-results
+          name: linux-e2e-results-${{ matrix.shard }}
           if-no-files-found: warn
           retention-days: 14
           path: |
@@ -117,7 +190,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v6.0.0
         with:
-          name: linux-e2e-failure-artifacts
+          name: linux-e2e-failure-artifacts-${{ matrix.shard }}
           if-no-files-found: warn
           retention-days: 14
           path: |

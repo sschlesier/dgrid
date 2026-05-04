@@ -33,6 +33,8 @@ const preserveAppBinaryOnFailure =
   process.env.GITHUB_ACTIONS === 'true';
 const specIndex = argv.indexOf('--spec');
 const specArg = specIndex >= 0 ? argv[specIndex + 1] : undefined;
+const shardIndex = argv.indexOf('--shard');
+const shardArg = shardIndex >= 0 ? argv[shardIndex + 1] : undefined;
 const driverStartTimeoutMs = parseInt(
   process.env.DGRID_E2E_DRIVER_START_TIMEOUT_MS || (isCi ? '30000' : '15000'),
   10
@@ -54,10 +56,14 @@ try {
   redirectConsoleToLog(harnessLogger);
   await ensureDriverInstalled();
   const toolVersions = await collectToolVersions();
-  await runCommand('pnpm', ['tauri', 'build', '--debug', '--no-bundle', '--ci'], {
-    cwd: repoRoot,
-    logger: harnessLogger,
-  });
+  if (!process.env.DGRID_E2E_APPLICATION_PATH) {
+    await runCommand('pnpm', ['tauri', 'build', '--debug', '--no-bundle', '--ci'], {
+      cwd: repoRoot,
+      logger: harnessLogger,
+    });
+  } else {
+    harnessLogger.info(`Skipping build — using pre-built binary: ${process.env.DGRID_E2E_APPLICATION_PATH}`);
+  }
 
   const { MongoMemoryServer } = await import('mongodb-memory-server');
   mongod = await MongoMemoryServer.create();
@@ -128,23 +134,37 @@ try {
   await waitForPort(driverPort, driverStartTimeoutMs);
 
   const wdioArgs = ['exec', 'wdio', 'run', './tests/webdriver/wdio.conf.mjs'];
+  let skipWdio = false;
   if (specArg) {
     wdioArgs.push('--spec', specArg);
+  } else if (shardArg) {
+    const shardedSpecs = await getShardedSpecs(shardArg);
+    if (shardedSpecs.length === 0) {
+      harnessLogger.info(`Shard ${shardArg}: no specs assigned, skipping`);
+      skipWdio = true;
+    } else {
+      harnessLogger.info(`Shard ${shardArg}: ${shardedSpecs.length} spec(s)`);
+      for (const spec of shardedSpecs) {
+        wdioArgs.push('--spec', spec);
+      }
+    }
   }
   if (isCi) {
     process.env.DGRID_E2E_CI = '1';
   }
 
-  await runCommand('pnpm', wdioArgs, {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      DGRID_E2E_RUNTIME_FILE: runtimeFile,
-      DGRID_E2E_JUNIT_FILE: junitReportFile,
-      DGRID_E2E_CI: isCi ? '1' : process.env.DGRID_E2E_CI || '',
-    },
-    logger: harnessLogger,
-  });
+  if (!skipWdio) {
+    await runCommand('pnpm', wdioArgs, {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        DGRID_E2E_RUNTIME_FILE: runtimeFile,
+        DGRID_E2E_JUNIT_FILE: junitReportFile,
+        DGRID_E2E_CI: isCi ? '1' : process.env.DGRID_E2E_CI || '',
+      },
+      logger: harnessLogger,
+    });
+  }
 } catch (error) {
   testFailure = error;
 } finally {
@@ -272,6 +292,22 @@ async function resolveExecutablePath(command) {
   }
 
   return null;
+}
+
+async function getShardedSpecs(shardArg) {
+  const [indexStr, totalStr] = shardArg.split('/');
+  const index = parseInt(indexStr, 10);
+  const total = parseInt(totalStr, 10);
+  if (isNaN(index) || isNaN(total) || index < 1 || index > total) {
+    throw new Error(`Invalid --shard format "${shardArg}": expected N/M (e.g. 1/3)`);
+  }
+  const specsDir = path.join(repoRoot, 'tests', 'webdriver', 'specs');
+  const entries = await readdir(specsDir, { recursive: true });
+  const allSpecs = entries
+    .filter((name) => name.endsWith('.e2e.mjs'))
+    .sort()
+    .map((name) => path.join(specsDir, name));
+  return allSpecs.filter((_, i) => i % total === index - 1);
 }
 
 async function createTempDir() {
