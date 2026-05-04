@@ -145,7 +145,9 @@
     switch (node.type) {
       case 'database': {
         if (node.connectionId && node.databaseName) {
-          const collections = appStore.collections.get(node.databaseName);
+          const collections = appStore.collections.get(
+            appStore.collectionKey(node.connectionId!, node.databaseName)
+          );
           if (!collections) {
             await appStore.loadCollections(node.connectionId, node.databaseName);
           }

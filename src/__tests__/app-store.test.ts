@@ -49,7 +49,7 @@ describe('appStore', () => {
     // Reset store state
     appStore.connections = [];
     appStore.activeConnectionId = null;
-    appStore.databases = [];
+    appStore.databases = new Map();
     appStore.collections = new Map();
     appStore.tabs = [];
     appStore.activeTabId = null;
@@ -323,10 +323,10 @@ describe('appStore', () => {
       // Verify all conditions needed for TabBar to be visible and enabled
       expect(appStore.activeConnection).toBeDefined();
       expect(appStore.activeConnection?.isConnected).toBe(true);
-      expect(appStore.databases.length).toBeGreaterThan(0);
+      expect(appStore.databases.get('1')?.length).toBeGreaterThan(0);
 
       // Verify we can create a tab using the first database
-      const tab = appStore.createTab('1', appStore.databases[0].name);
+      const tab = appStore.createTab('1', appStore.databases.get('1')![0].name);
       expect(tab).toBeDefined();
       expect(tab.connectionId).toBe('1');
       expect(tab.database).toBe('admin');
