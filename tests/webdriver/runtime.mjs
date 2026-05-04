@@ -5,6 +5,22 @@ import { MongoClient } from 'mongodb';
 
 const runtimeFile = process.env.DGRID_E2E_RUNTIME_FILE;
 
+let _mongoClient = null;
+
+async function getMongoClient() {
+  if (_mongoClient) {
+    return _mongoClient;
+  }
+  const runtime = await readRuntimeInfo();
+  _mongoClient = new MongoClient(`mongodb://${runtime.mongo.host}:${runtime.mongo.port}`);
+  await _mongoClient.connect();
+  return _mongoClient;
+}
+
+process.on('exit', () => {
+  _mongoClient?.close().catch(() => {});
+});
+
 export async function readRuntimeInfo() {
   if (!runtimeFile) {
     throw new Error('DGRID_E2E_RUNTIME_FILE is not set');
@@ -14,28 +30,18 @@ export async function readRuntimeInfo() {
 }
 
 export async function seedDatabase(database, collection, documents) {
-  const runtime = await readRuntimeInfo();
-  const client = new MongoClient(`mongodb://${runtime.mongo.host}:${runtime.mongo.port}`);
-  try {
-    await client.connect();
-    await client.db(database).collection(collection).insertMany(documents);
-  } finally {
-    await client.close();
-  }
+  const client = await getMongoClient();
+  await client.db(database).collection(collection).insertMany(documents);
 }
 
 export async function cleanupDatabase(database) {
-  const runtime = await readRuntimeInfo();
-  const client = new MongoClient(`mongodb://${runtime.mongo.host}:${runtime.mongo.port}`);
+  const client = await getMongoClient();
   try {
-    await client.connect();
     await client.db(database).dropDatabase();
   } catch (error) {
     if (!String(error).includes('ns not found')) {
       throw error;
     }
-  } finally {
-    await client.close();
   }
 }
 
