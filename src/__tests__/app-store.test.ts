@@ -26,6 +26,8 @@ vi.mock('../api/client', () => ({
   disconnectFromConnection: vi.fn(),
   getDatabases: vi.fn(),
   getCollections: vi.fn(),
+  getCollectionsFast: vi.fn(),
+  getAllCollectionStats: vi.fn(),
 }));
 
 // Import after mocking
@@ -42,6 +44,8 @@ const mockedApi = api as unknown as {
   disconnectFromConnection: ReturnType<typeof vi.fn>;
   getDatabases: ReturnType<typeof vi.fn>;
   getCollections: ReturnType<typeof vi.fn>;
+  getCollectionsFast: ReturnType<typeof vi.fn>;
+  getAllCollectionStats: ReturnType<typeof vi.fn>;
 };
 
 describe('appStore', () => {
@@ -49,7 +53,7 @@ describe('appStore', () => {
     // Reset store state
     appStore.connections = [];
     appStore.activeConnectionId = null;
-    appStore.databases = [];
+    appStore.databases = new Map();
     appStore.collections = new Map();
     appStore.tabs = [];
     appStore.activeTabId = null;
@@ -167,7 +171,7 @@ describe('appStore', () => {
 
       expect(appStore.connections[0].isConnected).toBe(true);
       expect(appStore.activeConnectionId).toBe('1');
-      expect(appStore.databases).toHaveLength(1);
+      expect(appStore.databases.get('1')).toHaveLength(1);
     });
 
     it('shows the connection modal only after the delay for slow connects', async () => {
@@ -323,10 +327,10 @@ describe('appStore', () => {
       // Verify all conditions needed for TabBar to be visible and enabled
       expect(appStore.activeConnection).toBeDefined();
       expect(appStore.activeConnection?.isConnected).toBe(true);
-      expect(appStore.databases.length).toBeGreaterThan(0);
+      expect(appStore.databases.get('1')?.length).toBeGreaterThan(0);
 
       // Verify we can create a tab using the first database
-      const tab = appStore.createTab('1', appStore.databases[0].name);
+      const tab = appStore.createTab('1', appStore.databases.get('1')![0].name);
       expect(tab).toBeDefined();
       expect(tab.connectionId).toBe('1');
       expect(tab.database).toBe('admin');
@@ -547,6 +551,133 @@ describe('appStore', () => {
       appStore.setTheme('dark');
 
       expect(appStore.ui.theme).toBe('dark');
+    });
+  });
+
+  describe('database and collection scoping', () => {
+    const conn1 = {
+      id: 'conn-1',
+      name: 'Server A',
+      uri: 'mongodb://localhost:27017',
+      savePassword: true,
+      isConnected: true,
+      createdAt: '',
+      updatedAt: '',
+    };
+    const conn2 = {
+      id: 'conn-2',
+      name: 'Server B',
+      uri: 'mongodb://localhost:27018',
+      savePassword: true,
+      isConnected: true,
+      createdAt: '',
+      updatedAt: '',
+    };
+
+    it('keeps databases scoped per connection when both share the same db names', async () => {
+      appStore.connections = [conn1, conn2];
+      mockedApi.getDatabases.mockImplementation((id: string) =>
+        Promise.resolve(
+          id === 'conn-1'
+            ? [{ name: 'admin', sizeOnDisk: 1024, empty: false }]
+            : [
+                { name: 'admin', sizeOnDisk: 2048, empty: false },
+                { name: 'prod', sizeOnDisk: 4096, empty: false },
+              ]
+        )
+      );
+
+      await appStore.loadDatabases('conn-1');
+      await appStore.loadDatabases('conn-2');
+
+      const conn1Dbs = appStore.databases.get('conn-1');
+      const conn2Dbs = appStore.databases.get('conn-2');
+
+      expect(conn1Dbs).toHaveLength(1);
+      expect(conn1Dbs![0].name).toBe('admin');
+      expect(conn2Dbs).toHaveLength(2);
+      expect(conn2Dbs!.map((d) => d.name)).toEqual(['admin', 'prod']);
+    });
+
+    it('keeps collections scoped per connection when both share the same database name', async () => {
+      appStore.connections = [conn1, conn2];
+      mockedApi.getCollectionsFast.mockImplementation((connectionId: string) =>
+        Promise.resolve(
+          connectionId === 'conn-1'
+            ? [
+                {
+                  name: 'users',
+                  type: 'collection',
+                  documentCount: 0,
+                  avgDocumentSize: 0,
+                  totalSize: 0,
+                },
+              ]
+            : [
+                {
+                  name: 'audit_logs',
+                  type: 'collection',
+                  documentCount: 0,
+                  avgDocumentSize: 0,
+                  totalSize: 0,
+                },
+              ]
+        )
+      );
+
+      await appStore.loadCollections('conn-1', 'admin');
+      await appStore.loadCollections('conn-2', 'admin');
+
+      const conn1Collections = appStore.collections.get(appStore.collectionKey('conn-1', 'admin'));
+      const conn2Collections = appStore.collections.get(appStore.collectionKey('conn-2', 'admin'));
+
+      expect(conn1Collections).toHaveLength(1);
+      expect(conn1Collections![0].name).toBe('users');
+      expect(conn2Collections).toHaveLength(1);
+      expect(conn2Collections![0].name).toBe('audit_logs');
+    });
+
+    it("disconnecting one connection leaves the other connection's databases and collections intact", async () => {
+      appStore.connections = [conn1, conn2];
+      appStore.activeConnectionId = 'conn-1';
+      appStore.databases = new Map([
+        ['conn-1', [{ name: 'admin', sizeOnDisk: 1024, empty: false }]],
+        ['conn-2', [{ name: 'admin', sizeOnDisk: 2048, empty: false }]],
+      ]);
+      appStore.collections = new Map([
+        [
+          appStore.collectionKey('conn-1', 'admin'),
+          [
+            {
+              name: 'users',
+              type: 'collection',
+              documentCount: 0,
+              avgDocumentSize: 0,
+              totalSize: 0,
+            },
+          ],
+        ],
+        [
+          appStore.collectionKey('conn-2', 'admin'),
+          [
+            {
+              name: 'logs',
+              type: 'collection',
+              documentCount: 0,
+              avgDocumentSize: 0,
+              totalSize: 0,
+            },
+          ],
+        ],
+      ]);
+      mockedApi.disconnectFromConnection.mockResolvedValue({ ...conn1, isConnected: false });
+
+      await appStore.disconnect('conn-1');
+
+      expect(appStore.databases.has('conn-1')).toBe(false);
+      expect(appStore.databases.has('conn-2')).toBe(true);
+      expect(appStore.collections.has(appStore.collectionKey('conn-1', 'admin'))).toBe(false);
+      expect(appStore.collections.has(appStore.collectionKey('conn-2', 'admin'))).toBe(true);
     });
   });
 

@@ -8,9 +8,10 @@
 
   function handleNewTab() {
     const connection = appStore.activeConnection;
-    if (connection?.isConnected && appStore.databases.length > 0) {
+    const connectionDbs = connection ? appStore.databases.get(connection.id) : undefined;
+    if (connection?.isConnected && connectionDbs && connectionDbs.length > 0) {
       const activeTab = appStore.activeTab;
-      const database = activeTab?.database ?? appStore.databases[0].name;
+      const database = activeTab?.database ?? connectionDbs[0].name;
       appStore.createTab(connection.id, database);
     }
   }
@@ -89,7 +90,8 @@
   <button
     class="new-tab-btn"
     onclick={handleNewTab}
-    disabled={!appStore.activeConnection?.isConnected || appStore.databases.length === 0}
+    disabled={!appStore.activeConnection?.isConnected ||
+      (appStore.databases.get(appStore.activeConnection?.id ?? '') ?? []).length === 0}
     title="New tab ({keybindingsStore.getFormatted('new-tab')})"
   >
     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">

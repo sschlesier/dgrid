@@ -49,7 +49,7 @@ class AppStore {
   // State
   connections = $state<ConnectionResponse[]>([]);
   activeConnectionId = $state<string | null>(null);
-  databases = $state<DatabaseInfo[]>([]);
+  databases = $state<Map<string, DatabaseInfo[]>>(new Map());
   collections = $state<Map<string, CollectionInfo[]>>(new Map());
   indexes = $state<Map<string, IndexInfo[]>>(new Map());
   tabs = $state<Tab[]>([]);
@@ -220,9 +220,9 @@ class AppStore {
       this.connections = this.connections.filter((c) => c.id !== id);
       if (this.activeConnectionId === id) {
         this.activeConnectionId = null;
-        this.databases = [];
-        this.collections = new Map();
       }
+      this.clearDatabasesForConnection(id);
+      this.clearCollectionsForConnection(id);
       this.closeTabsForConnection(id);
       if (connection) {
         this.notify('success', `Connection "${connection.name}" deleted`);
@@ -414,9 +414,9 @@ class AppStore {
     );
     if (this.activeConnectionId === id) {
       this.activeConnectionId = null;
-      this.databases = [];
-      this.collections = new Map();
     }
+    this.clearDatabasesForConnection(id);
+    this.clearCollectionsForConnection(id);
     this.clearIndexesForConnection(id);
     this.closeTabsForConnection(id);
     schemaStore.clearConnection(id);
@@ -440,9 +440,9 @@ class AppStore {
       this.connections = this.connections.map((c) => (c.id === id ? connection : c));
       if (this.activeConnectionId === id) {
         this.activeConnectionId = null;
-        this.databases = [];
-        this.collections = new Map();
       }
+      this.clearDatabasesForConnection(id);
+      this.clearCollectionsForConnection(id);
       this.clearIndexesForConnection(id);
       this.closeTabsForConnection(id);
       schemaStore.clearConnection(id);
@@ -475,7 +475,10 @@ class AppStore {
     if (!skipNodeLoading) this.startNodeLoading(nodeId);
     this.isLoadingDatabases = true;
     try {
-      this.databases = await api.getDatabases(connectionId);
+      const result = await api.getDatabases(connectionId);
+      const newDbMap = new Map(this.databases);
+      newDbMap.set(connectionId, result);
+      this.databases = newDbMap;
     } catch (error) {
       this.handlePossibleDisconnect(error, connectionId);
       if (!(error instanceof ApiError && error.isConnected === false)) {
@@ -494,7 +497,7 @@ class AppStore {
     try {
       const collections = await api.getCollectionsFast(connectionId, database);
       const newMap = new Map(this.collections);
-      newMap.set(database, collections);
+      newMap.set(this.collectionKey(connectionId, database), collections);
       this.collections = newMap;
       // Fire off stats enrichment in the background — tree updates reactively when it lands
       void this.loadCollectionStats(
@@ -521,7 +524,8 @@ class AppStore {
     if (collectionNames.length === 0) return;
     try {
       const stats = await api.getAllCollectionStats(connectionId, database, collectionNames);
-      const existing = this.collections.get(database);
+      const key = this.collectionKey(connectionId, database);
+      const existing = this.collections.get(key);
       if (!existing) return;
       const statsMap = new Map(stats.map((s) => [s.name, s]));
       const updated = existing.map((coll) => {
@@ -535,7 +539,7 @@ class AppStore {
         };
       });
       const newMap = new Map(this.collections);
-      newMap.set(database, updated);
+      newMap.set(key, updated);
       this.collections = newMap;
     } catch {
       // Stats enrichment is non-critical — silently ignore errors
@@ -581,8 +585,26 @@ class AppStore {
     this.indexes = newMap;
   }
 
+  collectionKey(connectionId: string, database: string): string {
+    return `${connectionId}:${database}`;
+  }
+
   indexKey(connectionId: string, database: string, collection: string): string {
     return `${connectionId}:${database}:${collection}`;
+  }
+
+  private clearDatabasesForConnection(id: string): void {
+    const newMap = new Map(this.databases);
+    newMap.delete(id);
+    this.databases = newMap;
+  }
+
+  private clearCollectionsForConnection(id: string): void {
+    const newMap = new Map(this.collections);
+    for (const key of newMap.keys()) {
+      if (key.startsWith(`${id}:`)) newMap.delete(key);
+    }
+    this.collections = newMap;
   }
 
   async loadIndexes(connectionId: string, database: string, collection: string): Promise<void> {
@@ -725,7 +747,7 @@ class AppStore {
   get treeData(): TreeNodeData[] {
     return this.connections.map((connection): TreeNodeData => {
       const connectionNodeId = `conn:${connection.id}`;
-      const databases = connection.isConnected ? this.databases : [];
+      const databases = connection.isConnected ? (this.databases.get(connection.id) ?? []) : [];
 
       return {
         id: connectionNodeId,
@@ -736,7 +758,8 @@ class AppStore {
         children: connection.isConnected
           ? databases.map((db): TreeNodeData => {
               const dbNodeId = `db:${connection.id}:${db.name}`;
-              const dbCollections = this.collections.get(db.name) ?? [];
+              const dbCollections =
+                this.collections.get(this.collectionKey(connection.id, db.name)) ?? [];
               const regularCollections = dbCollections.filter((c) => c.type === 'collection');
               const views = dbCollections.filter((c) => c.type === 'view');
 
