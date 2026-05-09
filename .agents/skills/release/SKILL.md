@@ -1,6 +1,6 @@
 ---
 name: release
-description: Prepare and publish a new release — collect changes, update CHANGES.md, open a release PR, then tag after merge.
+description: Prepare and publish a new release — collect changes, update CHANGES.md, bump version, push to main, trigger release workflow.
 user_invocable: true
 ---
 
@@ -60,13 +60,7 @@ Show the user the full diff of CHANGES.md so they can review the exact text. Ask
 
 If the user provides edits, apply them to CHANGES.md and show the updated diff again. Repeat until the user approves.
 
-## 5. Bump Version On A Release Branch
-
-Do not release directly from `main`. If the current branch is `main`, create a dedicated release branch first, for example:
-
-```bash
-git checkout -b release/v<new-version>
-```
+## 5. Bump Version
 
 First, commit the CHANGES.md update so the working tree is clean before `pnpm version` runs:
 
@@ -81,25 +75,23 @@ Then run `pnpm version` with the confirmed increment. This updates `package.json
 pnpm version <patch|minor|major>
 ```
 
-Immediately delete the local tag after `pnpm version` succeeds. The version commit should go through a pull request first, and the tag must only be pushed after the PR is merged to `main`:
+Delete the local tag — the release workflow creates it on `main`:
 
 ```bash
 git tag -d v<new-version>
 ```
 
-## 6. Push The Release Branch
+## 6. Push to main
 
-Push the release branch and open a pull request into `main`:
+Push the current branch directly to `main`:
 
 ```bash
-git push -u origin <release-branch>
+git push origin HEAD:main
 ```
 
-Tell the user the PR is required because `main` is protected. Do not push the release tag yet.
+If the current branch is not based on `main` (e.g. a feature branch), verify that all commits since the last tag are included before pushing.
 
-## 7. Trigger Release After The PR Merges
-
-After the release PR has merged into `main`, trigger the release workflow:
+## 7. Trigger the Release Workflow
 
 ```bash
 gh workflow run release.yml --ref main
@@ -117,5 +109,4 @@ gh run list --workflow=release.yml --limit 3
 
 - If the working tree is dirty before starting, warn the user and stop.
 - If `pnpm version` fails, investigate and report the error — do not retry blindly.
-- If pushing `main` fails because of branch protection, switch to the release-branch workflow above instead of retrying.
-- If the tag was pushed before the release PR merged, report that state clearly and ask the user whether to delete the remote tag and recreate it after merge.
+- If `git push origin HEAD:main` is rejected, report the error — do not force-push.
