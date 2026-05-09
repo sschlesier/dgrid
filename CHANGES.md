@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.2
+
+- Support multi-host MongoDB URIs (replica sets and sharded clusters)
+- Fix: databases and collections are now scoped per-connection — switching connections no longer bleeds sidebar state from a previous connection
+
 ## 1.4.1
 
 - Replace native confirm dialog with custom ConfirmDialog component
