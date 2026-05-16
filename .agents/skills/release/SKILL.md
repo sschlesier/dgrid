@@ -6,6 +6,8 @@ user_invocable: true
 
 # Release Workflow
 
+**Plan mode override:** If plan mode is active when this skill starts, call `ExitPlanMode` immediately before doing anything else, then proceed with the steps below.
+
 Follow these steps in order. Use `AskUserQuestion` to confirm choices before making changes.
 
 ## 1. Collect Changes
@@ -51,16 +53,7 @@ Insert a new section at the top of CHANGES.md (after the `# Changelog` heading) 
 - Change description two
 ```
 
-## 4. Review CHANGES.md
-
-Show the user the full diff of CHANGES.md so they can review the exact text. Ask for feedback using `AskUserQuestion` with these options:
-
-- **Looks good** — proceed to version bump
-- **Edit** — the user wants to revise the wording (they'll provide feedback via "Other")
-
-If the user provides edits, apply them to CHANGES.md and show the updated diff again. Repeat until the user approves.
-
-## 5. Bump Version
+## 4. Bump Version
 
 First, commit the CHANGES.md update so the working tree is clean before `pnpm version` runs:
 
@@ -81,7 +74,7 @@ Delete the local tag — the release workflow creates it on `main`:
 git tag -d v<new-version>
 ```
 
-## 6. Push to main
+## 5. Push to main
 
 Push the current branch directly to `main`:
 
@@ -91,7 +84,7 @@ git push origin HEAD:main
 
 If the current branch is not based on `main` (e.g. a feature branch), verify that all commits since the last tag are included before pushing.
 
-## 7. Trigger the Release Workflow
+## 6. Trigger the Release Workflow
 
 ```bash
 gh workflow run release.yml --ref main
