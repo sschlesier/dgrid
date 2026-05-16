@@ -52,7 +52,7 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
   // Query
   {
     id: 'execute-current',
-    description: 'Run selection or statement at cursor',
+    description: 'Run statement at cursor, or all',
     category: 'Query',
     defaultBinding: { key: 'enter', meta: true },
   },
