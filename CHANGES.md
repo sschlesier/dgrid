@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.0
+
+- Improved run query shortcuts: Cmd+Enter now runs the statement at cursor (or all queries if the cursor is on a blank line); Shift+Enter runs the current selection, or all queries if nothing is selected; Cmd+Shift+Enter always runs all queries
+- Fix: timestamps now always display in UTC instead of the local timezone
+
 ## 1.4.2
 
 - Support multi-host MongoDB URIs (replica sets and sharded clusters)
