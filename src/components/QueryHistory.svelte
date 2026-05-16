@@ -51,7 +51,7 @@
     if (diffDays < 7) {
       return `${diffDays}d ago`;
     }
-    return date.toLocaleDateString();
+    return date.toISOString();
   }
 
   function formatExecutionTime(ms: number | undefined): string {
