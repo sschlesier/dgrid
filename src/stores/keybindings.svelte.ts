@@ -51,22 +51,22 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
 
   // Query
   {
-    id: 'execute-all',
-    description: 'Execute all queries',
+    id: 'execute-current',
+    description: 'Run selection or statement at cursor',
     category: 'Query',
     defaultBinding: { key: 'enter', meta: true },
   },
   {
-    id: 'execute-current',
-    description: 'Execute current query',
+    id: 'execute-selected',
+    description: 'Run selection or entire script',
     category: 'Query',
-    defaultBinding: { key: 'enter', meta: true, shift: true },
+    defaultBinding: { key: 'enter', shift: true },
   },
   {
-    id: 'execute-selected',
-    description: 'Execute selected text',
+    id: 'execute-all',
+    description: 'Execute all queries',
     category: 'Query',
-    defaultBinding: { key: 'enter', meta: true, alt: true },
+    defaultBinding: { key: 'enter', meta: true, shift: true },
   },
   {
     id: 'format-query',

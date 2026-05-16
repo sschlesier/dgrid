@@ -164,6 +164,12 @@
         return allSlices;
 
       case 'current': {
+        if (info.hasSelection) {
+          const selected = findSlicesInSelection(allSlices, info.selectionFrom, info.selectionTo);
+          if (selected.length > 0) return selected;
+          const atStart = findSliceAtOffset(allSlices, info.selectionFrom);
+          return atStart ? [atStart] : [];
+        }
         const slice = findSliceAtOffset(allSlices, info.cursorOffset);
         return slice ? [slice] : allSlices.length > 0 ? [allSlices[0]] : [];
       }
