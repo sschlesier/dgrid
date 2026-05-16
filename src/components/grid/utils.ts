@@ -62,7 +62,7 @@ export function formatCellValue(value: unknown, type: CellType): string {
       case 'ObjectId':
         return `ObjectId("${bsonValue._value}")`;
       case 'Date':
-        return new Date(bsonValue._value).toLocaleString();
+        return new Date(bsonValue._value).toISOString();
       case 'UUID':
         return `UUID("${bsonValue._value}")`;
       case 'Binary':

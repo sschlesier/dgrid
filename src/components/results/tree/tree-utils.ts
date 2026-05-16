@@ -97,7 +97,7 @@ export function getDisplayValue(value: unknown, type: CellType): string {
       case 'ObjectId':
         return `ObjectId("${bson._value}")`;
       case 'Date':
-        return new Date(bson._value).toLocaleString();
+        return new Date(bson._value).toISOString();
       case 'UUID':
         return `UUID("${bson._value}")`;
       case 'Binary':
