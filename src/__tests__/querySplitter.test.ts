@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { splitQueries, findSliceAtOffset, findSlicesInSelection } from '../lib/querySplitter';
+import {
+  splitQueries,
+  findSliceAtOffset,
+  findSlicesInSelection,
+  isBlankLineAtOffset,
+} from '../lib/querySplitter';
 
 describe('splitQueries', () => {
   it('returns empty array for empty input', () => {
@@ -135,6 +140,35 @@ describe('findSliceAtOffset', () => {
   it('returns last slice when offset is past all slices', () => {
     const slices = splitQueries('db.users.find({})');
     expect(findSliceAtOffset(slices, 1000)?.text).toBe('db.users.find({})');
+  });
+});
+
+describe('isBlankLineAtOffset', () => {
+  it('returns false when cursor is on a line with content', () => {
+    const text = 'db.users.find({})';
+    expect(isBlankLineAtOffset(text, 5)).toBe(false);
+  });
+
+  it('returns true for a blank line between queries', () => {
+    // "db.users.find({})\n\ndb.orders.find({})"
+    //  0               17 18 19
+    const text = 'db.users.find({})\n\ndb.orders.find({})';
+    expect(isBlankLineAtOffset(text, 18)).toBe(true); // offset of blank line
+  });
+
+  it('returns true for a whitespace-only line', () => {
+    const text = 'db.users.find({})\n   \ndb.orders.find({})';
+    expect(isBlankLineAtOffset(text, 19)).toBe(true); // inside "   "
+  });
+
+  it('returns true for a trailing blank line', () => {
+    const text = 'db.users.find({})\n\n';
+    expect(isBlankLineAtOffset(text, 18)).toBe(true);
+  });
+
+  it('returns false when cursor is at end of a non-blank last line', () => {
+    const text = 'db.users.find({})';
+    expect(isBlankLineAtOffset(text, text.length)).toBe(false);
   });
 });
 

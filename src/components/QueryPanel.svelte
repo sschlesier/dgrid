@@ -6,7 +6,12 @@
   import { gridStore } from '../stores/grid.svelte';
   import { schemaStore } from '../stores/schema.svelte';
   import { keybindingsStore } from '../stores/keybindings.svelte';
-  import { splitQueries, findSliceAtOffset, findSlicesInSelection } from '../lib/querySplitter';
+  import {
+    splitQueries,
+    findSliceAtOffset,
+    findSlicesInSelection,
+    isBlankLineAtOffset,
+  } from '../lib/querySplitter';
   import type { QuerySlice } from '../lib/querySplitter';
   import {
     applyFormatSuggestion,
@@ -164,8 +169,9 @@
         return allSlices;
 
       case 'current': {
+        if (isBlankLineAtOffset(fullText, info.cursorOffset)) return allSlices;
         const slice = findSliceAtOffset(allSlices, info.cursorOffset);
-        return slice ? [slice] : allSlices.length > 0 ? [allSlices[0]] : [];
+        return slice ? [slice] : allSlices;
       }
 
       case 'selected': {

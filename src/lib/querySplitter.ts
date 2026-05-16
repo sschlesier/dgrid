@@ -99,6 +99,14 @@ export function findSliceAtOffset(slices: QuerySlice[], offset: number): QuerySl
   return slices.length > 0 ? slices[slices.length - 1] : null;
 }
 
+/** Returns true if the given offset falls on a blank (whitespace-only) line. */
+export function isBlankLineAtOffset(text: string, offset: number): boolean {
+  const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
+  const lineEnd = text.indexOf('\n', offset);
+  const line = lineEnd === -1 ? text.slice(lineStart) : text.slice(lineStart, lineEnd);
+  return !line.trim();
+}
+
 /** Find slices that are wholly contained within a selection range. */
 export function findSlicesInSelection(
   slices: QuerySlice[],
