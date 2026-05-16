@@ -1,6 +1,6 @@
 {
   "name": "dgrid-v2",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "description": "Modern MongoDB GUI with AI-native development",
   "type": "module",
   "engines": {
