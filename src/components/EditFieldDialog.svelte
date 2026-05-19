@@ -400,94 +400,9 @@
 </div>
 
 <style>
-  .dialog-overlay {
-    position: fixed;
-    inset: 0;
-    background-color: var(--color-bg-overlay);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: var(--z-modal-backdrop);
-    animation: fadeIn 0.15s ease-out;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
   .dialog {
-    background-color: var(--color-bg-primary);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
-    width: 100%;
     max-width: 480px;
     max-height: 90vh;
-    display: flex;
-    flex-direction: column;
-    animation: slideUp 0.2s ease-out;
-    z-index: var(--z-modal);
-  }
-
-  @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .dialog-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-md) var(--space-lg);
-    border-bottom: 1px solid var(--color-border-light);
-  }
-
-  .dialog-header h2 {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-semibold);
-  }
-
-  .close-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    color: var(--color-text-secondary);
-    border-radius: var(--radius-md);
-    transition: all var(--transition-fast);
-  }
-
-  .close-btn:hover {
-    background-color: var(--color-bg-hover);
-    color: var(--color-text-primary);
-  }
-
-  .dialog-content {
-    padding: var(--space-lg);
-    overflow-y: auto;
-  }
-
-  .form-group {
-    margin-bottom: var(--space-md);
-  }
-
-  .form-group label {
-    display: block;
-    margin-bottom: var(--space-xs);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-secondary);
   }
 
   .field-path-display {
@@ -611,46 +526,6 @@
     overflow-x: auto;
     white-space: pre-wrap;
     word-break: break-word;
-  }
-
-  .dialog-footer {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding: var(--space-md) var(--space-lg);
-    border-top: 1px solid var(--color-border-light);
-    gap: var(--space-sm);
-  }
-
-  .footer-right {
-    display: flex;
-    gap: var(--space-sm);
-  }
-
-  .dialog-footer button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-lg);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    border-radius: var(--radius-md);
-    transition: all var(--transition-fast);
-  }
-
-  .dialog-footer button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .cancel-btn {
-    background-color: transparent;
-    border: 1px solid var(--color-border-medium);
-  }
-
-  .cancel-btn:hover:not(:disabled) {
-    background-color: var(--color-bg-hover);
   }
 
   .save-btn {
