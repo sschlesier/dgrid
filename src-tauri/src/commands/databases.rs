@@ -93,6 +93,34 @@ fn get_f64(doc: &Document, key: &str) -> Option<f64> {
     }
 }
 
+async fn fetch_collection_specs(
+    state: &AppState,
+    id: &str,
+    database: &str,
+) -> Result<(mongodb::Database, Vec<mongodb::results::CollectionSpecification>), DgridError> {
+    let client = state
+        .pool
+        .get_client(id)
+        .await
+        .ok_or_else(|| DgridError::NotFound {
+            entity: "Connection".into(),
+            id: id.to_string(),
+        })?;
+
+    let db = client.database(database);
+
+    use futures_util::TryStreamExt;
+    let specs = db
+        .list_collections()
+        .await
+        .map_err(|e| DgridError::Database(e.to_string()))?
+        .try_collect()
+        .await
+        .map_err(|e| DgridError::Database(e.to_string()))?;
+
+    Ok((db, specs))
+}
+
 /// Recursively flatten a BSON document using dot-notation keys,
 /// collecting just the key names (for schema discovery).
 fn flatten_document_keys(doc: &Document, prefix: &str, keys: &mut Vec<String>) {
@@ -181,25 +209,7 @@ pub async fn get_collections(
     id: String,
     database: String,
 ) -> Result<Vec<CollectionInfo>, DgridError> {
-    let client = state
-        .pool
-        .get_client(&id)
-        .await
-        .ok_or_else(|| DgridError::NotFound {
-            entity: "Connection".into(),
-            id: id.clone(),
-        })?;
-
-    let db = client.database(&database);
-
-    use futures_util::TryStreamExt;
-    let collections: Vec<mongodb::results::CollectionSpecification> = db
-        .list_collections()
-        .await
-        .map_err(|e| DgridError::Database(e.to_string()))?
-        .try_collect()
-        .await
-        .map_err(|e| DgridError::Database(e.to_string()))?;
+    let (db, collections) = fetch_collection_specs(&state, &id, &database).await?;
 
     let mut infos = Vec::new();
     for coll in &collections {
@@ -230,25 +240,7 @@ pub async fn get_collections_fast(
     id: String,
     database: String,
 ) -> Result<Vec<CollectionInfo>, DgridError> {
-    let client = state
-        .pool
-        .get_client(&id)
-        .await
-        .ok_or_else(|| DgridError::NotFound {
-            entity: "Connection".into(),
-            id: id.clone(),
-        })?;
-
-    let db = client.database(&database);
-
-    use futures_util::TryStreamExt;
-    let collections: Vec<mongodb::results::CollectionSpecification> = db
-        .list_collections()
-        .await
-        .map_err(|e| DgridError::Database(e.to_string()))?
-        .try_collect()
-        .await
-        .map_err(|e| DgridError::Database(e.to_string()))?;
+    let (_db, collections) = fetch_collection_specs(&state, &id, &database).await?;
 
     let mut infos: Vec<CollectionInfo> = collections
         .iter()
