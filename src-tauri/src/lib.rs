@@ -48,6 +48,8 @@ pub fn run() {
             commands::query::execute_query,
             commands::query::cancel_query,
             commands::documents::update_field,
+            commands::documents::update_document,
+            commands::documents::insert_document,
             commands::documents::delete_document,
             commands::export::export_csv,
             commands::export::cancel_export,

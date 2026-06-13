@@ -32,6 +32,18 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     category: 'General',
     defaultBinding: { key: 'e', meta: true },
   },
+  {
+    id: 'edit-document',
+    description: 'Edit document as JSON',
+    category: 'General',
+    defaultBinding: { key: 'j', meta: true },
+  },
+  {
+    id: 'insert-document',
+    description: 'Insert new document',
+    category: 'General',
+    defaultBinding: { key: 'd', meta: true },
+  },
 
   // Tabs
   {

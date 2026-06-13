@@ -102,6 +102,31 @@ export interface UpdateFieldResponse {
   modifiedCount: number;
 }
 
+// Full Document Update (replace)
+export interface UpdateDocumentRequest {
+  database: string;
+  collection: string;
+  documentId: unknown;
+  document: unknown;
+}
+
+export interface UpdateDocumentResponse {
+  success: boolean;
+  modifiedCount: number;
+}
+
+// Document Insertion
+export interface InsertDocumentRequest {
+  database: string;
+  collection: string;
+  document: unknown;
+}
+
+export interface InsertDocumentResponse {
+  success: boolean;
+  insertedId: unknown;
+}
+
 // Document Deletion
 export interface DeleteDocumentRequest {
   database: string;
