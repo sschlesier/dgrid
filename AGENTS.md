@@ -148,6 +148,7 @@ git push origin main && git push origin <tag>   # triggers release workflow
 - Always update `CHANGES.md` before running `pnpm version`
 - Always use `pnpm version` — never manually edit the version in `package.json`
 - The `v*` tag push triggers the GitHub Actions release workflow (build, GitHub release, Homebrew cask update)
+- **Do NOT edit `CHANGES.md` during ordinary feature development** — it is curated only at release time (step 1 above)
 
 ## Common Patterns
 

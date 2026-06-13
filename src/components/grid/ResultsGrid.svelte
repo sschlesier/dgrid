@@ -83,11 +83,17 @@
   }
 
   function openEditDocument(doc: Record<string, unknown>) {
-    const docId = doc._docId ?? doc._id;
+    // Always edit the full top-level document, not the (possibly drilled) row view.
+    // _docIndex is carried through all drilldown / sort / flatten branches, so we
+    // use it to look up the original document from results.documents.
+    const docIndex = typeof doc._docIndex === 'number' ? doc._docIndex : undefined;
+    const source =
+      docIndex !== undefined ? (results.documents[docIndex] as Record<string, unknown>) : doc;
+    const docId = source._id ?? doc._docId ?? doc._id;
     jsonEditorState = {
       mode: 'edit',
       docId,
-      initialJson: documentToEditorJson(doc),
+      initialJson: documentToEditorJson(source),
     };
   }
 
@@ -525,6 +531,7 @@
               rowIndex={visibleStart + i}
               ondrill={handleDrill}
               onedit={(fieldKey, value) => handleEdit(doc, fieldKey, value)}
+              oneditdocument={(d) => openEditDocument(d)}
               onrowcontextmenu={(event) => handleRowContextMenu(doc, event)}
             />
           {/each}

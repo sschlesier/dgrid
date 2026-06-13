@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import * as api from '../api/client';
   import { appStore } from '../stores/app.svelte';
   import Spinner from './Spinner.svelte';
@@ -25,7 +26,9 @@
     onsaved,
   }: Props = $props();
 
-  let jsonText = $state(initialJson);
+  // Snapshot the initial value — we intentionally do not react to prop changes.
+  // untrack prevents the "state_referenced_locally" Svelte warning.
+  let jsonText = $state(untrack(() => initialJson));
   let isSaving = $state(false);
   let error = $state<string | null>(null);
   let textareaRef = $state<HTMLTextAreaElement | undefined>();
@@ -43,6 +46,14 @@
     } catch (e) {
       return { ok: false as const, error: (e as SyntaxError).message };
     }
+  });
+
+  // In edit mode, warn when the user has modified (or removed) the _id field.
+  // The backend strips _id before replace_one, so any change is silently ignored.
+  const idChangedWarning = $derived.by(() => {
+    if (mode !== 'edit' || !validationResult.ok) return false;
+    const editedId = validationResult.value._id;
+    return JSON.stringify(editedId) !== JSON.stringify(docId);
   });
 
   $effect(() => {
@@ -153,7 +164,16 @@
       ></textarea>
 
       {#if !validationResult.ok && jsonText.trim() !== ''}
-        <div class="validation-error">{validationResult.error}</div>
+        <div class="validation-error" data-testid="json-validation-error">
+          {validationResult.error}
+        </div>
+      {/if}
+
+      {#if idChangedWarning}
+        <div class="warning-banner" data-testid="json-edit-warning-id-changed">
+          Changes to <code>_id</code> are ignored — the document is matched by its original
+          <code>_id</code>.
+        </div>
       {/if}
 
       {#if error}
@@ -258,6 +278,22 @@
     border-radius: var(--radius-md);
     font-size: var(--font-size-sm);
     font-family: var(--font-mono);
+  }
+
+  .warning-banner {
+    margin-top: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background-color: var(--color-warning-light);
+    color: var(--color-warning-text);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+  }
+
+  .warning-banner code {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
   }
 
   .error-message {
