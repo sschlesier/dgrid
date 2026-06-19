@@ -16,10 +16,11 @@
     width: number;
     ondrill?: (_field: string) => void;
     onedit?: (_fieldKey: string, _value: unknown) => void;
+    oneditdocument?: () => void;
     fieldKey?: string;
   }
 
-  let { value, width, ondrill, onedit, fieldKey }: Props = $props();
+  let { value, width, ondrill, onedit, oneditdocument, fieldKey }: Props = $props();
 
   let showCopyButton = $state(false);
   let copied = $state(false);
@@ -62,6 +63,11 @@
       event.preventDefault();
       event.stopPropagation();
       onedit(fieldKey, value);
+    }
+    if (matchesBinding(event, keybindingsStore.getBinding('edit-document')) && oneditdocument) {
+      event.preventDefault();
+      event.stopPropagation();
+      oneditdocument();
     }
   }
 

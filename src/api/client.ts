@@ -16,6 +16,10 @@ import type {
   ExecuteQueryResponse,
   UpdateFieldRequest,
   UpdateFieldResponse,
+  UpdateDocumentRequest,
+  UpdateDocumentResponse,
+  InsertDocumentRequest,
+  InsertDocumentResponse,
   DeleteDocumentRequest,
   DeleteDocumentResponse,
   VersionResponse,
@@ -342,6 +346,34 @@ export async function updateField(
 ): Promise<UpdateFieldResponse> {
   try {
     return await invoke<UpdateFieldResponse>('update_field', { id: connectionId, request: data });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
+}
+
+export async function updateDocument(
+  connectionId: string,
+  data: UpdateDocumentRequest
+): Promise<UpdateDocumentResponse> {
+  try {
+    return await invoke<UpdateDocumentResponse>('update_document', {
+      id: connectionId,
+      request: data,
+    });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
+}
+
+export async function insertDocument(
+  connectionId: string,
+  data: InsertDocumentRequest
+): Promise<InsertDocumentResponse> {
+  try {
+    return await invoke<InsertDocumentResponse>('insert_document', {
+      id: connectionId,
+      request: data,
+    });
   } catch (e) {
     throw wrapInvokeError(e);
   }

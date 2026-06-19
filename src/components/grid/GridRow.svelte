@@ -9,10 +9,20 @@
     rowIndex: number;
     ondrill?: (_field: string) => void;
     onedit?: (_fieldKey: string, _value: unknown) => void;
+    oneditdocument?: (_doc: Record<string, unknown>) => void;
     onrowcontextmenu?: (_event: MouseEvent) => void;
   }
 
-  let { doc, columns, offsetY, rowIndex, ondrill, onedit, onrowcontextmenu }: Props = $props();
+  let {
+    doc,
+    columns,
+    offsetY,
+    rowIndex,
+    ondrill,
+    onedit,
+    oneditdocument,
+    onrowcontextmenu,
+  }: Props = $props();
 
   function handleContextMenu(event: MouseEvent) {
     if (onrowcontextmenu) {
@@ -37,6 +47,7 @@
       fieldKey={column.key}
       {ondrill}
       {onedit}
+      oneditdocument={oneditdocument ? () => oneditdocument(doc) : undefined}
     />
   {/each}
 </div>

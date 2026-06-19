@@ -23,6 +23,8 @@ import {
   executeQuery,
   cancelQuery,
   updateField,
+  updateDocument,
+  insertDocument,
   deleteDocument,
   readFile,
   writeFile,
@@ -130,6 +132,71 @@ describe('API client', () => {
           database: 'testdb',
           collection: 'users',
           documentId: 1,
+        })
+      ).rejects.toThrow(ApiError);
+    });
+
+    it('updateDocument invokes update_document', async () => {
+      const updateResult = { success: true, modifiedCount: 1 };
+      mockInvoke.mockResolvedValueOnce(updateResult);
+
+      const data = {
+        database: 'testdb',
+        collection: 'users',
+        documentId: { _type: 'ObjectId', _value: '507f1f77bcf86cd799439011' },
+        document: { name: 'Alice', age: 30 },
+      };
+      const result = await updateDocument('conn1', data);
+
+      expect(mockInvoke).toHaveBeenCalledWith('update_document', {
+        id: 'conn1',
+        request: data,
+      });
+      expect(result).toEqual(updateResult);
+    });
+
+    it('updateDocument wraps invoke errors', async () => {
+      mockInvoke.mockRejectedValueOnce('Database error');
+
+      await expect(
+        updateDocument('conn1', {
+          database: 'testdb',
+          collection: 'users',
+          documentId: 1,
+          document: { name: 'Alice' },
+        })
+      ).rejects.toThrow(ApiError);
+    });
+
+    it('insertDocument invokes insert_document', async () => {
+      const insertResult = {
+        success: true,
+        insertedId: { _type: 'ObjectId', _value: '507f1f77bcf86cd799439011' },
+      };
+      mockInvoke.mockResolvedValueOnce(insertResult);
+
+      const data = {
+        database: 'testdb',
+        collection: 'events',
+        document: { title: 'Workshop', attendees: 50 },
+      };
+      const result = await insertDocument('conn1', data);
+
+      expect(mockInvoke).toHaveBeenCalledWith('insert_document', {
+        id: 'conn1',
+        request: data,
+      });
+      expect(result).toEqual(insertResult);
+    });
+
+    it('insertDocument wraps invoke errors', async () => {
+      mockInvoke.mockRejectedValueOnce('Validation error');
+
+      await expect(
+        insertDocument('conn1', {
+          database: 'testdb',
+          collection: 'events',
+          document: { title: 'Workshop' },
         })
       ).rejects.toThrow(ApiError);
     });

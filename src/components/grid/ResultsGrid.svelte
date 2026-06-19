@@ -24,10 +24,13 @@
   import GridBreadcrumb from './GridBreadcrumb.svelte';
   import GridPagination from './GridPagination.svelte';
   import EditFieldDialog from '../EditFieldDialog.svelte';
+  import JsonEditorDialog from '../JsonEditorDialog.svelte';
   import ConfirmDialog from '../ConfirmDialog.svelte';
   import ContextMenu from '../ContextMenu.svelte';
   import { deleteDocument } from '../../api/client';
   import { appStore } from '../../stores/app.svelte';
+  import { keybindingsStore } from '../../stores/keybindings.svelte';
+  import { matchesBinding } from '../../utils/keyboard';
 
   interface Props {
     tabId: string;
@@ -59,6 +62,54 @@
   }
 
   let editingField = $state<EditingField | null>(null);
+
+  // JSON editor state
+  interface JsonEditorState {
+    mode: 'edit' | 'insert';
+    docId?: unknown;
+    initialJson: string;
+  }
+
+  let jsonEditorState = $state<JsonEditorState | null>(null);
+
+  function documentToEditorJson(doc: Record<string, unknown>): string {
+    const clean: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(doc)) {
+      if (k !== '_docId' && k !== '_docIndex' && k !== '_arrayIndex') {
+        clean[k] = v;
+      }
+    }
+    return JSON.stringify(clean, null, 2);
+  }
+
+  function openEditDocument(doc: Record<string, unknown>) {
+    // Always edit the full top-level document, not the (possibly drilled) row view.
+    // _docIndex is carried through all drilldown / sort / flatten branches, so we
+    // use it to look up the original document from results.documents.
+    const docIndex = typeof doc._docIndex === 'number' ? doc._docIndex : undefined;
+    const source =
+      docIndex !== undefined ? (results.documents[docIndex] as Record<string, unknown>) : doc;
+    const docId = source._id ?? doc._docId ?? doc._id;
+    jsonEditorState = {
+      mode: 'edit',
+      docId,
+      initialJson: documentToEditorJson(source),
+    };
+  }
+
+  function openInsertDocument() {
+    jsonEditorState = {
+      mode: 'insert',
+      initialJson: '{}',
+    };
+  }
+
+  async function handleJsonEditorSaved() {
+    jsonEditorState = null;
+    const query = queryStore.getQueryText(tabId);
+    const pageSize = gridStore.getPageSize(tabId);
+    await queryStore.loadPage(tabId, connectionId, database, query, results.page, pageSize);
+  }
 
   // Context menu state
   interface ContextMenuState {
@@ -371,7 +422,26 @@
       });
     }
 
-    // Delete Document (always, with separator)
+    // Edit Document as JSON
+    items.push({
+      label: 'Edit Document',
+      onclick: () => {
+        contextMenu = null;
+        openEditDocument(doc);
+      },
+      separator: true,
+    });
+
+    // Insert Document
+    items.push({
+      label: 'Insert Document',
+      onclick: () => {
+        contextMenu = null;
+        openInsertDocument();
+      },
+    });
+
+    // Delete Document (with separator)
     items.push({
       label: 'Delete Document',
       onclick: () => {
@@ -387,6 +457,16 @@
 
   function handleDeleteDocument(doc: Record<string, unknown>) {
     deleteConfirmDoc = doc;
+  }
+
+  function handleKeyDown(event: KeyboardEvent) {
+    // Only handle shortcuts when no dialog is open
+    if (editingField || jsonEditorState || deleteConfirmDoc) return;
+
+    if (matchesBinding(event, keybindingsStore.getBinding('insert-document'))) {
+      event.preventDefault();
+      openInsertDocument();
+    }
   }
 
   async function confirmDeleteDocument() {
@@ -408,6 +488,8 @@
     }
   }
 </script>
+
+<svelte:window onkeydown={handleKeyDown} />
 
 <div class="results-grid">
   <GridBreadcrumb
@@ -449,6 +531,7 @@
               rowIndex={visibleStart + i}
               ondrill={handleDrill}
               onedit={(fieldKey, value) => handleEdit(doc, fieldKey, value)}
+              oneditdocument={(d) => openEditDocument(d)}
               onrowcontextmenu={(event) => handleRowContextMenu(doc, event)}
             />
           {/each}
@@ -490,6 +573,19 @@
     }}
     onclose={() => (editingField = null)}
     onsaved={handleEditSaved}
+  />
+{/if}
+
+{#if jsonEditorState}
+  <JsonEditorDialog
+    mode={jsonEditorState.mode}
+    {connectionId}
+    {database}
+    {collection}
+    docId={jsonEditorState.docId}
+    initialJson={jsonEditorState.initialJson}
+    onclose={() => (jsonEditorState = null)}
+    onsaved={handleJsonEditorSaved}
   />
 {/if}
 
