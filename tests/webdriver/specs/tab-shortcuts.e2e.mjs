@@ -67,7 +67,7 @@ describe('Tab Keyboard Shortcuts', () => {
       expect.stringContaining('Enter your MongoDB query here')
     );
 
-    await dispatchShortcut({ key: '∑', code: 'KeyW', alt: true });
+    await dispatchShortcut({ key: 'w', code: 'KeyW', meta: true, ctrl: true });
 
     await expect(s.tabs.all()).toBeElementsArrayOfSize(2);
     await expect(s.tabs.activeTab()).toHaveText(expect.stringContaining('orders'));
