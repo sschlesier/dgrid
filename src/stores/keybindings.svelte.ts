@@ -57,7 +57,7 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
     id: 'close-tab',
     description: 'Close tab',
     category: 'Tabs',
-    defaultBinding: { key: 'w', alt: true },
+    defaultBinding: { key: 'w', meta: true },
     alwaysGlobal: true,
   },
 

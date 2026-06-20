@@ -38,7 +38,7 @@ describe('Tab Keyboard Shortcuts', () => {
     await (await s.sidebar.treeItem(collection)).click();
   }
 
-  it('opens a new tab on the active tab database with Alt+T and closes it with Alt+W', async () => {
+  it('opens a new tab on the active tab database with Alt+T and closes it with Cmd/Ctrl+W', async () => {
     await seedDatabase(TEST_DB, 'users', [{ name: 'Alice' }]);
     await seedDatabase(TEST_DB, 'orders', [{ item: 'Widget' }]);
 
@@ -67,7 +67,7 @@ describe('Tab Keyboard Shortcuts', () => {
       expect.stringContaining('Enter your MongoDB query here')
     );
 
-    await dispatchShortcut({ key: '∑', code: 'KeyW', alt: true });
+    await dispatchShortcut({ key: 'w', code: 'KeyW', meta: true, ctrl: true });
 
     await expect(s.tabs.all()).toBeElementsArrayOfSize(2);
     await expect(s.tabs.activeTab()).toHaveText(expect.stringContaining('orders'));
