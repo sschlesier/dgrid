@@ -77,17 +77,17 @@
   }
 
   function handleDropdownKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
-      closeDropdown();
-    }
+    if (event.key === 'Escape' && dropdownOpen) closeDropdown();
   }
 </script>
+
+<svelte:window onkeydown={handleDropdownKeydown} />
 
 <div class="results-container" data-tab-id={tabId}>
   <div class="results-toolbar">
     <ViewSelector value={viewMode} onchange={handleViewChange} />
     {#if results.documents.length > 0}
-      <div class="export-split-btn" class:is-exporting={expState.isExporting}>
+      <div class="export-split-btn">
         <!-- Main action button -->
         <button
           class="export-main-btn"
@@ -125,6 +125,7 @@
           aria-label="Choose export format"
           aria-expanded={dropdownOpen}
           aria-haspopup="menu"
+          aria-controls="export-format-menu"
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
             <path
@@ -141,12 +142,8 @@
         <!-- Dropdown menu -->
         {#if dropdownOpen}
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            class="export-backdrop"
-            onclick={closeDropdown}
-            onkeydown={handleDropdownKeydown}
-          ></div>
-          <div class="export-dropdown" role="menu">
+          <div class="export-backdrop" onclick={closeDropdown}></div>
+          <div class="export-dropdown" role="menu" id="export-format-menu">
             <button
               class="export-dropdown-item"
               class:is-active={exportMode === 'file'}
