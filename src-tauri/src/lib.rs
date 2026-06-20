@@ -137,6 +137,7 @@ pub fn run() {
             commands::documents::insert_document,
             commands::documents::delete_document,
             commands::export::export_csv,
+            commands::export::export_csv_to_string,
             commands::export::cancel_export,
             commands::files::read_file,
             commands::files::write_file,
