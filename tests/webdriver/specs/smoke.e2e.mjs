@@ -10,17 +10,17 @@ describe('Smoke Tests', () => {
     await expect(s.header.root()).toBeDisplayed();
   });
 
-  it('opens the keyboard shortcuts modal', async () => {
+  it('opens the settings modal', async () => {
     await (await s.header.helpButton()).click();
     await expect(s.shortcutsModal.modal()).toBeDisplayed();
-    await expect(s.shortcutsModal.heading()).toHaveText('Keyboard Shortcuts');
+    await expect(s.shortcutsModal.heading()).toHaveText('Settings');
   });
 
-  it('? shortcut opens the keyboard shortcuts modal', async () => {
+  it('? shortcut opens the settings modal', async () => {
     await dispatchShortcut({ key: '?', code: 'Slash', shift: true });
 
     await expect(s.shortcutsModal.modal()).toBeDisplayed();
-    await expect(s.shortcutsModal.heading()).toHaveText('Keyboard Shortcuts');
+    await expect(s.shortcutsModal.heading()).toHaveText('Settings');
 
     await (await s.shortcutsModal.overlay()).click();
     await expect(s.shortcutsModal.modal()).not.toBeDisplayed();
