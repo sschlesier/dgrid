@@ -58,14 +58,10 @@
     }
   }
 
-  async function selectMode(mode: ExportMode) {
+  function selectMode(mode: ExportMode) {
+    // Only update the default — the user clicks the main button to actually export.
     exportStore.setMode(mode);
     dropdownOpen = false;
-    if (mode === 'clipboard') {
-      await handleExportClipboard();
-    } else {
-      await handleExportFile();
-    }
   }
 
   function handleCancelExport() {
