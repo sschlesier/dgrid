@@ -11,6 +11,8 @@
   import { gridStore } from '../../../stores/grid.svelte';
   import { queryStore } from '../../../stores/query.svelte';
   import EditFieldDialog from '../../EditFieldDialog.svelte';
+  import ContextMenu from '../../ContextMenu.svelte';
+  import { formatDocumentAsJSON } from '../../grid/utils';
 
   interface Props {
     tabId: string;
@@ -42,6 +44,18 @@
   }
 
   let editingField = $state<EditingField | null>(null);
+
+  interface ContextMenuState {
+    x: number;
+    y: number;
+    doc: Record<string, unknown>;
+  }
+  let contextMenu = $state<ContextMenuState | null>(null);
+
+  function handleDocContextMenu(doc: Record<string, unknown>, event: MouseEvent) {
+    event.preventDefault();
+    contextMenu = { x: event.clientX, y: event.clientY, doc };
+  }
 
   let searchQuery = $state('');
   let expandedPaths = $state<Set<string>>(new Set());
@@ -237,6 +251,7 @@
             tabindex="0"
             onclick={() => handleDocToggle(docIndex)}
             onkeydown={(e) => handleDocKeydown(e, docIndex)}
+            oncontextmenu={(e) => handleDocContextMenu(doc, e)}
           >
             <!-- Key cell: document summary -->
             <div class="key-cell" style="padding-left: var(--space-sm)">
@@ -297,6 +312,24 @@
     onpagesizechange={handlePageSizeChange}
   />
 </div>
+
+{#if contextMenu}
+  <ContextMenu
+    x={contextMenu.x}
+    y={contextMenu.y}
+    items={[
+      {
+        label: 'Copy Document as JSON',
+        onclick: () => {
+          const doc = contextMenu!.doc;
+          contextMenu = null;
+          navigator.clipboard.writeText(formatDocumentAsJSON(doc));
+        },
+      },
+    ]}
+    onclose={() => (contextMenu = null)}
+  />
+{/if}
 
 {#if editingField}
   <EditFieldDialog
