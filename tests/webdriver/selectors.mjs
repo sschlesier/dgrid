@@ -98,7 +98,7 @@ export const selectors = {
     nextPageButton: () => $('.page-nav .nav-btn[title="Next page"]'),
     jsonView: () => $('.json-view'),
     treeView: () => $('.tree-view'),
-    exportButton: () => $('.export-csv-btn'),
+    exportButton: () => $('.export-main-btn'),
   },
 
   contextMenu: {
