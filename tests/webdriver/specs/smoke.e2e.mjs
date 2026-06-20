@@ -32,6 +32,7 @@ describe('Smoke Tests', () => {
     await (await s.header.helpButton()).click();
     await expect(s.shortcutsModal.modal()).toBeDisplayed();
 
+    await (await s.shortcutsModal.tab('Keyboard Shortcuts')).click();
     await (await s.shortcutsModal.shortcutKeys('show-help')).click();
     await expect(s.shortcutsModal.captureZone()).toBeDisplayed();
 
