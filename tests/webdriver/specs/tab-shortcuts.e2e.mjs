@@ -38,7 +38,7 @@ describe('Tab Keyboard Shortcuts', () => {
     await (await s.sidebar.treeItem(collection)).click();
   }
 
-  it('opens a new tab on the active tab database with Alt+T and closes it with Alt+W', async () => {
+  it('opens a new tab on the active tab database with Alt+T and closes it with Cmd/Ctrl+W', async () => {
     await seedDatabase(TEST_DB, 'users', [{ name: 'Alice' }]);
     await seedDatabase(TEST_DB, 'orders', [{ item: 'Widget' }]);
 
