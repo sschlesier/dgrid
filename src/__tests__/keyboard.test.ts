@@ -114,10 +114,10 @@ describe('keyboard utilities', () => {
       expect(matchesShortcut(event, { key: 't', alt: true, handler: () => {} })).toBe(true);
     });
 
-    it('matches alt modifier when macOS produces dead key for W', () => {
-      // On macOS, Alt+W produces ∑ but code is KeyW
-      const event = new KeyboardEvent('keydown', { key: '∑', altKey: true, code: 'KeyW' });
-      expect(matchesShortcut(event, { key: 'w', alt: true, handler: () => {} })).toBe(true);
+    it('matches meta modifier for close-tab (Cmd+W) on Mac', () => {
+      vi.stubGlobal('navigator', { platform: 'MacIntel' });
+      const event = new KeyboardEvent('keydown', { key: 'w', metaKey: true, code: 'KeyW' });
+      expect(matchesShortcut(event, { key: 'w', meta: true, handler: () => {} })).toBe(true);
     });
 
     it('does not match when modifier missing', () => {
