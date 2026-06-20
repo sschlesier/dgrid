@@ -164,7 +164,8 @@ class ExportStore {
   async exportToClipboard(connectionId: string, database: string, query: string): Promise<void> {
     const parsed = parseQuery(query);
     if (!parsed.ok) {
-      throw new ApiError(400, 'QueryParseError', parsed.error.message);
+      appStore.notify('error', `Failed to copy to clipboard: ${parsed.error.message}`);
+      return;
     }
 
     try {

@@ -121,14 +121,17 @@ describe('ExportStore — exportToClipboard', () => {
     );
   });
 
-  it('throws ApiError when query parse fails', async () => {
+  it('shows error notification when query parse fails', async () => {
     mockedParseQuery.mockReturnValue({
       ok: false,
       error: { message: 'Invalid query syntax' },
     });
 
-    await expect(
-      exportStore.exportToClipboard('conn-1', 'testdb', 'invalid query')
-    ).rejects.toThrow('Invalid query syntax');
+    await exportStore.exportToClipboard('conn-1', 'testdb', 'invalid query');
+
+    expect(mockedNotify).toHaveBeenCalledWith(
+      'error',
+      expect.stringContaining('Invalid query syntax')
+    );
   });
 });
