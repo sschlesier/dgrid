@@ -1,6 +1,7 @@
 <script lang="ts">
   import { keybindingsStore, SHORTCUT_DEFINITIONS } from '../stores/keybindings.svelte';
   import type { ShortcutBinding } from '../stores/keybindings.svelte';
+  import { settingsStore, DEFAULT_QUERY_SUFFIX } from '../stores/settings.svelte';
   import { isMac, resolveKey } from '../utils/keyboard';
 
   interface Props {
@@ -9,7 +10,10 @@
 
   let { onclose }: Props = $props();
 
-  // Editing state
+  // Active tab
+  let activeTab = $state<'general' | 'shortcuts'>('general');
+
+  // Shortcuts tab — editing state
   let editingId = $state<string | null>(null);
   let conflictId = $state<string | null>(null);
   let pendingBinding = $state<ShortcutBinding | null>(null);
@@ -46,8 +50,11 @@
     ],
   };
 
+  // General tab — default query setting
+  const isDefaultQueryCustomized = $derived(settingsStore.defaultQuery.trim() !== '');
+
   function handleKeyDown(event: KeyboardEvent) {
-    if (editingId) {
+    if (editingId && activeTab === 'shortcuts') {
       event.preventDefault();
       event.stopPropagation();
 
@@ -163,7 +170,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
     <div class="modal-header">
-      <h2>Keyboard Shortcuts</h2>
+      <h2>Settings</h2>
       <button class="close-btn" onclick={onclose} title="Close">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
           <path
@@ -177,112 +184,181 @@
       </button>
     </div>
 
-    <div class="modal-content">
-      {#each groupedDefinitions as group}
-        <div class="shortcut-group">
-          <h3>{group.category}</h3>
-          <div class="shortcut-list">
-            {#each group.shortcuts as def}
-              {@const isEditing = editingId === def.id}
-              {@const isConflict = editingId === def.id && conflictId !== null}
-              {@const isCustom = keybindingsStore.isCustomized(def.id)}
-              {@const formatted = keybindingsStore.getFormatted(def.id)}
-              <div class="shortcut-row" class:editing={isEditing} class:conflict={isConflict}>
-                <span class="shortcut-description">{def.description}</span>
-                <span class="shortcut-actions">
-                  {#if isEditing}
-                    {#if conflictId && pendingBinding}
-                      <span class="conflict-info">
-                        <span class="conflict-text">
-                          Conflicts with "{getConflictDescription()}"
-                        </span>
-                        <button class="conflict-btn assign-btn" onclick={assignAnyway}>
-                          Assign
-                        </button>
-                        <button class="conflict-btn" onclick={cancelEditing}> Cancel </button>
-                      </span>
-                    {:else}
-                      <span class="capture-zone" data-testid="capture-zone">
-                        Press shortcut...
-                      </span>
-                      <button class="cancel-edit-btn" onclick={cancelEditing} title="Cancel">
-                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                          <path
-                            d="M6 6L14 14M14 6L6 14"
-                            stroke="currentColor"
-                            stroke-width="1.5"
-                            stroke-linecap="round"
-                            fill="none"
-                          />
-                        </svg>
-                      </button>
-                    {/if}
-                  {:else}
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <span
-                      class="shortcut-keys clickable"
-                      class:customized={isCustom}
-                      onclick={() => startEditing(def.id)}
-                      data-testid="shortcut-keys-{def.id}"
-                      title="Click to edit"
-                    >
-                      {#each splitFormattedKeys(formatted) as keyPart, i}
-                        <kbd>{keyPart}</kbd>
-                        {#if i < splitFormattedKeys(formatted).length - 1}
-                          <span class="key-separator">+</span>
-                        {/if}
-                      {/each}
-                    </span>
-                    {#if isCustom}
-                      <button
-                        class="reset-btn"
-                        onclick={() => resetShortcut(def.id)}
-                        title="Reset to default"
-                        data-testid="reset-{def.id}"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                          <path
-                            d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"
-                          />
-                        </svg>
-                      </button>
-                    {/if}
-                  {/if}
-                </span>
-              </div>
-            {/each}
+    <div class="modal-tabs">
+      <button
+        class="tab-btn"
+        class:active={activeTab === 'general'}
+        onclick={() => {
+          activeTab = 'general';
+          cancelEditing();
+        }}
+      >
+        General
+      </button>
+      <button
+        class="tab-btn"
+        class:active={activeTab === 'shortcuts'}
+        onclick={() => {
+          activeTab = 'shortcuts';
+          cancelEditing();
+        }}
+      >
+        Keyboard Shortcuts
+      </button>
+    </div>
 
-            {#if staticRows[group.category]}
-              {#each staticRows[group.category] as row}
-                <div class="shortcut-row static">
-                  <span class="shortcut-description">{row.description}</span>
+    {#if activeTab === 'general'}
+      <div class="modal-content">
+        <div class="setting-group">
+          <label class="setting-label" for="default-query-input">Default query suffix</label>
+          <p class="setting-description">
+            Pre-fills new query tabs after <code>db.&lt;collection&gt;</code>. Leave blank to use
+            the default.
+          </p>
+          <div class="setting-input-row">
+            <input
+              id="default-query-input"
+              class="setting-input"
+              type="text"
+              value={settingsStore.defaultQuery}
+              placeholder={DEFAULT_QUERY_SUFFIX}
+              oninput={(e) => settingsStore.setDefaultQuery((e.target as HTMLInputElement).value)}
+              spellcheck={false}
+            />
+            {#if isDefaultQueryCustomized}
+              <button
+                class="reset-btn-inline"
+                onclick={() => settingsStore.resetDefaultQuery()}
+                title="Reset to default"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path
+                    d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"
+                  />
+                </svg>
+              </button>
+            {/if}
+          </div>
+          <p class="setting-hint">
+            Example: <code>.find({'{}'}).sort({'{ _id: -1 }'})</code> or
+            <code>.aggregate([{'{ $match: {} }'}])</code>. Not validated — fix mistakes in the
+            editor.
+          </p>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <p class="hint">Press <kbd>Escape</kbd> to close</p>
+      </div>
+    {:else}
+      <div class="modal-content">
+        {#each groupedDefinitions as group}
+          <div class="shortcut-group">
+            <h3>{group.category}</h3>
+            <div class="shortcut-list">
+              {#each group.shortcuts as def}
+                {@const isEditing = editingId === def.id}
+                {@const isConflict = editingId === def.id && conflictId !== null}
+                {@const isCustom = keybindingsStore.isCustomized(def.id)}
+                {@const formatted = keybindingsStore.getFormatted(def.id)}
+                {@const parts = splitFormattedKeys(formatted)}
+                <div class="shortcut-row" class:editing={isEditing} class:conflict={isConflict}>
+                  <span class="shortcut-description">{def.description}</span>
                   <span class="shortcut-actions">
-                    <span class="shortcut-keys static">
-                      {#each row.keys as keyPart, i}
-                        <kbd>{keyPart}</kbd>
-                        {#if i < row.keys.length - 1}
-                          <span class="key-separator">+</span>
-                        {/if}
-                      {/each}
-                    </span>
+                    {#if isEditing}
+                      {#if conflictId && pendingBinding}
+                        <span class="conflict-info">
+                          <span class="conflict-text">
+                            Conflicts with "{getConflictDescription()}"
+                          </span>
+                          <button class="conflict-btn assign-btn" onclick={assignAnyway}>
+                            Assign
+                          </button>
+                          <button class="conflict-btn" onclick={cancelEditing}> Cancel </button>
+                        </span>
+                      {:else}
+                        <span class="capture-zone" data-testid="capture-zone">
+                          Press shortcut...
+                        </span>
+                        <button class="cancel-edit-btn" onclick={cancelEditing} title="Cancel">
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                            <path
+                              d="M6 6L14 14M14 6L6 14"
+                              stroke="currentColor"
+                              stroke-width="1.5"
+                              stroke-linecap="round"
+                              fill="none"
+                            />
+                          </svg>
+                        </button>
+                      {/if}
+                    {:else}
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <span
+                        class="shortcut-keys clickable"
+                        class:customized={isCustom}
+                        onclick={() => startEditing(def.id)}
+                        data-testid="shortcut-keys-{def.id}"
+                        title="Click to edit"
+                      >
+                        {#each parts as keyPart, i}
+                          <kbd>{keyPart}</kbd>
+                          {#if i < parts.length - 1}
+                            <span class="key-separator">+</span>
+                          {/if}
+                        {/each}
+                      </span>
+                      {#if isCustom}
+                        <button
+                          class="reset-btn"
+                          onclick={() => resetShortcut(def.id)}
+                          title="Reset to default"
+                          data-testid="reset-{def.id}"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                            <path
+                              d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"
+                            />
+                          </svg>
+                        </button>
+                      {/if}
+                    {/if}
                   </span>
                 </div>
               {/each}
-            {/if}
-          </div>
-        </div>
-      {/each}
-    </div>
 
-    <div class="modal-footer">
-      {#if hasAnyCustomization}
-        <button class="reset-all-btn" onclick={resetAll} data-testid="reset-all-btn">
-          Reset All Defaults
-        </button>
-      {/if}
-      <p class="hint">Click a shortcut to edit &middot; Press <kbd>Escape</kbd> to close</p>
-    </div>
+              {#if staticRows[group.category]}
+                {#each staticRows[group.category] as row}
+                  <div class="shortcut-row static">
+                    <span class="shortcut-description">{row.description}</span>
+                    <span class="shortcut-actions">
+                      <span class="shortcut-keys static">
+                        {#each row.keys as keyPart, i}
+                          <kbd>{keyPart}</kbd>
+                          {#if i < row.keys.length - 1}
+                            <span class="key-separator">+</span>
+                          {/if}
+                        {/each}
+                      </span>
+                    </span>
+                  </div>
+                {/each}
+              {/if}
+            </div>
+          </div>
+        {/each}
+      </div>
+
+      <div class="modal-footer">
+        {#if hasAnyCustomization}
+          <button class="reset-all-btn" onclick={resetAll} data-testid="reset-all-btn">
+            Reset All Defaults
+          </button>
+        {/if}
+        <p class="hint">Click a shortcut to edit &middot; Press <kbd>Escape</kbd> to close</p>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -360,11 +436,133 @@
     color: var(--color-text-primary);
   }
 
+  /* Tab bar */
+  .modal-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--color-border-light);
+    padding: 0 var(--space-lg);
+    gap: var(--space-xs);
+  }
+
+  .tab-btn {
+    padding: var(--space-sm) var(--space-xs);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+    transition:
+      color var(--transition-fast),
+      border-color var(--transition-fast);
+  }
+
+  .tab-btn:hover {
+    color: var(--color-text-primary);
+  }
+
+  .tab-btn.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+  }
+
+  /* General tab */
   .modal-content {
     padding: var(--space-lg);
     overflow-y: auto;
   }
 
+  .setting-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .setting-label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+  }
+
+  .setting-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    margin: 0;
+  }
+
+  .setting-input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  .setting-input {
+    flex: 1;
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-mono, monospace);
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-medium);
+    border-radius: var(--radius-sm);
+    transition: border-color var(--transition-fast);
+  }
+
+  .setting-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+
+  .setting-input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .setting-hint {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+
+  .setting-hint code {
+    font-family: var(--font-mono, monospace);
+    font-size: var(--font-size-xs);
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-sm);
+    padding: 1px 4px;
+  }
+
+  .setting-description code {
+    font-family: var(--font-mono, monospace);
+    font-size: var(--font-size-xs);
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-sm);
+    padding: 1px 4px;
+  }
+
+  .reset-btn-inline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg-secondary);
+    transition: all var(--transition-fast);
+  }
+
+  .reset-btn-inline:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  /* Shortcuts tab */
   .shortcut-group {
     margin-bottom: var(--space-lg);
   }

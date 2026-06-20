@@ -40,6 +40,7 @@ export const selectors = {
     overlay: () => $('.modal-overlay'),
     modal: () => $('.modal-overlay .modal'),
     heading: () => $('.modal-header h2'),
+    tab: (label) => $(`button.tab-btn=${label}`),
     shortcutKeys: (id) => $(`[data-testid="shortcut-keys-${id}"]`),
     captureZone: () => $('[data-testid="capture-zone"]'),
     resetButton: (id) => $(`[data-testid="reset-${id}"]`),

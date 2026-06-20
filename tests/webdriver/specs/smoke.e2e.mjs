@@ -10,17 +10,17 @@ describe('Smoke Tests', () => {
     await expect(s.header.root()).toBeDisplayed();
   });
 
-  it('opens the keyboard shortcuts modal', async () => {
+  it('opens the settings modal', async () => {
     await (await s.header.helpButton()).click();
     await expect(s.shortcutsModal.modal()).toBeDisplayed();
-    await expect(s.shortcutsModal.heading()).toHaveText('Keyboard Shortcuts');
+    await expect(s.shortcutsModal.heading()).toHaveText('Settings');
   });
 
-  it('? shortcut opens the keyboard shortcuts modal', async () => {
+  it('? shortcut opens the settings modal', async () => {
     await dispatchShortcut({ key: '?', code: 'Slash', shift: true });
 
     await expect(s.shortcutsModal.modal()).toBeDisplayed();
-    await expect(s.shortcutsModal.heading()).toHaveText('Keyboard Shortcuts');
+    await expect(s.shortcutsModal.heading()).toHaveText('Settings');
 
     await (await s.shortcutsModal.overlay()).click();
     await expect(s.shortcutsModal.modal()).not.toBeDisplayed();
@@ -32,6 +32,7 @@ describe('Smoke Tests', () => {
     await (await s.header.helpButton()).click();
     await expect(s.shortcutsModal.modal()).toBeDisplayed();
 
+    await (await s.shortcutsModal.tab('Keyboard Shortcuts')).click();
     await (await s.shortcutsModal.shortcutKeys('show-help')).click();
     await expect(s.shortcutsModal.captureZone()).toBeDisplayed();
 
@@ -49,6 +50,7 @@ describe('Smoke Tests', () => {
     await dispatchShortcut({ key: 'h', code: 'KeyH', ...modifier });
     await expect(s.shortcutsModal.modal()).toBeDisplayed();
 
+    await (await s.shortcutsModal.tab('Keyboard Shortcuts')).click();
     await expect(s.shortcutsModal.resetButton('show-help')).toExist();
     await browser.execute((el) => el.click(), await s.shortcutsModal.resetButton('show-help'));
     await expect(s.shortcutsModal.resetButton('show-help')).not.toExist();

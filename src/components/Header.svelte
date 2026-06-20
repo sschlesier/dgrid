@@ -3,7 +3,7 @@
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { appStore } from '../stores/app.svelte';
   import { keybindingsStore } from '../stores/keybindings.svelte';
-  import KeyboardShortcutsModal from './KeyboardShortcutsModal.svelte';
+  import SettingsModal from './SettingsModal.svelte';
   import { registerShortcut, unregisterShortcut, bindingToShortcut } from '../utils/keyboard';
 
   interface Props {
@@ -149,26 +149,22 @@
     <button
       class="help-btn"
       onclick={toggleShortcuts}
-      title="Keyboard Shortcuts ({keybindingsStore.getFormatted('show-help')})"
+      title="Settings ({keybindingsStore.getFormatted('show-help')})"
     >
       <svg
         width="18"
         height="18"
-        viewBox="0 0 20 20"
+        viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        stroke-width="1.5"
+        stroke-width="1.75"
+        stroke-linecap="round"
+        stroke-linejoin="round"
       >
-        <circle cx="10" cy="10" r="8" />
-        <text
-          x="10"
-          y="14"
-          text-anchor="middle"
-          fill="currentColor"
-          stroke="none"
-          font-size="11"
-          font-weight="600">?</text
-        >
+        <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+        <path
+          d="M19.622 10.395l-1.097-2.65L20 6l-2-2-1.735 1.483-2.707-1.113L12.935 2h-1.954l-.632 2.401-2.645 1.115L6 4 4 6l1.453 1.789-1.08 2.608L2 11v2l2.401.655L5.516 16.3 4 18l2 2 1.791-1.46 2.606 1.072L11 22h2l.604-2.387 2.651-1.098C16.697 19.48 18 20 18 20l2-2-1.484-1.75 1.106-2.648L22 13v-2l-2.378-.605Z"
+        />
       </svg>
     </button>
     <button class="header-btn primary" onclick={onNewConnection} title="Add new connection">
@@ -178,7 +174,7 @@
 </header>
 
 {#if showShortcuts}
-  <KeyboardShortcutsModal onclose={() => (showShortcuts = false)} />
+  <SettingsModal onclose={() => (showShortcuts = false)} />
 {/if}
 
 <style>

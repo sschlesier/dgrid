@@ -6,6 +6,7 @@ import * as api from '../api/client';
 import { ApiError, ConnectCancelledError } from '../api/client';
 import { queryStore } from './query.svelte';
 import { schemaStore } from './schema.svelte';
+import { settingsStore } from './settings.svelte';
 
 // Generate unique IDs
 function generateId(): string {
@@ -629,10 +630,11 @@ class AppStore {
   // Tab actions
   createTab(connectionId: string, database: string, collection?: string): Tab {
     const needsBracket = collection && /[^a-zA-Z0-9_$]/.test(collection);
+    const suffix = settingsStore.effectiveDefaultQuery;
     const queryText = collection
       ? needsBracket
-        ? `db['${collection}'].find({})`
-        : `db.${collection}.find({})`
+        ? `db['${collection}']${suffix}`
+        : `db.${collection}${suffix}`
       : '';
     const title = collection ? collection : 'New Query';
     const tab: Tab = {
