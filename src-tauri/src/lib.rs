@@ -23,7 +23,7 @@ pub fn run() {
     let builder = builder.plugin(tauri_plugin_webdriver::init());
 
     builder
-        .setup(|app| {
+        .setup(|_app| {
             // On macOS, the default menu contains a "Close Window" item (Cmd+W) in both
             // the File and Window submenus. macOS dispatches menu key-equivalents before
             // the keystroke reaches the webview, so without this override Cmd+W closes
@@ -32,6 +32,7 @@ pub fn run() {
             // passes through to JavaScript, where TabBar registers it as close-tab.
             #[cfg(target_os = "macos")]
             {
+                let app = _app;
                 use tauri::menu::{AboutMetadata, PredefinedMenuItem, Submenu};
 
                 let pkg_info = app.package_info();
