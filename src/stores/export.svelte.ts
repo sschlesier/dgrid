@@ -6,6 +6,31 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { save } from '@tauri-apps/plugin-dialog';
 import { parseQuery } from '../lib/queries.js';
 import { ApiError } from '../api/client';
+import { appStore } from './app.svelte';
+
+export type ExportMode = 'file' | 'clipboard';
+
+const EXPORT_MODE_KEY = 'dgrid-export-mode';
+
+function loadExportMode(): ExportMode {
+  try {
+    const stored = localStorage.getItem(EXPORT_MODE_KEY);
+    if (stored === 'file' || stored === 'clipboard') {
+      return stored;
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return 'file';
+}
+
+function saveExportMode(mode: ExportMode): void {
+  try {
+    localStorage.setItem(EXPORT_MODE_KEY, mode);
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 interface ExportTabState {
   isExporting: boolean;
@@ -20,6 +45,12 @@ interface ExportProgress {
   totalCount: number;
   done: boolean;
   error: string | null;
+}
+
+interface ExportCsvStringResponse {
+  csv: string;
+  exportedCount: number;
+  truncated: boolean;
 }
 
 interface ExportStateOverrideEvent extends CustomEvent {
@@ -38,6 +69,7 @@ const DEFAULT_STATE: ExportTabState = {
 
 class ExportStore {
   states = $state<Map<string, ExportTabState>>(new Map());
+  mode = $state<ExportMode>(loadExportMode());
 
   getState(tabId: string): ExportTabState {
     return this.states.get(tabId) ?? DEFAULT_STATE;
@@ -47,6 +79,11 @@ class ExportStore {
     const newMap = new Map(this.states);
     newMap.set(tabId, state);
     this.states = newMap;
+  }
+
+  setMode(mode: ExportMode): void {
+    this.mode = mode;
+    saveExportMode(mode);
   }
 
   async startExport(
@@ -121,6 +158,40 @@ class ExportStore {
       });
     } finally {
       unlisten?.();
+    }
+  }
+
+  async exportToClipboard(connectionId: string, database: string, query: string): Promise<void> {
+    const parsed = parseQuery(query);
+    if (!parsed.ok) {
+      throw new ApiError(400, 'QueryParseError', parsed.error.message);
+    }
+
+    try {
+      const res = await invoke<ExportCsvStringResponse>('export_csv_to_string', {
+        id: connectionId,
+        request: {
+          query: parsed.value,
+          database,
+        },
+      });
+
+      await navigator.clipboard.writeText(res.csv);
+
+      if (res.truncated) {
+        appStore.notify(
+          'warning',
+          `Output truncated to 2 MB — copied ${res.exportedCount.toLocaleString()} rows to clipboard`
+        );
+      } else {
+        appStore.notify(
+          'success',
+          `Copied ${res.exportedCount.toLocaleString()} rows to clipboard`
+        );
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      appStore.notify('error', `Failed to copy to clipboard: ${message}`);
     }
   }
 

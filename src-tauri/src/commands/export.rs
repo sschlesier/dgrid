@@ -38,6 +38,125 @@ pub struct ExportCsvResponse {
 }
 
 const BUFFER_SIZE: usize = 100;
+const MAX_CLIPBOARD_BYTES: usize = 2 * 1024 * 1024; // 2 MB cap for clipboard export
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportCsvStringRequest {
+    pub query: ParsedQuery,
+    pub database: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportCsvStringResponse {
+    pub csv: String,
+    pub exported_count: u64,
+    pub truncated: bool,
+}
+
+#[tauri::command]
+pub async fn export_csv_to_string(
+    state: State<'_, AppState>,
+    id: String,
+    request: ExportCsvStringRequest,
+) -> Result<ExportCsvStringResponse, DgridError> {
+    // Validate query type: only find and aggregate are supported
+    let collection_query = match &request.query {
+        ParsedQuery::Collection(q)
+            if q.operation == CollectionOperation::Find
+                || q.operation == CollectionOperation::Aggregate =>
+        {
+            q
+        }
+        _ => {
+            return Err(DgridError::Validation(
+                "CSV export only supports find and aggregate queries.".into(),
+            ));
+        }
+    };
+
+    let db = state
+        .pool
+        .get_db(&id, Some(&request.database))
+        .await
+        .ok_or_else(|| DgridError::NotFound {
+            entity: "Connection".into(),
+            id: id.clone(),
+        })?;
+
+    let collection = db.collection::<Document>(&collection_query.collection);
+
+    // Open cursor
+    let mut cursor = open_cursor(&collection, collection_query).await?;
+
+    // Buffer first batch for column detection
+    let mut buffer: Vec<Document> = Vec::new();
+    for _ in 0..BUFFER_SIZE {
+        use futures_util::StreamExt;
+        match cursor.next().await {
+            Some(Ok(doc)) => buffer.push(doc),
+            Some(Err(e)) => return Err(DgridError::Database(e.to_string())),
+            None => break,
+        }
+    }
+
+    if buffer.is_empty() {
+        return Ok(ExportCsvStringResponse {
+            csv: String::new(),
+            exported_count: 0,
+            truncated: false,
+        });
+    }
+
+    let columns = csv::collect_columns(&buffer);
+
+    // Build CSV header
+    let header_row: String = columns
+        .iter()
+        .map(|c| csv::escape_csv_field(c))
+        .collect::<Vec<_>>()
+        .join(",");
+    let mut output = header_row;
+    output.push('\n');
+
+    let mut exported_count: u64 = 0;
+    let mut truncated = false;
+
+    // Write buffered rows
+    for doc in &buffer {
+        let row = csv::build_csv_row(doc, &columns);
+        if output.len() + row.len() + 1 > MAX_CLIPBOARD_BYTES {
+            truncated = true;
+            break;
+        }
+        output.push_str(&row);
+        output.push('\n');
+        exported_count += 1;
+    }
+
+    // Stream remaining rows if not yet truncated
+    if !truncated {
+        use futures_util::StreamExt;
+        while let Some(result) = cursor.next().await {
+            let doc = result.map_err(|e| DgridError::Database(e.to_string()))?;
+            let row = csv::build_csv_row(&doc, &columns);
+            if output.len() + row.len() + 1 > MAX_CLIPBOARD_BYTES {
+                truncated = true;
+                break;
+            }
+            output.push_str(&row);
+            output.push('\n');
+            exported_count += 1;
+        }
+    }
+
+    Ok(ExportCsvStringResponse {
+        csv: output,
+        exported_count,
+        truncated,
+    })
+}
 
 #[tauri::command]
 pub async fn export_csv(
@@ -492,5 +611,74 @@ mod tests {
             }
             _ => {} // count is correctly rejected
         }
+    }
+
+    #[test]
+    fn deserialize_export_string_request() {
+        let json = serde_json::json!({
+            "query": {
+                "type": "collection",
+                "collection": "users",
+                "operation": "find",
+                "filter": {"active": true},
+            },
+            "database": "testdb",
+        });
+        let req: ExportCsvStringRequest = serde_json::from_value(json).unwrap();
+        assert_eq!(req.database, "testdb");
+        match &req.query {
+            ParsedQuery::Collection(q) => {
+                assert_eq!(q.collection, "users");
+                assert_eq!(q.operation, CollectionOperation::Find);
+            }
+            _ => panic!("Expected collection query"),
+        }
+    }
+
+    #[test]
+    fn deserialize_export_string_request_aggregate() {
+        let json = serde_json::json!({
+            "query": {
+                "type": "collection",
+                "collection": "orders",
+                "operation": "aggregate",
+                "pipeline": [{"$match": {"status": "completed"}}],
+            },
+            "database": "testdb",
+        });
+        let req: ExportCsvStringRequest = serde_json::from_value(json).unwrap();
+        assert_eq!(req.database, "testdb");
+        match &req.query {
+            ParsedQuery::Collection(q) => {
+                assert_eq!(q.collection, "orders");
+                assert_eq!(q.operation, CollectionOperation::Aggregate);
+            }
+            _ => panic!("Expected collection query"),
+        }
+    }
+
+    #[test]
+    fn serialize_export_string_response() {
+        let resp = ExportCsvStringResponse {
+            csv: "name,age\nAlice,30\n".to_string(),
+            exported_count: 1,
+            truncated: false,
+        };
+        let json = serde_json::to_value(&resp).unwrap();
+        assert_eq!(json["csv"], "name,age\nAlice,30\n");
+        assert_eq!(json["exportedCount"], 1);
+        assert_eq!(json["truncated"], false);
+    }
+
+    #[test]
+    fn serialize_export_string_response_truncated() {
+        let resp = ExportCsvStringResponse {
+            csv: "name,age\nAlice,30\n".to_string(),
+            exported_count: 1,
+            truncated: true,
+        };
+        let json = serde_json::to_value(&resp).unwrap();
+        assert_eq!(json["truncated"], true);
+        assert_eq!(json["exportedCount"], 1);
     }
 }
