@@ -55,12 +55,25 @@ pub struct ExportCsvStringResponse {
     pub truncated: bool,
 }
 
+/// Append a CSV row + newline to `output` if it fits within `max_bytes`.
+/// Returns `false` (without modifying `output`) if the row would exceed the cap.
+fn push_row_within_cap(output: &mut String, row: &str, max_bytes: usize) -> bool {
+    if output.len() + row.len() + 1 > max_bytes {
+        return false;
+    }
+    output.push_str(row);
+    output.push('\n');
+    true
+}
+
 #[tauri::command]
 pub async fn export_csv_to_string(
     state: State<'_, AppState>,
     id: String,
     request: ExportCsvStringRequest,
 ) -> Result<ExportCsvStringResponse, DgridError> {
+    use futures_util::StreamExt;
+
     // Validate query type: only find and aggregate are supported
     let collection_query = match &request.query {
         ParsedQuery::Collection(q)
@@ -93,7 +106,6 @@ pub async fn export_csv_to_string(
     // Buffer first batch for column detection
     let mut buffer: Vec<Document> = Vec::new();
     for _ in 0..BUFFER_SIZE {
-        use futures_util::StreamExt;
         match cursor.next().await {
             Some(Ok(doc)) => buffer.push(doc),
             Some(Err(e)) => return Err(DgridError::Database(e.to_string())),
@@ -126,27 +138,22 @@ pub async fn export_csv_to_string(
     // Write buffered rows
     for doc in &buffer {
         let row = csv::build_csv_row(doc, &columns);
-        if output.len() + row.len() + 1 > MAX_CLIPBOARD_BYTES {
+        if !push_row_within_cap(&mut output, &row, MAX_CLIPBOARD_BYTES) {
             truncated = true;
             break;
         }
-        output.push_str(&row);
-        output.push('\n');
         exported_count += 1;
     }
 
     // Stream remaining rows if not yet truncated
     if !truncated {
-        use futures_util::StreamExt;
         while let Some(result) = cursor.next().await {
             let doc = result.map_err(|e| DgridError::Database(e.to_string()))?;
             let row = csv::build_csv_row(&doc, &columns);
-            if output.len() + row.len() + 1 > MAX_CLIPBOARD_BYTES {
+            if !push_row_within_cap(&mut output, &row, MAX_CLIPBOARD_BYTES) {
                 truncated = true;
                 break;
             }
-            output.push_str(&row);
-            output.push('\n');
             exported_count += 1;
         }
     }
@@ -611,6 +618,33 @@ mod tests {
             }
             _ => {} // count is correctly rejected
         }
+    }
+
+    #[test]
+    fn push_row_within_cap_fits() {
+        let mut output = String::from("header\n");
+        let row = "Alice,30";
+        assert!(push_row_within_cap(&mut output, row, 100));
+        assert_eq!(output, "header\nAlice,30\n");
+    }
+
+    #[test]
+    fn push_row_within_cap_exactly_full() {
+        // header is 7 bytes ("header\n"), row is 8 bytes ("Alice,30"), newline is 1 byte → 16 total
+        let mut output = String::from("header\n");
+        let row = "Alice,30";
+        assert!(push_row_within_cap(&mut output, row, 16));
+        assert_eq!(output, "header\nAlice,30\n");
+    }
+
+    #[test]
+    fn push_row_within_cap_exceeds() {
+        let mut output = String::from("header\n");
+        let original = output.clone();
+        let row = "Alice,30";
+        // cap of 15 means 7 + 8 + 1 = 16 > 15
+        assert!(!push_row_within_cap(&mut output, row, 15));
+        assert_eq!(output, original, "output must be unchanged on rejection");
     }
 
     #[test]
