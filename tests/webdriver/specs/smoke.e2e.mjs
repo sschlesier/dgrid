@@ -50,6 +50,7 @@ describe('Smoke Tests', () => {
     await dispatchShortcut({ key: 'h', code: 'KeyH', ...modifier });
     await expect(s.shortcutsModal.modal()).toBeDisplayed();
 
+    await (await s.shortcutsModal.tab('Keyboard Shortcuts')).click();
     await expect(s.shortcutsModal.resetButton('show-help')).toExist();
     await browser.execute((el) => el.click(), await s.shortcutsModal.resetButton('show-help'));
     await expect(s.shortcutsModal.resetButton('show-help')).not.toExist();
