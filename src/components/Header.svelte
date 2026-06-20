@@ -3,7 +3,7 @@
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { appStore } from '../stores/app.svelte';
   import { keybindingsStore } from '../stores/keybindings.svelte';
-  import KeyboardShortcutsModal from './KeyboardShortcutsModal.svelte';
+  import SettingsModal from './SettingsModal.svelte';
   import { registerShortcut, unregisterShortcut, bindingToShortcut } from '../utils/keyboard';
 
   interface Props {
@@ -149,7 +149,7 @@
     <button
       class="help-btn"
       onclick={toggleShortcuts}
-      title="Keyboard Shortcuts ({keybindingsStore.getFormatted('show-help')})"
+      title="Settings ({keybindingsStore.getFormatted('show-help')})"
     >
       <svg
         width="18"
@@ -178,7 +178,7 @@
 </header>
 
 {#if showShortcuts}
-  <KeyboardShortcutsModal onclose={() => (showShortcuts = false)} />
+  <SettingsModal onclose={() => (showShortcuts = false)} />
 {/if}
 
 <style>
