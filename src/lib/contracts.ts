@@ -87,6 +87,12 @@ export interface ExportCsvRequest {
   database: string;
 }
 
+export interface ExportCsvStringResponse {
+  csv: string;
+  exportedCount: number;
+  truncated: boolean;
+}
+
 // Document Field Updates
 export interface UpdateFieldRequest {
   database: string;

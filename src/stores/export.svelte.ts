@@ -7,6 +7,7 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { parseQuery } from '../lib/queries.js';
 import { ApiError } from '../api/client';
 import { appStore } from './app.svelte';
+import type { ExportCsvStringResponse } from '../lib/contracts';
 
 export type ExportMode = 'file' | 'clipboard';
 
@@ -45,12 +46,6 @@ interface ExportProgress {
   totalCount: number;
   done: boolean;
   error: string | null;
-}
-
-interface ExportCsvStringResponse {
-  csv: string;
-  exportedCount: number;
-  truncated: boolean;
 }
 
 interface ExportStateOverrideEvent extends CustomEvent {
