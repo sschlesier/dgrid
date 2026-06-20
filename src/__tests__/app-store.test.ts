@@ -33,6 +33,7 @@ vi.mock('../api/client', () => ({
 // Import after mocking
 import * as api from '../api/client';
 import { appStore } from '../stores/app.svelte';
+import { settingsStore, DEFAULT_QUERY_SUFFIX } from '../stores/settings.svelte';
 
 const mockedApi = api as unknown as {
   getConnections: ReturnType<typeof vi.fn>;
@@ -64,6 +65,9 @@ describe('appStore', () => {
       targetName: '',
       cancelling: false,
     };
+
+    // Reset settings to default state
+    settingsStore.resetDefaultQuery();
 
     // Reset mocks
     vi.clearAllMocks();
@@ -471,6 +475,27 @@ describe('appStore', () => {
 
       expect(appStore.activeTabId).toBe(tab2.id);
       expect(appStore.activeConnectionId).toBe('conn-2');
+    });
+
+    it('createTab uses default query suffix for collection tab', () => {
+      const tab = appStore.createTab('conn-1', 'db', 'users');
+      expect(tab.queryText).toBe(`db.users${DEFAULT_QUERY_SUFFIX}`);
+    });
+
+    it('createTab uses bracket notation for collections with special characters', () => {
+      const tab = appStore.createTab('conn-1', 'db', 'my-coll');
+      expect(tab.queryText).toBe(`db['my-coll']${DEFAULT_QUERY_SUFFIX}`);
+    });
+
+    it('createTab uses custom suffix when configured', () => {
+      settingsStore.setDefaultQuery('.find({}).limit(10)');
+      const tab = appStore.createTab('conn-1', 'db', 'users');
+      expect(tab.queryText).toBe('db.users.find({}).limit(10)');
+    });
+
+    it('createTab produces empty queryText when no collection given', () => {
+      const tab = appStore.createTab('conn-1', 'db');
+      expect(tab.queryText).toBe('');
     });
 
     it('updateTab modifies tab properties', () => {

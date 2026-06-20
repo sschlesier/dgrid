@@ -188,14 +188,20 @@
       <button
         class="tab-btn"
         class:active={activeTab === 'general'}
-        onclick={() => (activeTab = 'general')}
+        onclick={() => {
+          activeTab = 'general';
+          cancelEditing();
+        }}
       >
         General
       </button>
       <button
         class="tab-btn"
         class:active={activeTab === 'shortcuts'}
-        onclick={() => (activeTab = 'shortcuts')}
+        onclick={() => {
+          activeTab = 'shortcuts';
+          cancelEditing();
+        }}
       >
         Keyboard Shortcuts
       </button>
@@ -255,6 +261,7 @@
                 {@const isConflict = editingId === def.id && conflictId !== null}
                 {@const isCustom = keybindingsStore.isCustomized(def.id)}
                 {@const formatted = keybindingsStore.getFormatted(def.id)}
+                {@const parts = splitFormattedKeys(formatted)}
                 <div class="shortcut-row" class:editing={isEditing} class:conflict={isConflict}>
                   <span class="shortcut-description">{def.description}</span>
                   <span class="shortcut-actions">
@@ -295,9 +302,9 @@
                         data-testid="shortcut-keys-{def.id}"
                         title="Click to edit"
                       >
-                        {#each splitFormattedKeys(formatted) as keyPart, i}
+                        {#each parts as keyPart, i}
                           <kbd>{keyPart}</kbd>
-                          {#if i < splitFormattedKeys(formatted).length - 1}
+                          {#if i < parts.length - 1}
                             <span class="key-separator">+</span>
                           {/if}
                         {/each}
