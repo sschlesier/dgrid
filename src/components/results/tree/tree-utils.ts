@@ -14,9 +14,7 @@ export function formatIdForSummary(id: unknown): string {
   if (isSerializedBson(id)) {
     const bson = id as SerializedBsonValue;
     if (bson._type === 'ObjectId') {
-      // Truncate ObjectId to first 12 chars
-      const truncated = bson._value.length > 12 ? bson._value.slice(0, 12) + '...' : bson._value;
-      return truncated;
+      return bson._value;
     }
     return bson._value;
   }
