@@ -52,16 +52,16 @@ vi.mock('../../stores/export.svelte', () => ({
 vi.mock('../../stores/keybindings.svelte', () => ({
   keybindingsStore: {
     getBinding: (id: string) => {
-      const defaults: Record<string, { key: string; alt?: boolean }> = {
+      const defaults: Record<string, { key: string; alt?: boolean; meta?: boolean }> = {
         'new-tab': { key: 't', alt: true },
-        'close-tab': { key: 'w', alt: true },
+        'close-tab': { key: 'w', meta: true },
       };
       return defaults[id] ?? { key: '?' };
     },
     getFormatted: (id: string) => {
       const labels: Record<string, string> = {
         'new-tab': '⌥T',
-        'close-tab': '⌥W',
+        'close-tab': '⌘W',
       };
       return labels[id] ?? '?';
     },

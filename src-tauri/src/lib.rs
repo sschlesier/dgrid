@@ -23,6 +23,90 @@ pub fn run() {
     let builder = builder.plugin(tauri_plugin_webdriver::init());
 
     builder
+        .setup(|app| {
+            // On macOS, the default menu contains a "Close Window" item (Cmd+W) in both
+            // the File and Window submenus. macOS dispatches menu key-equivalents before
+            // the keystroke reaches the webview, so without this override Cmd+W closes
+            // the app window instead of triggering the frontend's close-tab handler.
+            // We replace the default menu with one that omits close_window so Cmd+W
+            // passes through to JavaScript, where TabBar registers it as close-tab.
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{AboutMetadata, PredefinedMenuItem, Submenu};
+
+                let pkg_info = app.package_info();
+                let config = app.config();
+
+                let about_metadata = AboutMetadata {
+                    name: Some(pkg_info.name.clone()),
+                    version: Some(pkg_info.version.to_string()),
+                    copyright: config.bundle.copyright.clone(),
+                    authors: config.bundle.publisher.clone().map(|p| vec![p]),
+                    ..Default::default()
+                };
+
+                // App submenu (DGrid): About, Services, Hide, Quit — standard macOS shape
+                let app_submenu = Submenu::with_items(
+                    app,
+                    pkg_info.name.clone(),
+                    true,
+                    &[
+                        &PredefinedMenuItem::about(app, None, Some(about_metadata))?,
+                        &PredefinedMenuItem::separator(app)?,
+                        &PredefinedMenuItem::services(app, None)?,
+                        &PredefinedMenuItem::separator(app)?,
+                        &PredefinedMenuItem::hide(app, None)?,
+                        &PredefinedMenuItem::hide_others(app, None)?,
+                        &PredefinedMenuItem::separator(app)?,
+                        &PredefinedMenuItem::quit(app, None)?,
+                    ],
+                )?;
+
+                // Edit submenu: standard text-editing commands
+                let edit_submenu = Submenu::with_items(
+                    app,
+                    "Edit",
+                    true,
+                    &[
+                        &PredefinedMenuItem::undo(app, None)?,
+                        &PredefinedMenuItem::redo(app, None)?,
+                        &PredefinedMenuItem::separator(app)?,
+                        &PredefinedMenuItem::cut(app, None)?,
+                        &PredefinedMenuItem::copy(app, None)?,
+                        &PredefinedMenuItem::paste(app, None)?,
+                        &PredefinedMenuItem::select_all(app, None)?,
+                    ],
+                )?;
+
+                // View submenu
+                let view_submenu = Submenu::with_items(
+                    app,
+                    "View",
+                    true,
+                    &[&PredefinedMenuItem::fullscreen(app, None)?],
+                )?;
+
+                // Window submenu: omits close_window (Cmd+W) so it reaches the webview.
+                // The red traffic-light button and Cmd+Q (Quit) still close/quit the app.
+                let window_submenu = Submenu::with_items(
+                    app,
+                    "Window",
+                    true,
+                    &[
+                        &PredefinedMenuItem::minimize(app, None)?,
+                        &PredefinedMenuItem::maximize(app, None)?,
+                    ],
+                )?;
+
+                let menu = tauri::menu::MenuBuilder::new(app)
+                    .items(&[&app_submenu, &edit_submenu, &view_submenu, &window_submenu])
+                    .build()?;
+
+                app.set_menu(menu)?;
+            }
+
+            Ok(())
+        })
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             commands::version::get_version,
