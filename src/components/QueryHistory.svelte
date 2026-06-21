@@ -10,6 +10,14 @@
 
   let { history, onselect, onclear, onclose }: Props = $props();
 
+  // Hover popup state
+  let hoveredItem = $state<QueryHistoryItem | null>(null);
+  let mouseX = $state(0);
+  let mouseY = $state(0);
+  let popupEl = $state<HTMLDivElement | undefined>();
+  let adjustedX = $state(0);
+  let adjustedY = $state(0);
+
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -23,13 +31,43 @@
     }
   }
 
-  function truncateQuery(query: string, maxLength = 60): string {
-    const firstLine = query.split('\n')[0];
-    if (firstLine.length <= maxLength) {
-      return firstLine;
-    }
-    return firstLine.slice(0, maxLength) + '...';
+  function handleItemMouseEnter(event: MouseEvent, item: QueryHistoryItem) {
+    hoveredItem = item;
+    mouseX = event.clientX + 16;
+    mouseY = event.clientY + 8;
+    adjustedX = mouseX;
+    adjustedY = mouseY;
   }
+
+  function handleItemMouseMove(event: MouseEvent) {
+    mouseX = event.clientX + 16;
+    mouseY = event.clientY + 8;
+    adjustedX = mouseX;
+    adjustedY = mouseY;
+  }
+
+  function handleItemMouseLeave() {
+    hoveredItem = null;
+  }
+
+  // Flatten all whitespace (including newlines) into single spaces for the two-line preview
+  function collapseQuery(query: string): string {
+    return query.replace(/\s+/g, ' ').trim();
+  }
+
+  // Show up to 500 chars of the original query (preserving line breaks) in the popup
+  function popupQuery(query: string): string {
+    return query.length > 500 ? query.slice(0, 500) + '…' : query;
+  }
+
+  // Clamp popup to stay within viewport after it renders
+  $effect(() => {
+    if (hoveredItem && popupEl) {
+      const rect = popupEl.getBoundingClientRect();
+      adjustedX = rect.right > window.innerWidth ? mouseX - rect.width - 32 : mouseX;
+      adjustedY = rect.bottom > window.innerHeight ? mouseY - rect.height - 16 : mouseY;
+    }
+  });
 
   function formatTimestamp(timestamp: string): string {
     const date = new Date(timestamp);
@@ -91,8 +129,14 @@
         </div>
       {:else}
         {#each history as item (item.id)}
-          <button class="history-item" onclick={() => onselect(item)}>
-            <div class="item-query">{truncateQuery(item.query)}</div>
+          <button
+            class="history-item"
+            onclick={() => onselect(item)}
+            onmouseenter={(e) => handleItemMouseEnter(e, item)}
+            onmousemove={handleItemMouseMove}
+            onmouseleave={handleItemMouseLeave}
+          >
+            <div class="item-query">{collapseQuery(item.query)}</div>
             <div class="item-meta">
               <span class="item-database">{item.database}</span>
               <span class="item-time">{formatTimestamp(item.timestamp)}</span>
@@ -106,6 +150,12 @@
     </div>
   </div>
 </div>
+
+{#if hoveredItem}
+  <div class="query-popup" bind:this={popupEl} style="left: {adjustedX}px; top: {adjustedY}px;">
+    {popupQuery(hoveredItem.query)}
+  </div>
+{/if}
 
 <style>
   .history-backdrop {
@@ -217,6 +267,11 @@
     font-size: var(--font-size-sm);
     color: var(--color-text-primary);
     word-break: break-all;
+    /* Clamp to two lines with ellipsis */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .item-meta {
@@ -235,5 +290,25 @@
 
   .item-duration {
     color: var(--color-text-muted);
+  }
+
+  /* Hover popup — fixed-position, pointer-events: none so clicks pass through */
+  .query-popup {
+    position: fixed;
+    z-index: calc(var(--z-dropdown) + 1);
+    max-width: 480px;
+    max-height: 320px;
+    overflow: hidden;
+    padding: var(--space-sm) var(--space-md);
+    background-color: var(--color-bg-primary);
+    border: 1px solid var(--color-border-medium);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    pointer-events: none;
   }
 </style>
