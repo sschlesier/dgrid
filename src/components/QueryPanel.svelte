@@ -316,6 +316,22 @@
     return true;
   }
 
+  function ensureDatabasesLoaded() {
+    for (const conn of appStore.connectedConnections) {
+      if (!appStore.databases.has(conn.id)) {
+        void appStore.loadDatabases(conn.id);
+      }
+    }
+  }
+
+  function handleDatabaseChange(e: Event) {
+    const val = (e.target as HTMLSelectElement).value;
+    const idx = val.indexOf(':');
+    const connectionId = val.slice(0, idx);
+    const database = val.slice(idx + 1);
+    appStore.updateTab(tab.id, { connectionId, database });
+  }
+
   async function handleFormatQuery() {
     const target = getFormatTarget();
     if (!target || !target.fullText.trim()) return;
@@ -745,7 +761,24 @@
         </span>
       {/if}
 
-      <span class="toolbar-info">Database: {tab.database}</span>
+      <select
+        class="toolbar-db-select"
+        value="{tab.connectionId}:{tab.database}"
+        onchange={handleDatabaseChange}
+        onfocus={ensureDatabasesLoaded}
+        title="Switch database"
+      >
+        {#each appStore.connectedConnections as conn}
+          <optgroup label={conn.name}>
+            {#each appStore.databases.get(conn.id) ?? [] as db}
+              <option value="{conn.id}:{db.name}">{db.name}</option>
+            {/each}
+            {#if !appStore.databases.has(conn.id)}
+              <option disabled value="">Loading…</option>
+            {/if}
+          </optgroup>
+        {/each}
+      </select>
 
       <button
         class="toolbar-btn"
@@ -1135,6 +1168,27 @@
   .toolbar-info {
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
+  }
+
+  .toolbar-db-select {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-medium);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  .toolbar-db-select:hover {
+    border-color: var(--color-border-strong);
+    color: var(--color-text-primary);
+  }
+
+  .toolbar-db-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    color: var(--color-text-primary);
   }
 
   .results-section {
