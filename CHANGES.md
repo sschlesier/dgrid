@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.0
+
+- Insert and edit documents as JSON
+- Export split button with options to save as CSV file or copy CSV to clipboard
+- Cmd/Ctrl+W keyboard shortcut to close the active tab
+- Configurable default query for new tabs (Settings → Editor)
+- Tabbed Settings modal
+- Fix: show full ObjectId value in tree view document summary row
+- Add "Copy Document" option to tree view context menu
+- Replace database indicator with cross-connection dropdown selector for switching databases without leaving the current tab
+- Two-line preview and hover popup for query history entries
+
 ## 1.5.0
 
 - Improved run query shortcuts: Cmd+Enter now runs the statement at cursor (or all queries if the cursor is on a blank line); Shift+Enter runs the current selection, or all queries if nothing is selected; Cmd+Shift+Enter always runs all queries
