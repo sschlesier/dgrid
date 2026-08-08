@@ -852,8 +852,43 @@ async fn execute_db_command(
     options: QueryOptions,
 ) -> Result<ExecuteQueryResponse, String> {
     let start = std::time::Instant::now();
+    let mut has_more = false;
 
     let result: Vec<Map<String, Value>> = match command.command.as_str() {
+        // Database-level aggregation (`aggregate: 1`) — supports collectionless
+        // stages such as $currentOp, $listLocalSessions, $documents.
+        "aggregate" => {
+            let stages = command
+                .args
+                .first()
+                .and_then(|v| v.as_array())
+                .ok_or("aggregate requires a pipeline array")?;
+            let mut pipeline: Vec<Document> = stages
+                .iter()
+                .map(bson_ser::json_to_document)
+                .collect::<Result<Vec<_>, _>>()?;
+
+            // Paginate as the collection aggregate does; fetch one extra doc to detect more pages
+            pipeline.push(doc! { "$skip": (options.page - 1) * options.page_size });
+            pipeline.push(doc! { "$limit": options.page_size + 1 });
+
+            use futures_util::TryStreamExt;
+            let mut docs: Vec<Document> = db
+                .aggregate(pipeline)
+                .await
+                .map_err(|e| e.to_string())?
+                .try_collect()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            has_more = docs.len() as i64 > options.page_size;
+            if has_more {
+                docs.truncate(options.page_size as usize);
+            }
+
+            serialize_docs(&docs)
+        }
+
         "getCollectionNames" => {
             use futures_util::TryStreamExt;
             let collections: Vec<mongodb::results::CollectionSpecification> = db
@@ -1121,7 +1156,7 @@ async fn execute_db_command(
         documents: result,
         page: options.page,
         page_size: options.page_size,
-        has_more: false,
+        has_more,
         execution_time_ms: start.elapsed().as_millis() as u64,
     })
 }
@@ -1208,6 +1243,24 @@ mod tests {
             ParsedQuery::DbCommand(cmd) => {
                 assert_eq!(cmd.command, "getCollectionNames");
                 assert!(cmd.args.is_empty());
+            }
+            _ => panic!("Expected db command"),
+        }
+    }
+
+    #[test]
+    fn deserialize_db_aggregate() {
+        let json = serde_json::json!({
+            "type": "db-command",
+            "command": "aggregate",
+            "args": [[{"$currentOp": {"allUsers": true}}, {"$sort": {"connections": -1}}]],
+        });
+        let query: ParsedQuery = serde_json::from_value(json).unwrap();
+        match query {
+            ParsedQuery::DbCommand(cmd) => {
+                assert_eq!(cmd.command, "aggregate");
+                let stages = cmd.args[0].as_array().expect("pipeline is an array");
+                assert_eq!(stages.len(), 2);
             }
             _ => panic!("Expected db command"),
         }
