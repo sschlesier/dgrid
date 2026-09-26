@@ -131,6 +131,10 @@ for commands. Ticket pipeline conventions, the Definition of Ready and the cold 
 - Keep commits small and focused (one logical change per commit)
 - Commit regularly as you progress through tasks
 - Each commit should leave the codebase in a working state
+- Run `cargo fmt` in `src-tauri/` for Rust changes and let it reformat every file it touches,
+  including files you didn't otherwise change. Don't revert its changes to unrelated files.
+  Commit those formatting-only changes on their own (`style: apply cargo fmt`), separate from
+  the feature or fix commits
 
 ## Releasing
 
