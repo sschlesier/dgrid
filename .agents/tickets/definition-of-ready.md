@@ -1,0 +1,35 @@
+# Definition of Ready
+
+A ticket is ready when an agent with no human to ask can implement it from the ticket plus
+the repo. Each item says where in the ticket it's recorded (see `ticket-format.md`).
+
+`tk-lint` checks items 1–3 and 6 structurally. The rest need judgment.
+
+| # | Item | Ready when | Recorded in |
+|---|---|---|---|
+| 1 | **Outcome** | One sentence: what is different when this is done, and for whom. Not a task list. | first paragraph |
+| 2 | **Acceptance criteria** | Each one is a statement that can be tested by observing behavior. No "works well" or "is clean". | `## Acceptance Criteria` |
+| 3 | **Verification** | Exact commands or steps that prove the criteria hold. `pnpm verify` plus anything specific (a named test, a manual check with steps). | `## Verification` |
+| 4 | **Scope** | Clear what's out of scope where there's a plausible way to overreach. Migrations, public API changes and config changes are flagged. | Out of scope in description; flags in `## Design` |
+| 5 | **Size** | Fits in one PR and one agent session. If not, split it. An epic is never ready. | type; the split is recorded with `tk dep` |
+| 6 | **Dependencies** | Each dependency exists and is expected to close first, or the ticket says what to stub. | `deps` |
+| 7 | **No open decisions** | Every "should we X or Y?" is answered, with the answer written down. | `## Design` |
+| 8 | **Constraints** | Performance, compatibility, security, "don't touch X", where they apply. | `## Design` or `## Boundaries` |
+| 9 | **Autonomy boundaries** | Anything *specific to this ticket* the agent must stop and send back on. The default rule always applies, so only exceptions are written down. | `## Boundaries` |
+
+## Default blocking rule (used by pickup)
+
+An implementing agent sends a ticket back (`needs-clarification`) only when a gap would
+change **public behavior, data, or scope**. For anything else, it states its assumption in
+a note and continues. `## Boundaries` can tighten this rule for a ticket.
+
+## Ticket-type questions
+
+These are prompts for refinement, not required sections. Ask only the ones that apply.
+
+- **bug:** steps to reproduce; expected vs. actual; environment/version; is there a
+  regression test to add?
+- **feature:** who uses it and from where in the UI; affected interfaces (Tauri commands,
+  stores, components); empty, error and loading states.
+- **task / chore:** what "done" means concretely; anything that must keep working
+  unchanged.
