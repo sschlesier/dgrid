@@ -97,7 +97,13 @@ async fn fetch_collection_specs(
     state: &AppState,
     id: &str,
     database: &str,
-) -> Result<(mongodb::Database, Vec<mongodb::results::CollectionSpecification>), DgridError> {
+) -> Result<
+    (
+        mongodb::Database,
+        Vec<mongodb::results::CollectionSpecification>,
+    ),
+    DgridError,
+> {
     let client = state
         .pool
         .get_client(id)
@@ -406,17 +412,16 @@ pub async fn list_indexes(
         .iter()
         .map(|idx| {
             let key = serde_json::Value::Object(bson_ser::serialize_document(&idx.keys));
-            let (name, unique, sparse, expire_after_seconds) =
-                if let Some(opts) = &idx.options {
-                    (
-                        opts.name.clone().unwrap_or_default(),
-                        opts.unique.unwrap_or(false),
-                        opts.sparse.unwrap_or(false),
-                        opts.expire_after.map(|d| d.as_secs() as i64),
-                    )
-                } else {
-                    (String::new(), false, false, None)
-                };
+            let (name, unique, sparse, expire_after_seconds) = if let Some(opts) = &idx.options {
+                (
+                    opts.name.clone().unwrap_or_default(),
+                    opts.unique.unwrap_or(false),
+                    opts.sparse.unwrap_or(false),
+                    opts.expire_after.map(|d| d.as_secs() as i64),
+                )
+            } else {
+                (String::new(), false, false, None)
+            };
             IndexInfo {
                 name,
                 key,
