@@ -201,8 +201,10 @@ async fn execute_collection_query(
                 .collect::<Result<Vec<_>, _>>()?;
 
             // Add pagination stages; fetch one extra doc to detect if there are more pages
-            pipeline.push(doc! { "$skip": page_skip });
-            pipeline.push(doc! { "$limit": options.page_size + 1 });
+            if !ends_with_write_stage(&pipeline) {
+                pipeline.push(doc! { "$skip": page_skip });
+                pipeline.push(doc! { "$limit": options.page_size + 1 });
+            }
 
             use futures_util::TryStreamExt;
             let mut docs: Vec<Document> = collection
@@ -869,8 +871,10 @@ async fn execute_db_command(
                 .collect::<Result<Vec<_>, _>>()?;
 
             // Paginate as the collection aggregate does; fetch one extra doc to detect more pages
-            pipeline.push(doc! { "$skip": (options.page - 1) * options.page_size });
-            pipeline.push(doc! { "$limit": options.page_size + 1 });
+            if !ends_with_write_stage(&pipeline) {
+                pipeline.push(doc! { "$skip": (options.page - 1) * options.page_size });
+                pipeline.push(doc! { "$limit": options.page_size + 1 });
+            }
 
             let target_db = if requires_admin_db(&pipeline) {
                 db.client().database("admin")
@@ -1188,6 +1192,14 @@ fn requires_admin_db(pipeline: &[Document]) -> bool {
     first_stage_name(pipeline) == Some("$currentOp")
 }
 
+/// `$out` and `$merge` must be the final stage, so pagination can't be appended after them.
+fn ends_with_write_stage(pipeline: &[Document]) -> bool {
+    pipeline
+        .last()
+        .and_then(|d| d.keys().next())
+        .is_some_and(|k| k == "$out" || k == "$merge")
+}
+
 fn first_stage_name(pipeline: &[Document]) -> Option<&str> {
     pipeline
         .first()
@@ -1302,6 +1314,32 @@ mod tests {
     #[test]
     fn empty_pipeline_uses_current_db() {
         assert!(!requires_admin_db(&[]));
+    }
+
+    #[test]
+    fn pipeline_ending_in_out_is_write_stage() {
+        let pipeline = vec![doc! { "$match": {} }, doc! { "$out": "target" }];
+        assert!(ends_with_write_stage(&pipeline));
+    }
+
+    #[test]
+    fn pipeline_ending_in_merge_is_write_stage() {
+        let pipeline = vec![
+            doc! { "$documents": [{ "a": 1 }] },
+            doc! { "$merge": "target" },
+        ];
+        assert!(ends_with_write_stage(&pipeline));
+    }
+
+    #[test]
+    fn merge_before_last_stage_is_not_write_stage() {
+        let pipeline = vec![doc! { "$merge": "target" }, doc! { "$match": {} }];
+        assert!(!ends_with_write_stage(&pipeline));
+    }
+
+    #[test]
+    fn empty_pipeline_is_not_write_stage() {
+        assert!(!ends_with_write_stage(&[]));
     }
 
     #[test]
