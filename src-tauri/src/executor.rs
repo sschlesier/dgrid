@@ -201,8 +201,10 @@ async fn execute_collection_query(
                 .collect::<Result<Vec<_>, _>>()?;
 
             // Add pagination stages; fetch one extra doc to detect if there are more pages
-            pipeline.push(doc! { "$skip": page_skip });
-            pipeline.push(doc! { "$limit": options.page_size + 1 });
+            if !ends_with_write_stage(&pipeline) {
+                pipeline.push(doc! { "$skip": page_skip });
+                pipeline.push(doc! { "$limit": options.page_size + 1 });
+            }
 
             use futures_util::TryStreamExt;
             let mut docs: Vec<Document> = collection
@@ -852,8 +854,51 @@ async fn execute_db_command(
     options: QueryOptions,
 ) -> Result<ExecuteQueryResponse, String> {
     let start = std::time::Instant::now();
+    let mut has_more = false;
 
     let result: Vec<Map<String, Value>> = match command.command.as_str() {
+        // Database-level aggregation (`aggregate: 1`) — supports collectionless
+        // stages such as $currentOp, $listLocalSessions, $documents.
+        "aggregate" => {
+            let stages = command
+                .args
+                .first()
+                .and_then(|v| v.as_array())
+                .ok_or("aggregate requires a pipeline array")?;
+            let mut pipeline: Vec<Document> = stages
+                .iter()
+                .map(bson_ser::json_to_document)
+                .collect::<Result<Vec<_>, _>>()?;
+
+            // Paginate as the collection aggregate does; fetch one extra doc to detect more pages
+            if !ends_with_write_stage(&pipeline) {
+                pipeline.push(doc! { "$skip": (options.page - 1) * options.page_size });
+                pipeline.push(doc! { "$limit": options.page_size + 1 });
+            }
+
+            let target_db = if requires_admin_db(&pipeline) {
+                db.client().database("admin")
+            } else {
+                db.clone()
+            };
+
+            use futures_util::TryStreamExt;
+            let mut docs: Vec<Document> = target_db
+                .aggregate(pipeline)
+                .await
+                .map_err(|e| e.to_string())?
+                .try_collect()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            has_more = docs.len() as i64 > options.page_size;
+            if has_more {
+                docs.truncate(options.page_size as usize);
+            }
+
+            serialize_docs(&docs)
+        }
+
         "getCollectionNames" => {
             use futures_util::TryStreamExt;
             let collections: Vec<mongodb::results::CollectionSpecification> = db
@@ -1121,7 +1166,7 @@ async fn execute_db_command(
         documents: result,
         page: options.page,
         page_size: options.page_size,
-        has_more: false,
+        has_more,
         execution_time_ms: start.elapsed().as_millis() as u64,
     })
 }
@@ -1140,6 +1185,26 @@ fn optional_doc(value: &Option<Value>) -> Result<Option<Document>, String> {
         Some(v) => Ok(Some(bson_ser::json_to_document(v)?)),
         None => Ok(None),
     }
+}
+
+/// `$currentOp` must run against the admin database, whichever database the tab is using.
+fn requires_admin_db(pipeline: &[Document]) -> bool {
+    first_stage_name(pipeline) == Some("$currentOp")
+}
+
+/// `$out` and `$merge` must be the final stage, so pagination can't be appended after them.
+fn ends_with_write_stage(pipeline: &[Document]) -> bool {
+    pipeline
+        .last()
+        .and_then(|d| d.keys().next())
+        .is_some_and(|k| k == "$out" || k == "$merge")
+}
+
+fn first_stage_name(pipeline: &[Document]) -> Option<&str> {
+    pipeline
+        .first()
+        .and_then(|d| d.keys().next())
+        .map(String::as_str)
 }
 
 fn serialize_docs(docs: &[Document]) -> Vec<Map<String, Value>> {
@@ -1211,6 +1276,70 @@ mod tests {
             }
             _ => panic!("Expected db command"),
         }
+    }
+
+    #[test]
+    fn deserialize_db_aggregate() {
+        let json = serde_json::json!({
+            "type": "db-command",
+            "command": "aggregate",
+            "args": [[{"$currentOp": {"allUsers": true}}, {"$sort": {"connections": -1}}]],
+        });
+        let query: ParsedQuery = serde_json::from_value(json).unwrap();
+        match query {
+            ParsedQuery::DbCommand(cmd) => {
+                assert_eq!(cmd.command, "aggregate");
+                let stages = cmd.args[0].as_array().expect("pipeline is an array");
+                assert_eq!(stages.len(), 2);
+            }
+            _ => panic!("Expected db command"),
+        }
+    }
+
+    #[test]
+    fn current_op_pipeline_requires_admin_db() {
+        let pipeline = vec![
+            doc! { "$currentOp": { "allUsers": true } },
+            doc! { "$sort": { "connections": -1 } },
+        ];
+        assert!(requires_admin_db(&pipeline));
+    }
+
+    #[test]
+    fn documents_pipeline_uses_current_db() {
+        let pipeline = vec![doc! { "$documents": [{ "a": 1 }] }];
+        assert!(!requires_admin_db(&pipeline));
+    }
+
+    #[test]
+    fn empty_pipeline_uses_current_db() {
+        assert!(!requires_admin_db(&[]));
+    }
+
+    #[test]
+    fn pipeline_ending_in_out_is_write_stage() {
+        let pipeline = vec![doc! { "$match": {} }, doc! { "$out": "target" }];
+        assert!(ends_with_write_stage(&pipeline));
+    }
+
+    #[test]
+    fn pipeline_ending_in_merge_is_write_stage() {
+        let pipeline = vec![
+            doc! { "$documents": [{ "a": 1 }] },
+            doc! { "$merge": "target" },
+        ];
+        assert!(ends_with_write_stage(&pipeline));
+    }
+
+    #[test]
+    fn merge_before_last_stage_is_not_write_stage() {
+        let pipeline = vec![doc! { "$merge": "target" }, doc! { "$match": {} }];
+        assert!(!ends_with_write_stage(&pipeline));
+    }
+
+    #[test]
+    fn empty_pipeline_is_not_write_stage() {
+        assert!(!ends_with_write_stage(&[]));
     }
 
     #[test]

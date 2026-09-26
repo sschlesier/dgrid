@@ -66,6 +66,10 @@ export type DbCommandSignature = {
 };
 
 export const DB_COMMAND_SIGNATURES: Record<string, DbCommandSignature> = {
+  // Database-level aggregation (aggregate: 1) — for collectionless stages
+  // like $currentOp, $listLocalSessions, $documents
+  aggregate: { argTypes: ['any'], minArgs: 1, maxArgs: 1 },
+
   // Database info commands
   getCollectionNames: { argTypes: [], minArgs: 0, maxArgs: 0 },
   listCollections: { argTypes: ['object'], minArgs: 0, maxArgs: 1 },

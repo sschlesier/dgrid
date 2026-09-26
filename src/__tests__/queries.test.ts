@@ -885,6 +885,7 @@ db.location-config.findOneAndUpdate({locationId: '606361ebc9e7fd407a23935d'}, {$
         expect(detectQueryType('db.stats()')).toBe('db-command');
         expect(detectQueryType('db.serverStatus()')).toBe('db-command');
         expect(detectQueryType('db.createCollection("test")')).toBe('db-command');
+        expect(detectQueryType('db.aggregate([{ $currentOp: {} }])')).toBe('db-command');
       });
 
       it('detects collection queries', () => {
@@ -909,6 +910,37 @@ db.location-config.findOneAndUpdate({locationId: '606361ebc9e7fd407a23935d'}, {$
           expect(result.value.command).toBe('getCollectionNames');
           expect(result.value.args).toEqual([]);
         }
+      });
+
+      it('parses database-level aggregate with a collectionless pipeline', () => {
+        const result = parseDbCommand(`db.aggregate([
+          { $currentOp: { allUsers: true, idleConnections: true } },
+          { $group: { _id: "$clientMetadata.application.name", connections: { $sum: 1 } } },
+          { $sort: { connections: -1 } }
+        ])`);
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.value.command).toBe('aggregate');
+          expect(result.value.args).toEqual([
+            [
+              { $currentOp: { allUsers: true, idleConnections: true } },
+              {
+                $group: {
+                  _id: '$clientMetadata.application.name',
+                  connections: { $sum: 1 },
+                },
+              },
+              { $sort: { connections: -1 } },
+            ],
+          ]);
+        }
+      });
+
+      it('rejects database-level aggregate with no pipeline', () => {
+        const result = parseDbCommand('db.aggregate()');
+
+        expect(result.ok).toBe(false);
       });
 
       it('parses stats with no args', () => {
@@ -1057,6 +1089,7 @@ db.location-config.findOneAndUpdate({locationId: '606361ebc9e7fd407a23935d'}, {$
         expect(DB_COMMAND_SIGNATURES).toHaveProperty('createCollection');
         expect(DB_COMMAND_SIGNATURES).toHaveProperty('dropCollection');
         expect(DB_COMMAND_SIGNATURES).toHaveProperty('runCommand');
+        expect(DB_COMMAND_SIGNATURES).toHaveProperty('aggregate');
       });
     });
   });

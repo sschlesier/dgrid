@@ -71,7 +71,9 @@ pub fn strip_credentials(uri: &str) -> StrippedCredentials {
                 percent_decode_str(pass).decode_utf8_lossy().into_owned(),
             ),
             None => (
-                percent_decode_str(userinfo).decode_utf8_lossy().into_owned(),
+                percent_decode_str(userinfo)
+                    .decode_utf8_lossy()
+                    .into_owned(),
                 String::new(),
             ),
         },
@@ -207,8 +209,7 @@ mod tests {
 
         #[test]
         fn handles_multi_host_uri_without_credentials() {
-            let result =
-                strip_credentials("mongodb://host1:27017,host2:27017,host3:27017/admin");
+            let result = strip_credentials("mongodb://host1:27017,host2:27017,host3:27017/admin");
             assert_eq!(result.username, "");
             assert_eq!(result.password, "");
             assert_eq!(
