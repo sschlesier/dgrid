@@ -13,7 +13,7 @@ A clean, modern MongoDB GUI built with Tauri (Rust backend) and Svelte 5 fronten
 - **Backend**: Tauri 2 (Rust), MongoDB Rust driver, tokio async runtime
 - **Frontend**: Svelte 5 (runes), Vite 7, CodeMirror 6
 - **IPC**: Tauri commands (invoke) — no HTTP server
-- **Testing**: Vitest 3 (TypeScript), cargo test (Rust), Playwright (E2E — currently disabled)
+- **Testing**: Vitest 3 (TypeScript), cargo test (Rust), WebdriverIO + `tauri-webdriver` (E2E against the real Tauri app)
 - **Package Manager**: pnpm (required)
 
 ## Code Style
@@ -38,10 +38,11 @@ pnpm lint             # ESLint check
 pnpm test             # Run TypeScript test suite (Vitest)
 cargo test            # Run Rust test suite (in src-tauri/)
 
-# E2E Testing (currently disabled — see tests/e2e/README.md)
-# pnpm e2e            # Disabled — needs Tauri-compatible approach
-# pnpm e2e:headed     # Disabled
-# pnpm e2e:ui         # Disabled
+# E2E Testing (WebdriverIO against the Tauri app, tests/webdriver/)
+pnpm e2e:install-driver   # One-time: cargo install tauri-webdriver
+pnpm e2e                  # Build debug app, start MongoDB + driver, run all specs
+pnpm e2e:ci               # Same with --ci (CI runs it on Linux under xvfb-run)
+node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs   # One spec
 
 # Building
 pnpm build            # Build Tauri app (Rust + frontend)
@@ -55,7 +56,7 @@ pnpm build:frontend   # Build frontend only
 - Focus on behavior, not implementation details
 - Rust tests use `#[cfg(test)]` modules with `cargo test`
 - Component tests use @testing-library/svelte
-- E2E tests (Playwright) are currently disabled — see `tests/e2e/README.md`
+- E2E tests use WebdriverIO (mocha `describe`/`it`) in `tests/webdriver/specs/`; the Playwright suite in `tests/e2e/` is kept as reference only (see `tests/e2e/README.md`)
 
 ## Architecture Patterns
 
@@ -70,9 +71,10 @@ pnpm build:frontend   # Build frontend only
 - **API Client**: `src/api/client.ts` (Tauri invoke wrappers)
 - **API Contracts**: `src/lib/contracts.ts` (single source of truth)
 - **Query Parser**: `src/lib/queries.ts` (frontend-side mongo shell parser)
-- **E2E Tests**: `tests/e2e/specs/{feature}.spec.ts`
-- **E2E Fixtures**: `tests/e2e/fixtures.ts`
-- **E2E Selectors**: `tests/e2e/helpers/selectors.ts`
+- **E2E Tests**: `tests/webdriver/specs/{feature}.e2e.mjs`
+- **E2E Helpers**: `tests/webdriver/helpers.mjs` (app actions), `tests/webdriver/runtime.mjs` (MongoDB info, seeding)
+- **E2E Selectors**: `tests/webdriver/selectors.mjs`
+- **E2E Config / Runner**: `tests/webdriver/wdio.conf.mjs`, `scripts/run-tauri-e2e.mjs`
 
 ## Workflow
 
@@ -91,7 +93,7 @@ Choose the right test level for what you're verifying:
 | **Rust unit** (cargo test)              | Backend logic, BSON serialization, query execution, storage         | Fast   |
 | **TS unit/integration** (Vitest)        | Query parser, frontend stores, data transforms                      | Fast   |
 | **Component** (@testing-library/svelte) | UI widget behavior: toggles, form validation, conditional rendering | Medium |
-| **E2E** (Playwright)                    | Complete user journeys that cross frontend and backend              | Slow   |
+| **E2E** (WebdriverIO)                   | Complete user journeys that cross frontend and backend              | Slow   |
 
 ### E2E tests should cover user journeys, not widget details
 
@@ -103,7 +105,7 @@ A bad E2E test: "Password field disables when save-password checkbox is unchecke
 
 ### When adding a feature
 
-> E2E tests are currently disabled. When re-enabled, follow the patterns in `.claude/rules/e2e-testing.md`.
+> Extend the matching spec in `tests/webdriver/specs/` (or add one for a genuinely new feature area). Add selectors to `tests/webdriver/selectors.mjs` and use them via `s` from `helpers.mjs` rather than inlining them. Note that `.claude/rules/e2e-testing.md` still describes the old Playwright suite.
 
 ## Tickets
 
@@ -167,4 +169,4 @@ See `.claude/rules/` for detailed guidelines on:
 - Svelte component structure
 - Testing patterns
 - TypeScript conventions
-- E2E testing patterns
+- E2E testing patterns (describes the Playwright suite; see `tests/webdriver/` for the active one)
