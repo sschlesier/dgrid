@@ -105,6 +105,12 @@ A bad E2E test: "Password field disables when save-password checkbox is unchecke
 
 > E2E tests are currently disabled. When re-enabled, follow the patterns in `.claude/rules/e2e-testing.md`.
 
+## Tickets
+
+This project uses `tk` for tickets (`.tickets/`, one Markdown file per ticket). Run `tk help`
+for commands. Ticket pipeline conventions, the Definition of Ready and the cold read are in
+`.agents/tickets/`. Run ticket commands from the main checkout, not a worktree.
+
 ## Security Principles
 
 - No network exposure — Tauri IPC is in-process (no HTTP server)
