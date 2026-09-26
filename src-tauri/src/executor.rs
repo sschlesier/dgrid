@@ -872,8 +872,14 @@ async fn execute_db_command(
             pipeline.push(doc! { "$skip": (options.page - 1) * options.page_size });
             pipeline.push(doc! { "$limit": options.page_size + 1 });
 
+            let target_db = if requires_admin_db(&pipeline) {
+                db.client().database("admin")
+            } else {
+                db.clone()
+            };
+
             use futures_util::TryStreamExt;
-            let mut docs: Vec<Document> = db
+            let mut docs: Vec<Document> = target_db
                 .aggregate(pipeline)
                 .await
                 .map_err(|e| e.to_string())?
@@ -1177,6 +1183,18 @@ fn optional_doc(value: &Option<Value>) -> Result<Option<Document>, String> {
     }
 }
 
+/// `$currentOp` must run against the admin database, whichever database the tab is using.
+fn requires_admin_db(pipeline: &[Document]) -> bool {
+    first_stage_name(pipeline) == Some("$currentOp")
+}
+
+fn first_stage_name(pipeline: &[Document]) -> Option<&str> {
+    pipeline
+        .first()
+        .and_then(|d| d.keys().next())
+        .map(String::as_str)
+}
+
 fn serialize_docs(docs: &[Document]) -> Vec<Map<String, Value>> {
     docs.iter().map(bson_ser::serialize_document).collect()
 }
@@ -1264,6 +1282,26 @@ mod tests {
             }
             _ => panic!("Expected db command"),
         }
+    }
+
+    #[test]
+    fn current_op_pipeline_requires_admin_db() {
+        let pipeline = vec![
+            doc! { "$currentOp": { "allUsers": true } },
+            doc! { "$sort": { "connections": -1 } },
+        ];
+        assert!(requires_admin_db(&pipeline));
+    }
+
+    #[test]
+    fn documents_pipeline_uses_current_db() {
+        let pipeline = vec![doc! { "$documents": [{ "a": 1 }] }];
+        assert!(!requires_admin_db(&pipeline));
+    }
+
+    #[test]
+    fn empty_pipeline_uses_current_db() {
+        assert!(!requires_admin_db(&[]));
     }
 
     #[test]
