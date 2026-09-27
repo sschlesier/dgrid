@@ -1,6 +1,6 @@
 ---
 id: dgr-h97q
-status: open
+status: closed
 deps: []
 links: [dgr-cuuy]
 created: 2026-09-26T22:53:23Z
