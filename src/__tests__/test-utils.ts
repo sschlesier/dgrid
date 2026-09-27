@@ -308,8 +308,23 @@ export function createMockEditorStore(overrides: Partial<MockEditorStore> = {}):
   };
 }
 
+type MockApiMethod =
+  | 'getConnections'
+  | 'getConnection'
+  | 'createConnection'
+  | 'updateConnection'
+  | 'deleteConnection'
+  | 'testConnection'
+  | 'connectToConnection'
+  | 'disconnectFromConnection'
+  | 'getDatabases'
+  | 'getCollections'
+  | 'executeQuery'
+  | 'readFile'
+  | 'writeFile';
+
 // API mock factory
-export function createMockApi() {
+export function createMockApi(): Record<MockApiMethod, ReturnType<typeof vi.fn>> {
   return {
     getConnections: vi.fn(),
     getConnection: vi.fn(),
