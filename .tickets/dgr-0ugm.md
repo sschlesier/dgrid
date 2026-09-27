@@ -1,6 +1,6 @@
 ---
 id: dgr-0ugm
-status: in_progress
+status: closed
 deps: [dgr-keqg]
 links: []
 created: 2026-09-26T23:41:40Z
@@ -83,3 +83,7 @@ Approved for agent pickup by Scott Schlesier. Preview cold read: not run.
 **2026-09-27T00:40:47Z**
 
 Pickup blocked before any edits: couldn't create the e2e-smoke-script worktree. EnterWorktree is refused from a subagent with a cwd override, and a direct 'gtr new --from-current' was denied by the auto-mode permission classifier. Also: origin/main lacks b821f08/43cf3ad (the dgr-keqg commits), so a default gtr worktree (based on origin/main) would miss them. Needs --from-current or a push first. Ticket left open (in_progress).
+
+**2026-09-27T00:46:18Z**
+
+Done on branch e2e-smoke-script (worktree): c02fb4d removes e2e:headed and renames e2e:report to e2e:smoke; 0d324dd documents it in AGENTS.md, .claude/rules/e2e-testing.md and README.md. pnpm verify passed; script string check and rg check passed; live pnpm e2e:smoke ran only smoke.e2e.mjs, 5 passing (1/1 spec file). Not pushed or merged.

@@ -1,6 +1,6 @@
 ---
 id: dgr-nebk
-status: open
+status: in_progress
 deps: [dgr-keqg, dgr-0ugm]
 links: []
 created: 2026-09-26T23:41:40Z
@@ -81,3 +81,7 @@ Refined at approval review: added the smoke-run fallback (if tauri-webdriver is 
 **2026-09-27T00:04:44Z**
 
 Approved for agent pickup by Scott Schlesier. Preview cold read: not run.
+
+**2026-09-27T00:47:24Z**
+
+Blocked: permission denied for deleting tests/e2e (git rm -r / rm -rf) + pnpm remove @playwright/test in worktree remove-playwright-suite. Boundary check clean; baseline Vitest 27 test files. No changes committed.
