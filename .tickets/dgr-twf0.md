@@ -7,7 +7,7 @@ created: 2026-09-26T17:52:46Z
 type: feature
 priority: 3
 assignee: Scott Schlesier
-tags: [stage:refined]
+tags: [stage:agent-ready]
 ---
 
 # Filter query history
@@ -80,3 +80,7 @@ Out of scope:
 **2026-09-26T17:59:01Z**
 
 Refined: filter matches query text + database, Escape clear-then-close, history cap raised 20→200 (no migration), stays global across connections; keyboard nav split to dgr-ye2b.
+
+**2026-09-27T00:09:45Z**
+
+Approved for agent pickup by Scott Schlesier. Preview cold read: pass.

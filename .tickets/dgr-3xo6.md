@@ -23,6 +23,7 @@ Top-level fields like `name` already work unquoted.
 Out of scope:
 
 - Changing the query parser to accept unquoted dotted keys
+- Installing E2E tooling (`tauri-webdriver`) in the pickup environment
 - Changing which fields are offered, their order or how they're filtered
 - Context-aware completion (key vs. value position, operator completion)
 - Multi-word prefixes: typing `my fi` and accepting `my field` still replaces only `fi`
@@ -42,6 +43,12 @@ Out of scope:
 - The popup label stays unquoted (`fee.foo`). Only the inserted text changes.
 - After insertion the cursor sits after the closing quote. Inside an existing string it
   sits right after the path.
+- E2E run: the runner builds the debug app itself and starts MongoDB through
+  `mongodb-memory-server`, so the only external requirement is `tauri-webdriver`. If the
+  runner stops with "tauri-webdriver is not installed", don't install it. Still write the
+  new e2e test, rely on the unit tests for the criteria, and record in a note that the live
+  run was skipped and why. A build failure or a failing spec is not a skip: stop and
+  report it.
 
 ## Acceptance Criteria
 
@@ -63,7 +70,7 @@ Out of scope:
   to an `EditorState` with `javascript()` + `closeBrackets()`, covering each criterion above
 - `pnpm e2e --spec tests/webdriver/specs/field-autocomplete.e2e.mjs`: new test in the
   existing spec. Seed `{ fee: { foo: 1 } }`, complete `find({ fee.f` → the editor text
-  contains `{ "fee.foo"`
+  contains `{ "fee.foo"` (or the documented skip)
 - Manual: `pnpm dev`, connect, open a collection that has a nested document
   (e.g. `{ fee: { foo: 1 } }`), run `db.coll.find({})` once so the fields are cached, then
   type `db.coll.find({ fee.f`, press Tab twice → the editor shows `db.coll.find({ "fee.foo"`.

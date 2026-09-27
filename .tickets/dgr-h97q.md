@@ -7,7 +7,7 @@ created: 2026-09-26T22:53:23Z
 type: feature
 priority: 3
 assignee: Scott Schlesier
-tags: [stage:refined]
+tags: [stage:agent-ready]
 ---
 
 # Show index TTL as human-readable duration
@@ -70,3 +70,7 @@ Don't touch: `src-tauri/`, `CHANGES.md`.
 **2026-09-26T22:59:05Z**
 
 Refined: formatTtl in format.ts; largest unit s/m/h/d rounded to tenths (days max, round-up promotes unit); raw seconds appended in brackets from 60s up, e.g. 1.5m (92s); tooltip only.
+
+**2026-09-27T00:07:56Z**
+
+Approved for agent pickup by Scott Schlesier. Preview cold read: not run.

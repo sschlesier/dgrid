@@ -78,8 +78,10 @@ Out of scope:
 - `pnpm audit --audit-level high`: compare what's still reported against `ignoreGhsas`
   plus the follow-up chores; nothing is left over
 - `pnpm verify`
-- The `linux-e2e` workflow passes on the PR (covers the @wdio/\* updates; the WebdriverIO
-  suite isn't run locally)
+- After handoff (reviewer, not the implementing agent): the `linux-e2e` workflow passes
+  on the PR (covers the @wdio/\* updates; the WebdriverIO suite isn't run locally). The
+  agent lists any `@wdio/*` version changes in the completion note so the reviewer knows
+  to check it.
 - Manual (`pnpm dev`): the app launches, connects to a local MongoDB, runs a `find` query
   and shows results in the Table view; the query editor works, with autocomplete showing.
 
@@ -87,6 +89,7 @@ Out of scope:
 
 Stop and send back if: a fix needs `@tauri-apps/*` bumped past the Rust crate's version.
 Don't touch: `src-tauri/Cargo.toml` / `Cargo.lock`.
+Don't push or open a PR; commit locally and stop at the completion note.
 
 ## Notes
 
