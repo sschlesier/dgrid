@@ -1,6 +1,6 @@
 ---
 id: dgr-bbp9
-status: in_progress
+status: closed
 deps: []
 links: [dgr-mk2m]
 created: 2026-09-27T01:37:17Z
@@ -110,3 +110,7 @@ Breaking changes 16-20 vs actual usage (happy-dom is only referenced as environm
 Tests: 689/689 pass before and after; no test files changed, no new warnings.
 Audit before -> after: 1 critical / 4 high (2 ignored) / 2 moderate -> 0 critical / 2 high (2 ignored, extract-zip) / 2 moderate. GHSA-37j7-fg3j-429f, GHSA-6q6h-j7hj-3r64, GHSA-w4gp-fjgq-3q4g no longer reported.
 Verified: pnpm test --run, pnpm audit grep (empty), pnpm verify (exit 0; includes 182 Rust tests).
+
+**2026-09-27T02:18:45Z**
+
+Merged to main in 95d2a18 (branch happy-dom-20, 18c59cc). Re-checked on main: package.json happy-dom ^20.14.5, lockfile 20.14.5, pnpm audit no longer reports the three GHSAs, package.json diff is the happy-dom line only. Closing.
