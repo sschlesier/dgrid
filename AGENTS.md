@@ -105,7 +105,7 @@ A bad E2E test: "Password field disables when save-password checkbox is unchecke
 
 ### When adding a feature
 
-> Extend the matching spec in `tests/webdriver/specs/` (or add one for a genuinely new feature area). Add selectors to `tests/webdriver/selectors.mjs` and use them via `s` from `helpers.mjs` rather than inlining them. Note that `.claude/rules/e2e-testing.md` still describes the old Playwright suite.
+> Extend the matching spec in `tests/webdriver/specs/` (or add one for a genuinely new feature area). Add selectors to `tests/webdriver/selectors.mjs` and use them via `s` from `helpers.mjs` rather than inlining them. See `.claude/rules/e2e-testing.md` for the full conventions.
 
 ## Tickets
 
@@ -169,4 +169,4 @@ See `.claude/rules/` for detailed guidelines on:
 - Svelte component structure
 - Testing patterns
 - TypeScript conventions
-- E2E testing patterns (describes the Playwright suite; see `tests/webdriver/` for the active one)
+- E2E testing patterns (WebdriverIO suite in `tests/webdriver/`)
