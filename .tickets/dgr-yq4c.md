@@ -1,13 +1,13 @@
 ---
 id: dgr-yq4c
-status: open
+status: in_progress
 deps: []
 links: [dgr-mk2m]
 created: 2026-09-27T01:52:40Z
 type: chore
 priority: 1
 assignee: Scott Schlesier
-tags: [stage:agent-ready]
+tags: [stage:review]
 ---
 
 # Upgrade vitest to 5 to fix audit findings
@@ -110,3 +110,63 @@ Refined: target latest vitest 5 + @vitest/coverage-v8, falling back to 4.1.x (>=
 **2026-09-27T02:26:56Z**
 
 Approved for agent pickup by Scott Schlesier. Preview cold read: not run.
+
+**2026-09-27T02:30:13Z**
+
+Picked up; working on branch vitest-5.
+
+**2026-09-27T02:37:10Z**
+
+Completion note (implementing agent). Branch vitest-5, commits ae08aaf (upgrade) and 69a3233 (coverage include).
+
+Chose vitest 5: vitest and @vitest/coverage-v8 ^3.2.7 -> ^5.0.2 (both resolve to 5.0.2). No fallback condition hit: vite 7.3.6, happy-dom 20.14.5, @testing-library/svelte 5.4.2 unchanged; 1 test file changed; test:coverage works; no new audit finding; no app code affected. package.json diff vs main: only the two vitest lines.
+
+Breaking changes vs actual usage.
+
+Vitest 4.0:
+
+- Requires Vite >=6, Node >=20: doesn't affect us (vite 7.3.6, Node 24).
+- V8 coverage AST remapping; ignoreEmptyLines / experimentalAstAwareRemapping removed; ignore hints changed: doesn't affect us beyond numbers (we set none of those options, no ignore hints in src).
+- coverage.all / coverage.extensions removed: AFFECTS US. Files no test imports dropped out of the report (34 of 69 src files, e.g. App.svelte, grid/_, results/_), inflating All files to 71.8% statements. Fixed with coverage.include: ['src/**'] in vitest.config.ts (69a3233); all src files are reported again (All files 44% statements). Assumption: I didn't run v3 coverage for a baseline; v3's default include was broader than src, and scoping to src/** is my choice.
+- Simplified default exclude: doesn't affect us (we set test.exclude explicitly).
+- spyOn/fn support constructors (arrow implementations can't be new'd): doesn't affect us; no vi.spyOn, and no mock is called with new (new FileWatcher() in websocket.test.ts is the real class).
+- Mocking changes (vi.fn name, restoreAllMocks only restores manual spies, automocked methods/getters): doesn't affect us. The one restoreAllMocks (src/**tests**/keyboard.test.ts:23) has no spies to restore; its vi.stubGlobal calls were never undone by restoreAllMocks before either. No automocks (all vi.mock calls use factories), no getMockName.
+- Standalone filename filter, vite-node -> module runner, workspace -> projects, browser provider rework, pool rework, reporter API removals, custom element snapshot shadow roots: don't affect us (not used: no standalone, no workspace/projects/pool/browser options, no custom reporters, no snapshots).
+- Deprecated APIs removed (poolMatchGlobs, environmentMatchGlobs, deps.*, test options as 3rd arg): doesn't affect us (none used; no it(name, fn, opts) calls).
+
+Vitest 4.1:
+
+- beforeAll/afterAll receive file/worker context instead of Suite: doesn't affect us (tests/setup.ts hooks take no arguments).
+- Strict locators in webdriverio/preview browser providers: doesn't affect us (no browser mode).
+
+Vitest 5.0:
+
+- Requires Vite >=6.4, Node >=22.12; vite now a peer: doesn't affect us (vite 7.3.6 already a direct dependency, Node 24, pnpm).
+- clearMocks on by default: doesn't affect us; no test relies on call history across tests (all 689 pass unchanged; 11 files already reset or clear their mocks explicitly).
+- testNamePattern matches '>'-joined full name: doesn't affect us (no -t in scripts).
+- Inline projects inherit root / nested projects / shared Vite server: doesn't affect us (no projects).
+- Hoisted vi.mock/unmock/hoisted must be top-level: doesn't affect us; all 12 files call vi.mock at module scope (no indented vi.mock).
+- Browser automock, locators serialized/strict, toHaveTextContent strict, async render in vitest-browser-*, toMatchScreenshot dir, orchestrator session URL, browser.api -> api: don't affect us (no browser mode; our toHaveTextContent is jest-dom's, not vitest browser's).
+- Class mocks keep prototype methods: doesn't affect us (no class mocks).
+- bench() rewrite: doesn't affect us (no benchmarks).
+- UI needs authenticated URL: doesn't affect us (test:ui already broken, out of scope).
+- Fake timers mock Temporal: doesn't affect us (app-store.test.ts uses useFakeTimers for setTimeout only; no Temporal in src).
+- toThrow('') matches anything: doesn't affect us (no toThrow('')).
+- Assertion types Matchers<R, T>: doesn't affect us (no custom matcher declarations; jest-dom types still type-check).
+- expect.poll rejects on timeout: doesn't affect us (not used).
+- Unawaited .resolves/.rejects fail the test: doesn't affect us; every .rejects in api-client.test.ts is awaited.
+- Test titles use pretty-format: doesn't affect us functionally (only format.test.ts uses %i/%s in it.each titles; titles are cosmetic).
+- test.sequential / describe.sequential removed: doesn't affect us (not used).
+- Glob coverage thresholds / perFile: doesn't affect us (no thresholds).
+- Coverage include/exclude match more precisely: doesn't affect us; our excludes (node_modules/, dist/, **/*.test.ts, **/**tests**/**) still exclude the same files (report has no test files, verified).
+- Config not looked up from parent dirs: doesn't affect us (vitest.config.ts at repo root).
+- DOM env global assignments update window: doesn't affect us; vi.stubGlobal('navigator'/'localStorage') in keyboard.test.ts and keybindings-store.test.ts still pass; no direct globalThis/window assignments.
+- populateGlobal originals, .vitest report dir, 1-based worker IDs, resolveConfig return, @vitest/runner/ws-client deprecation, removed vitest/* entrypoints: don't affect us (none used; we only import from 'vitest', 'vitest/config').
+
+Changed test code: src/**tests**/test-utils.ts only. createMockApi (unused anywhere) got an explicit return type Record<MockApiMethod, ReturnType<typeof vi.fn>>, because tsc -p src failed with TS2742 (inferred vi.fn type references an internal vitest chunk). No test skipped, deleted or loosened; no assertion changed.
+
+New output (not a warning): vitest 5 prints a hint that happy-dom is created once per file and suggests pool: 'vmThreads' or isolate: false. Left alone (changing the pool/environment is out of scope).
+
+Audit before -> after: 2 moderate (GHSA-82fw-gwwq-j7x9 via vitest and @vitest/mocker) + 2 high ignored -> 2 high ignored only. No new findings.
+Tests: 689/689 before and after.
+Verified: pnpm test --run, pnpm test:coverage --run (writes coverage/ report), pnpm audit (GHSA gone), pnpm ls vitest @vitest/coverage-v8 (5.0.2 both), git diff main -- package.json (two lines), pnpm verify (exit 0; includes 182 Rust tests).
