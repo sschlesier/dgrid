@@ -1,6 +1,6 @@
 ---
 name: ticket-approve
-description: Human sign-off that makes a refined tk ticket agent-ready (eligible for unattended pickup). Runs tk-lint, summarizes the ticket for review, optionally runs a preview cold read, then records the approval or sends the ticket back. Use when asked to approve, sign off or review a refined ticket, or when told to make a ticket agent-ready.
+description: Human sign-off that makes a refined ticket agent-ready (eligible for unattended pickup). Runs br-lint, summarizes the ticket for review, optionally runs a preview cold read, then records the approval or sends the ticket back. Use when asked to approve, sign off or review a refined ticket, or when told to make a ticket agent-ready.
 ---
 
 # Approve a ticket
@@ -10,19 +10,19 @@ is the trust boundary before that. **Never approve without an explicit yes from 
 in this conversation.** A request like "approve dgr-a1b2" starts the review; it isn't the
 yes. Being asked to run this skill, or a summary that looks fine, is not approval either.
 
-Read `.agents/tickets/ticket-format.md` first. All `tk` commands run from `$MAIN`, and the
-decision is committed to `main` as soon as it's recorded ("Committing ticket changes").
+Read `.agents/tickets/ticket-format.md` first. Don't commit ticket changes; the user
+commits them on the `tickets` branch.
 
 ## 1. Select
 
 - Ticket ID given: use it.
-- None given: list `tk ls -T stage:refined` and ask which one. Review one ticket at a time.
+- None given: list `br list -l stage:refined` and ask which one. Review one ticket at a time.
 - The ticket must be in stage `refined`. Otherwise stop and name the right skill
   (`ticket-refine` for captured, triaged or needs-clarification).
 
 ## 2. Lint
 
-Run `tk-lint <id>`. If anything FAILs, stop: show the failures and suggest
+Run `scripts/tickets/br-lint <id>`. If anything FAILs, stop: show the failures and suggest
 `/ticket-refine <id>`. Show any WARNs in the summary below.
 
 ## 3. Summarize for review
@@ -65,18 +65,17 @@ Use AskUserQuestion with these options:
 
 **Approve:**
 
-1. `tk-stage <id> agent-ready`
-2. `tk add-note <id> "Approved for agent pickup by $(git config user.name). Preview cold read: <pass | blocked, overridden: reason | not run>."`
-3. Commit on `main`: `chore(tickets): <id> agent-ready`
+1. `scripts/tickets/br-stage <id> agent-ready`
+2. `br comments add <id> -m "Approved for agent pickup by <name>. Preview cold read: <pass | blocked, overridden: reason | not run>."`,
+   with `<name>` from `git config user.name`
 
 **Send back:**
 
-1. `tk-stage <id> needs-clarification`
-2. `tk add-note <id>` with the concerns written as questions, so `ticket-refine` can use
-   them as its agenda.
-3. Commit on `main`: `chore(tickets): <id> sent back for clarification`
+1. `scripts/tickets/br-stage <id> needs-clarification`
+2. `br comments add <id>` with the concerns written as questions, so `ticket-refine` can
+   use them as its agenda.
 
 **Leave as is:** change nothing.
 
-Report the final stage. If you approved it and `tk ready -T stage:agent-ready` doesn't
+Report the final stage. If you approved it and `br ready -l stage:agent-ready` doesn't
 list it, say which dependency is still open.

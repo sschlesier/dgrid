@@ -1,6 +1,6 @@
 ---
 name: ticket-refine
-description: Turn a rough ticket or idea into a spec an agent can implement unattended. Drafts the whole ticket from the repo first, then asks only about the gaps against the Definition of Ready. Use when asked to refine, spec out, flesh out or clarify a ticket, when given a tk ticket ID in stage captured, triaged, needs-clarification or refined, or when given a new idea to turn into a ticket.
+description: Turn a rough ticket or idea into a spec an agent can implement unattended. Drafts the whole ticket from the repo first, then asks only about the gaps against the Definition of Ready. Use when asked to refine, spec out, flesh out or clarify a ticket, when given a ticket ID in stage captured, triaged, needs-clarification or refined, or when given a new idea to turn into a ticket.
 ---
 
 # Refine a ticket
@@ -11,25 +11,23 @@ and it needs a human.
 
 Read these first:
 
-- `.agents/tickets/ticket-format.md`: where ticket state lives, commands, file layout
+- `.agents/tickets/ticket-format.md`: where ticket state lives, commands, fields
 - `.agents/tickets/definition-of-ready.md`: the checklist and the questions for each type
 
-All `tk` commands run from the main checkout (`$MAIN`), and every ticket change is
-committed to `main` right after it's made, as described in `ticket-format.md`
-("Committing ticket changes").
+`br` and the `scripts/tickets/` helpers work from any checkout. Don't commit ticket
+changes; the user commits them on the `tickets` branch.
 
 ## 1. Load or create
 
-- **Ticket ID given:** `tk show <id>`. Note its stage.
-  - `needs-clarification`: the most recent note has the questions from the agent that
+- **Ticket ID given:** `br show <id>`. Note its stage.
+  - `needs-clarification`: the most recent comment has the questions from the agent that
     sent it back. Those questions are the agenda for this pass. Answer each one
     explicitly.
   - `agent-ready`: refining it cancels the approval. Say so before changing anything.
-- **Idea given, no ticket:** search `$MAIN/.tickets/` for duplicates (`rg -il '<keywords>'`).
-  If there's none, `tk create` it with a working title and `--tags stage:captured`, then
-  commit it (`chore(tickets): <id> captured`).
+- **Idea given, no ticket:** search for duplicates (`br search "<keywords>" --all`). If
+  there's none, `br create` it with a working title and `-l stage:captured`.
 - **Captured (not triaged):** do a quick triage inline. Check for duplicates and set type
-  and priority, and commit that. If it's clearly bigger than one PR, stop and propose
+  and priority. If it's clearly bigger than one PR, stop and propose
   splitting it into separate tickets before refining.
 
 ## 2. Research just enough to draft
@@ -41,7 +39,7 @@ follow) is for the pickup step, when the code is current.
 
 ## 3. Draft the whole ticket
 
-Write a complete draft in the ticket's layout (`ticket-format.md`). Fill every Definition
+Write a complete draft in the ticket's fields (`ticket-format.md`). Fill every Definition
 of Ready item you can, based on the ticket, the research and sensible defaults.
 
 - The outcome is one sentence, from the user's point of view.
@@ -78,14 +76,12 @@ the user accepts the ones that remain.
 
 ## 6. Write and hand off
 
-1. Write the ticket file at `$MAIN/.tickets/<id>.md`:
-   - Keep the frontmatter, except for updating `type`, `priority` or the title when they
-     changed.
-   - Keep `## Notes` exactly as it was.
-   - Replace everything else.
-2. `tk-lint <id>`: fix every FAIL. Fix WARNs unless the user accepts them.
-3. `tk-stage <id> refined`
-4. `tk add-note <id> "Refined: <one line on what was settled>"`. If the ticket came
+1. Write the ticket's fields with `br update <id>`: the description
+   (`--description-file`), `--design` and `--acceptance-criteria`, plus `--title`, `-t`
+   and `-p` when they changed. Leave the comments alone. If br refuses a rewrite for
+   being much shorter, check that the shorter text is intended, then add `--force`.
+2. `scripts/tickets/br-lint <id>`: fix every FAIL. Fix WARNs unless the user accepts them.
+3. `scripts/tickets/br-stage <id> refined`
+4. `br comments add <id> -m "Refined: <one line on what was settled>"`. If the ticket came
    back from needs-clarification, list which questions were answered and how.
-5. Commit the ticket file on `main` (`chore(tickets): <id> refined`).
-6. Tell the user the ticket is refined and suggest `/ticket-approve <id>`.
+5. Tell the user the ticket is refined and suggest `/ticket-approve <id>`.
