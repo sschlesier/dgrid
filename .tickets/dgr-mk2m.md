@@ -2,7 +2,7 @@
 id: dgr-mk2m
 status: in_progress
 deps: []
-links: [dgr-bbp9]
+links: [dgr-bbp9, dgr-t6hb]
 created: 2026-09-26T18:02:08Z
 type: chore
 priority: 2
