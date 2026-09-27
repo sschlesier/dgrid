@@ -26,8 +26,13 @@ branch or in a worktree.
 
 **When:** after each ticket action and before moving on or ending your turn. A ticket
 action is one logical change: creating a ticket, a stage change with its note, writing a
-refined spec (plus its stage change and note), or a progress note during pickup. Touch
-several tickets in one action (e.g. `tk dep`)? Commit them together.
+refined spec (plus its stage change and note), a progress note during pickup, or the
+completion note plus the move to `review`. Touch several tickets in one action (e.g.
+`tk dep`)? Commit them together.
+
+Finishing a pickup: the completion note and the stage change to `review` are one ticket
+action. Commit them to `main` before you stop, even when the ticket says to stop at the
+completion note. That stop applies to the code branch, not the ticket.
 
 **How:**
 
