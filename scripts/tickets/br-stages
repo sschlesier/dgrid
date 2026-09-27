@@ -1,34 +1,23 @@
 #!/usr/bin/env bash
-# Show open issues grouped by pipeline stage.
+# Show open tickets grouped by pipeline stage (their br status).
 #
 # Usage: br-stages
 #
-# Stage comes from the stage:* label; unlabeled issues count as captured.
-# in_progress status wins over the label unless the label is stage:review.
-# needs-clarification is listed first because it is waiting on a human.
+# needs-clarification is listed first because it is waiting on a human; open is
+# the captured stage.
 set -euo pipefail
 
 blocked=$(br blocked --json | jq -c '(if type == "array" then . else .issues end)
     | map({ key: .id, value: .blocked_by[0] }) | from_entries')
 
 br list --json --limit 0 | jq -r --argjson blocked "$blocked" '
-    ["needs-clarification", "captured", "triaged", "refined", "agent-ready", "in_progress", "review"] as $order
+    ["needs-clarification", "open", "triaged", "refined", "agent-ready", "in_progress", "review"] as $order
     | .issues
-    | map(select(.status != "closed")
-        | ((.labels // []) | map(select(startswith("stage:")) | ltrimstr("stage:"))) as $stages
-        | ($stages[0] // "captured") as $label
-        | (if .status == "in_progress" and $label != "review" then "in_progress" else $label end) as $stage
-        | {
-            stage: (if ($order | index($stage)) then $stage else "captured" end),
-            id, priority, title,
-            note: ([
-                (if ($stages | length) > 1 then "  !! multiple stage labels" else empty end),
-                (if ($order | index($stage)) then empty else "  !! unknown stage \($stage)" end),
-                (if $stage == "agent-ready" and $blocked[.id] then "  (blocked by \($blocked[.id]))" else empty end)
-              ] | join(""))
-          })
-    | sort_by((.stage as $s | $order | index($s)), .priority, .id)
-    | group_by(.stage as $s | $order | index($s))
-    | map("== \(.[0].stage) (\(length)) ==\n" + (map("  \((.id + "          ")[0:10]) P\(.priority)  \(.title)\(.note)") | join("\n")))
+    | map(select(.status as $s | $order | index($s))
+        | . + { note: (if .status == "agent-ready" and $blocked[.id] then "  (blocked by \($blocked[.id]))" else "" end) })
+    | sort_by((.status as $s | $order | index($s)), .priority, .id)
+    | group_by(.status as $s | $order | index($s))
+    | map("== \(.[0].status) (\(length)) ==\n"
+        + (map("  \((.id + "          ")[0:10]) P\(.priority)  \(.title)\(.note)") | join("\n")))
     | join("\n\n")
-    | if . == "" then "No open issues" else . end'
+    | if . == "" then "No open tickets" else . end'
