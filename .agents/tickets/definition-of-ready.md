@@ -5,17 +5,17 @@ the repo. Each item says where in the ticket it's recorded (see `ticket-format.m
 
 `tk-lint` checks items 1–3 and 6 structurally. The rest need judgment.
 
-| # | Item | Ready when | Recorded in |
-|---|---|---|---|
-| 1 | **Outcome** | One sentence: what is different when this is done, and for whom. Not a task list. | first paragraph |
-| 2 | **Acceptance criteria** | Each one is a statement that can be tested by observing behavior. No "works well" or "is clean". | `## Acceptance Criteria` |
-| 3 | **Verification** | Exact commands or steps that prove the criteria hold. `pnpm verify` plus anything specific (a named test, a manual check with steps). | `## Verification` |
-| 4 | **Scope** | Clear what's out of scope where there's a plausible way to overreach. Migrations, public API changes and config changes are flagged. | Out of scope in description; flags in `## Design` |
-| 5 | **Size** | Fits in one PR and one agent session. If not, split it. An epic is never ready. | type; the split is recorded with `tk dep` |
-| 6 | **Dependencies** | Each dependency exists and is expected to close first, or the ticket says what to stub. | `deps` |
-| 7 | **No open decisions** | Every "should we X or Y?" is answered, with the answer written down. | `## Design` |
-| 8 | **Constraints** | Performance, compatibility, security, "don't touch X", where they apply. | `## Design` or `## Boundaries` |
-| 9 | **Autonomy boundaries** | Anything *specific to this ticket* the agent must stop and send back on. The default rule always applies, so only exceptions are written down. | `## Boundaries` |
+| #   | Item                    | Ready when                                                                                                                                     | Recorded in                                       |
+| --- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| 1   | **Outcome**             | One sentence: what is different when this is done, and for whom. Not a task list.                                                              | first paragraph                                   |
+| 2   | **Acceptance criteria** | Each one is a statement that can be tested by observing behavior. No "works well" or "is clean".                                               | `## Acceptance Criteria`                          |
+| 3   | **Verification**        | Exact commands or steps that prove the criteria hold. `pnpm verify` plus anything specific (a named test, a manual check with steps).          | `## Verification`                                 |
+| 4   | **Scope**               | Clear what's out of scope where there's a plausible way to overreach. Migrations, public API changes and config changes are flagged.           | Out of scope in description; flags in `## Design` |
+| 5   | **Size**                | Fits in one PR and one agent session. If not, split it. An epic is never ready.                                                                | type; the split is recorded with `tk dep`         |
+| 6   | **Dependencies**        | Each dependency exists and is expected to close first, or the ticket says what to stub.                                                        | `deps`                                            |
+| 7   | **No open decisions**   | Every "should we X or Y?" is answered, with the answer written down.                                                                           | `## Design`                                       |
+| 8   | **Constraints**         | Performance, compatibility, security, "don't touch X", where they apply.                                                                       | `## Design` or `## Boundaries`                    |
+| 9   | **Autonomy boundaries** | Anything _specific to this ticket_ the agent must stop and send back on. The default rule always applies, so only exceptions are written down. | `## Boundaries`                                   |
 
 ## Default blocking rule (used by pickup)
 
@@ -33,3 +33,9 @@ These are prompts for refinement, not required sections. Ask only the ones that 
   stores, components); empty, error and loading states.
 - **task / chore:** what "done" means concretely; anything that must keep working
   unchanged.
+- **major dependency upgrade** (npm, Cargo or any other): the ticket's Design must require
+  reading the release notes / changelog for every major version crossed (e.g. 15 → 20
+  means 16, 17, 18, 19 and 20) and checking each breaking change against how the repo
+  actually uses the package, before changing anything. An acceptance criterion requires
+  the completion note to list each breaking change as "affects us" (with file refs) or
+  "doesn't affect us" (with a reason).
