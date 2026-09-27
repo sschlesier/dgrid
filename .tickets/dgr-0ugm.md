@@ -8,7 +8,7 @@ type: chore
 priority: 2
 assignee: Scott Schlesier
 parent: dgr-mome
-tags: [stage:refined]
+tags: [stage:agent-ready]
 ---
 
 # Replace e2e:headed and e2e:report with e2e:smoke
@@ -26,6 +26,7 @@ Out of scope:
 
 - Adding a real headless mode or an HTML report
 - Changing `scripts/run-tauri-e2e.mjs` or CI
+- Installing E2E tooling (`tauri-webdriver`) in the pickup environment
 
 ## Design
 
@@ -35,19 +36,27 @@ Out of scope:
   `--spec` line), the Running Tests section of `.claude/rules/e2e-testing.md`, and the
   README.md testing block.
 - Flag: changes contributor-facing package scripts; `e2e:report` is removed, not aliased.
-- A few one-line changes, no code: no worktree needed.
+- Smoke run: the runner builds the debug app itself and starts MongoDB through
+  `mongodb-memory-server`, so the only external requirement is `tauri-webdriver`. If the
+  runner stops with "tauri-webdriver is not installed", don't install it. Instead, fall back
+  to checking that the `e2e:smoke` script string is exactly
+  `node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs`, and record in
+  a note that the live run was skipped and why. A build failure or a failing smoke spec is
+  not a skip: stop and report it.
 
 ## Acceptance Criteria
 
 - [ ] `package.json` has no `e2e:headed` or `e2e:report` script
-- [ ] `pnpm e2e:smoke` runs only `smoke.e2e.mjs` and passes
+- [ ] `package.json` has `e2e:smoke` set to `node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs`
+- [ ] `pnpm e2e:smoke` runs only `smoke.e2e.mjs` and passes, or is skipped under the Design's missing-`tauri-webdriver` rule with a note saying so
 - [ ] `pnpm e2e:smoke` is documented in AGENTS.md, `.claude/rules/e2e-testing.md` and README.md
 - [ ] `rg -n 'e2e:headed|e2e:report' -g '!.tickets/**'` returns nothing
 
 ## Verification
 
 - `pnpm verify`
-- `pnpm e2e:smoke` → output shows only the smoke spec ran, and it passed
+- `node -p "require('./package.json').scripts['e2e:smoke']"` → the exact command above
+- `pnpm e2e:smoke` → output shows only the smoke spec ran, and it passed (or the documented skip)
 - `rg -n 'e2e:headed|e2e:report' -g '!.tickets/**'` → no matches
 
 ## Notes
@@ -55,3 +64,18 @@ Out of scope:
 **2026-09-26T23:49:42Z**
 
 Refined: delete e2e:headed, rename e2e:report to e2e:smoke (same command), document it in AGENTS.md, the e2e rules file and README.md; kept separate from dgr-nebk.
+
+**2026-09-27T00:00:12Z**
+
+Sent back at approval review by Scott Schlesier. Questions for refinement:
+
+1. The acceptance criterion 'pnpm e2e:smoke runs only smoke.e2e.mjs and passes' needs tauri-webdriver, a debug build and MongoDB. If the pickup environment can't run it, what should the agent do: report it and stop, or accept a lighter check (e.g. the script resolves to run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs)?
+2. The Design says 'no worktree needed', but the change edits package.json (not docs-only) across 4 files (~5 lines), which is past the trivial-fix exception in the user's global CLAUDE.md. Should the agent use a worktree, or should the ticket keep an explicit exception?
+
+**2026-09-27T00:01:31Z**
+
+Refined after send-back. Q1 (smoke run unavailable): live run stays the main check; if tauri-webdriver is missing, don't install it, verify the exact e2e:smoke script string and note the skip; build/test failures still stop. MongoDB and the debug build are handled by the runner. Q2 (worktree): removed the 'no worktree needed' line; worktree policy is left to the user's global CLAUDE.md.
+
+**2026-09-27T00:02:19Z**
+
+Approved for agent pickup by Scott Schlesier. Preview cold read: not run.

@@ -8,7 +8,7 @@ type: chore
 priority: 1
 assignee: Scott Schlesier
 parent: dgr-mome
-tags: [stage:refined]
+tags: [stage:agent-ready]
 ---
 
 # Rewrite e2e-testing rules for the WebdriverIO suite
@@ -89,3 +89,7 @@ become true (report it rather than changing code).
 **2026-09-26T23:42:01Z**
 
 Refined: full rewrite of .claude/rules/e2e-testing.md for WebdriverIO in one docs-only PR (no worktree), plus AGENTS.md stale-pointer cleanup; scripts fix split to dgr-0ugm and Playwright removal to dgr-nebk under epic dgr-mome.
+
+**2026-09-26T23:56:18Z**
+
+Approved for agent pickup by Scott Schlesier. Preview cold read: pass.

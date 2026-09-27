@@ -1,14 +1,14 @@
 ---
 id: dgr-nebk
 status: open
-deps: [dgr-keqg]
+deps: [dgr-keqg, dgr-0ugm]
 links: []
 created: 2026-09-26T23:41:40Z
 type: chore
 priority: 2
 assignee: Scott Schlesier
 parent: dgr-mome
-tags: [stage:refined]
+tags: [stage:agent-ready]
 ---
 
 # Delete the Playwright suite and its dependency
@@ -26,6 +26,7 @@ Out of scope:
 - Removing `mongodb-memory-server` (`scripts/run-tauri-e2e.mjs` uses it)
 - The `e2e:headed` / `e2e:report` scripts (dgr-0ugm)
 - Changing `tests/webdriver/`, `scripts/run-tauri-e2e.mjs` or CI workflows
+- Installing E2E tooling (`tauri-webdriver`) in the pickup environment
 
 ## Design
 
@@ -40,6 +41,13 @@ Out of scope:
   clause in the Testing Standards bullet.
 - `.claude/rules/e2e-testing.md`: drop the single reference-only pointer that dgr-keqg adds.
 - Touches code and config, not only docs: use a worktree.
+- Smoke run: the runner builds the debug app itself and starts MongoDB through
+  `mongodb-memory-server`, so the only external requirement is `tauri-webdriver`. If the
+  runner stops with "tauri-webdriver is not installed", don't install it. Instead, confirm
+  `mongodb-memory-server` still resolves with
+  `node -e "import('mongodb-memory-server').then(() => console.log('ok'))"`, and record in
+  a note that the live run was skipped and why. A build failure or a failing smoke spec is
+  not a skip: stop and report it.
 
 ## Acceptance Criteria
 
@@ -53,8 +61,8 @@ Out of scope:
 - `pnpm verify`
 - `rg -il 'playwright|tests/e2e' -g '!plans/**' -g '!.tickets/**'` → no matches
 - `pnpm test run` before and after → same test-file count
-- `node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs` passes
-  (confirms `mongodb-memory-server` still resolves)
+- `node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs` passes, or
+  the documented skip plus the `mongodb-memory-server` import check prints `ok`
 
 ## Boundaries
 
@@ -65,3 +73,11 @@ Stop and send back if: anything outside `tests/e2e/` imports from `tests/e2e/` o
 **2026-09-26T23:49:42Z**
 
 Refined: delete tests/e2e/ and @playwright/test (via pnpm remove), strip vitest/.gitignore/README/AGENTS/rules-file references; keep mongodb-memory-server, test-results/ and plans/\*.md; worktree required.
+
+**2026-09-27T00:04:28Z**
+
+Refined at approval review: added the smoke-run fallback (if tauri-webdriver is missing, don't install it; check the mongodb-memory-server import instead and note the skip; build/test failures still stop), matching dgr-0ugm. Added a dep on dgr-0ugm so the two don't conflict over AGENTS.md and the rules file.
+
+**2026-09-27T00:04:44Z**
+
+Approved for agent pickup by Scott Schlesier. Preview cold read: not run.
