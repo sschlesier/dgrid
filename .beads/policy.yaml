@@ -1,0 +1,21 @@
+# Ticket pipeline (see .agents/tickets/ on main):
+# open (captured) -> triaged -> refined -> agent-ready -> in_progress -> review -> closed,
+# with needs-clarification as the send-back from refinement, approval or pickup.
+workflow:
+  strict: true
+  # tombstone is br's own status for deleted issues.
+  statuses: [open, triaged, refined, needs-clarification, agent-ready, in_progress, review, closed, tombstone]
+  status_groups:
+    # Agents pick up work with `br ready`, so only approved tickets are ready.
+    ready: [agent-ready]
+  required_fields:
+    # Approval: the approval comment records who approved it and the cold-read result.
+    agent-ready:
+      - acceptance_criteria_present
+      - transition_comment
+    # Send-back: the comment holds the questions.
+    needs-clarification:
+      - transition_comment
+    # Hand-off: the comment is the completion note.
+    review:
+      - transition_comment
