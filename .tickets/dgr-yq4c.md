@@ -1,6 +1,6 @@
 ---
 id: dgr-yq4c
-status: in_progress
+status: closed
 deps: []
 links: [dgr-mk2m]
 created: 2026-09-27T01:52:40Z
@@ -170,3 +170,7 @@ New output (not a warning): vitest 5 prints a hint that happy-dom is created onc
 Audit before -> after: 2 moderate (GHSA-82fw-gwwq-j7x9 via vitest and @vitest/mocker) + 2 high ignored -> 2 high ignored only. No new findings.
 Tests: 689/689 before and after.
 Verified: pnpm test --run, pnpm test:coverage --run (writes coverage/ report), pnpm audit (GHSA gone), pnpm ls vitest @vitest/coverage-v8 (5.0.2 both), git diff main -- package.json (two lines), pnpm verify (exit 0; includes 182 Rust tests).
+
+**2026-09-27T02:44:05Z**
+
+Merged to main in 5001f03 (branch vitest-5, ae08aaf + 69a3233). Re-checked on main: vitest and @vitest/coverage-v8 5.0.2, pnpm audit no longer reports GHSA-82fw-gwwq-j7x9 (only the 2 ignored highs remain), pnpm test --run 689/689, pnpm type-check passes. Closing.
