@@ -7,7 +7,7 @@ created: 2026-09-27T01:37:17Z
 type: chore
 priority: 1
 assignee: Scott Schlesier
-tags: [stage:refined]
+tags: [stage:agent-ready]
 ---
 
 # Upgrade happy-dom to 20 to fix audit findings
@@ -84,3 +84,7 @@ Don't push or open a PR; commit locally and stop at the completion note.
 **2026-09-27T02:06:53Z**
 
 Refined: happy-dom -> latest 20.x (>=20.8.9); release notes for 16-20 reviewed against actual usage first and recorded in the completion note; tests follow correct browser behavior, no skips; no dep on dgr-yq4c; send back if >5 test files change or app code outside tests is affected.
+
+**2026-09-27T02:08:03Z**
+
+Approved for agent pickup by Scott Schlesier. Preview cold read: not run.
