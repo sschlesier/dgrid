@@ -110,13 +110,15 @@ A bad E2E test: "Password field disables when save-password checkbox is unchecke
 
 ## Tickets
 
-This project uses `tk` for tickets (`.tickets/`, one Markdown file per ticket). Run `tk help`
-for commands. Ticket pipeline conventions, the Definition of Ready and the cold read are in
-`.agents/tickets/`. Run ticket commands from the main checkout, not a worktree.
+This project uses `br` (beads_rust) for tickets. The workspace lives on the `tickets`
+branch, and `BEADS_DIR` (set in `.claude/settings.json`) points every checkout and worktree
+at it, so `br` works from anywhere. Never commit ticket changes; the user does that on the
+`tickets` branch. Run `br --help` for commands. Ticket pipeline conventions, the Definition
+of Ready and the cold read are in `.agents/tickets/`; helpers are in `scripts/tickets/`.
 
 When talking to people, refer to tickets by title or a short form of it ("the pnpm audit
-ticket", "Filter query history"), not by ID alone. IDs like `dgr-mk2m` mean nothing to a
-reader. Include the ID only where tooling needs it: `tk` commands, commit messages, ticket
+ticket", "Filter query history"), not by ID alone. IDs like `dgr-x91` mean nothing to a
+reader. Include the ID only where tooling needs it: `br` commands, commit messages, ticket
 cross-references.
 
 ## Security Principles
