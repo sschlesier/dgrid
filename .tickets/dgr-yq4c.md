@@ -7,7 +7,7 @@ created: 2026-09-27T01:52:40Z
 type: chore
 priority: 1
 assignee: Scott Schlesier
-tags: [stage:refined]
+tags: [stage:agent-ready]
 ---
 
 # Upgrade vitest to 5 to fix audit findings
@@ -106,3 +106,7 @@ Don't push or open a PR; commit locally and stop at the completion note.
 **2026-09-27T02:20:15Z**
 
 Refined: target latest vitest 5 + @vitest/coverage-v8, falling back to 4.1.x (>=4.1.11) only on the serious-risk conditions listed in Design; release notes for 4 and 5 reviewed against actual usage first; keep P1 (wanted soon despite moderate finding); no dep, happy-dom 20 already merged; test:ui fix out of scope.
+
+**2026-09-27T02:26:56Z**
+
+Approved for agent pickup by Scott Schlesier. Preview cold read: not run.
