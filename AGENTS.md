@@ -114,6 +114,11 @@ This project uses `tk` for tickets (`.tickets/`, one Markdown file per ticket). 
 for commands. Ticket pipeline conventions, the Definition of Ready and the cold read are in
 `.agents/tickets/`. Run ticket commands from the main checkout, not a worktree.
 
+When talking to people, refer to tickets by title or a short form of it ("the pnpm audit
+ticket", "Filter query history"), not by ID alone. IDs like `dgr-mk2m` mean nothing to a
+reader. Include the ID only where tooling needs it: `tk` commands, commit messages, ticket
+cross-references.
+
 ## Security Principles
 
 - No network exposure — Tauri IPC is in-process (no HTTP server)
