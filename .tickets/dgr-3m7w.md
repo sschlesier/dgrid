@@ -1,6 +1,6 @@
 ---
 id: dgr-3m7w
-status: open
+status: closed
 deps: []
 links: [dgr-t6hb]
 created: 2026-09-27T01:49:42Z
@@ -108,3 +108,7 @@ Verified: `pnpm e2e` locally (macOS, plugin 0.2.3 + driver 0.2.0): 20/20 specs p
 For the reviewer: the linux-e2e run on the PR, and its "Install tauri-webdriver" log line showing v0.2.0 (on a warm cache it says "already installed"; with an exact --version, cargo reinstalls if the cached version differs).
 
 Unrelated finding: `cargo clippy --all-targets -D warnings` (Rust 1.98.1) fails on approx_constant `3.14` literals in tests (src/bson_ser.rs:233,234,337,338; src/csv.rs:255). pnpm verify doesn't lint test targets, so this doesn't block anything.
+
+**2026-09-27T02:56:48Z**
+
+Merged to main in 8c28ae7 (branch webdriver-0.2, e8d3c4d + 2950f3d) at the user's request, before linux-e2e ran on a PR, so the Linux build (glib 0.22) is first exercised by CI on the next push. Re-checked on main: Cargo.lock has tauri-plugin-webdriver 0.2.3, e2e:install-driver pins 0.2.0 --locked, and cargo clippy -D warnings passes. Closing.
