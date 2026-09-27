@@ -127,24 +127,35 @@ pub async fn watch_file(
     }
 
     let watch_path = path.clone();
-    let emitter = app.clone();
+    let watcher = create_file_watcher(&path, move |content| {
+        let _ = app.emit(
+            "file-changed",
+            FileChangedEvent {
+                path: watch_path.clone(),
+                content,
+            },
+        );
+    })?;
+
+    watchers.insert(path, watcher);
+
+    Ok(())
+}
+
+/// Watch `path` and call `on_change` with the file's new content after each modification.
+fn create_file_watcher(
+    path: &str,
+    on_change: impl Fn(String) + Send + 'static,
+) -> Result<RecommendedWatcher, DgridError> {
+    let watch_path = path.to_string();
 
     let mut watcher = RecommendedWatcher::new(
         move |result: Result<Event, notify::Error>| {
             if let Ok(event) = result {
                 if matches!(event.kind, EventKind::Modify(_)) {
-                    // Read the file and emit the content
-                    let watch_path = watch_path.clone();
-                    let emitter = emitter.clone();
                     // Use std::fs since we're in a sync callback
                     if let Ok(content) = std::fs::read_to_string(&watch_path) {
-                        let _ = emitter.emit(
-                            "file-changed",
-                            FileChangedEvent {
-                                path: watch_path,
-                                content,
-                            },
-                        );
+                        on_change(content);
                     }
                 }
             }
@@ -154,12 +165,10 @@ pub async fn watch_file(
     .map_err(|e| DgridError::Storage(format!("Failed to create file watcher: {}", e)))?;
 
     watcher
-        .watch(file_path, RecursiveMode::NonRecursive)
+        .watch(Path::new(path), RecursiveMode::NonRecursive)
         .map_err(|e| DgridError::Storage(format!("Failed to watch file: {}", e)))?;
 
-    watchers.insert(path, watcher);
-
-    Ok(())
+    Ok(watcher)
 }
 
 #[tauri::command]
@@ -260,5 +269,32 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("maximum size"));
+    }
+
+    #[test]
+    fn file_watcher_reports_new_content_after_modification() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("watched.js");
+        std::fs::write(&path, "// original").unwrap();
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let _watcher = create_file_watcher(&path.to_string_lossy(), move |content| {
+            let _ = tx.send(content);
+        })
+        .unwrap();
+
+        // The OS may still be starting the watch when the first write lands, so write again
+        // until an event arrives rather than relying on a single write being seen.
+        let expected = "db.users.find({})";
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while std::time::Instant::now() < deadline {
+            std::fs::write(&path, expected).unwrap();
+            while let Ok(content) = rx.recv_timeout(std::time::Duration::from_millis(500)) {
+                if content == expected {
+                    return;
+                }
+            }
+        }
+        panic!("no modification event with the new content within 10s");
     }
 }
