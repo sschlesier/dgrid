@@ -7,7 +7,7 @@ created: 2026-09-27T01:38:13Z
 type: chore
 priority: 2
 assignee: Scott Schlesier
-tags: [stage:refined]
+tags: [stage:agent-ready]
 ---
 
 # Update Rust dependencies, upgrade Tauri to 2.12 and fix cargo audit findings
@@ -148,3 +148,7 @@ Sent back by Scott Schlesier at approval review. Questions: (1) Commit order: wi
 **2026-09-27T03:06:38Z**
 
 Refined after send-back. (1) Commit order: yes, the Tauri bump comes first (Cargo.toml requirements, cargo update -p for the four Tauri crates, npm pins), then the full cargo update; every commit must build and pass pnpm verify (added as an acceptance criterion). (2) Manual checks: yes, the pnpm dev checks and linux-e2e moved to a reviewer-after-handoff verification line; the agent runs the automated commands.
+
+**2026-09-27T03:11:36Z**
+
+Approved for agent pickup by Scott Schlesier. Preview cold read: pass (non-blocking spec issues: edit Cargo.toml before the targeted cargo update -p; unic-* warnings likely cleared by the Tauri bump; '2.x' in commit template means the actual minor).
