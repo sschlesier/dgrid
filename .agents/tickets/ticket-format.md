@@ -1,7 +1,7 @@
 # Ticket format and operations
 
 Tickets are issues in [br](https://github.com/Dicklesworthstone/beads_rust) (beads_rust).
-Pipeline helpers live in `scripts/tickets/`: `br-stage`, `br-stages`, `br-lint`.
+Pipeline helpers live in `scripts/tickets/`: `br-stages`, `br-lint`.
 
 ## Where ticket state lives
 
@@ -31,16 +31,18 @@ directory) and pass the path (`--description-file`, `br comments add <id> -f <fi
 | Operation                   | Command                                                                              |
 | --------------------------- | ------------------------------------------------------------------------------------ |
 | Read                        | `br show <id>` (`--json` for scripts)                                                |
-| Create                      | `br create "<title>" -t <type> -p <0-4> -l stage:captured -d "<outcome>" --silent` (prints the ID) |
+| Create                      | `br create "<title>" -t <type> -p <0-4> -d "<outcome>" --silent` (prints the ID; starts `open`) |
 | Set description             | `br update <id> --description-file <file>`                                           |
 | Set design                  | `br update <id> --design "<text>"`                                                   |
 | Set acceptance criteria     | `br update <id> --acceptance-criteria "<checklist>"`                                 |
-| Set stage                   | `scripts/tickets/br-stage <id> <stage>`                                              |
+| Set stage                   | `br update <id> -s <status>`, plus `--transition-comment "<text>"` where required     |
 | Add a note                  | `br comments add <id> -m "<text>"` (or `-f <file>`); timestamped, append-only        |
-| List by stage               | `br list -l stage:<stage>`, or `scripts/tickets/br-stages` for the whole board       |
-| Pickup candidates           | `br ready -l stage:agent-ready`                                                      |
+| List by stage               | `br list -s <status>`, or `scripts/tickets/br-stages` for the whole board            |
+| Pickup candidates           | `br ready` (only `agent-ready` tickets with no open blockers)                        |
 | Lint                        | `scripts/tickets/br-lint <id>` (exits 1 on FAIL)                                     |
-| Start / close               | `br update <id> --claim`, `br close <id> -r "<reason>"`                              |
+| Start                       | `br update <id> --claim` (sets `in_progress` and assigns you)                        |
+| Hand off                    | `br update <id> -s review --transition-comment "<completion note>"`                  |
+| Close                       | `br close <id> -r "<reason>"`                                                        |
 | Type, priority, title       | `br update <id> -t <type>`, `-p <n>`, `--title "<title>"`                            |
 | Dependencies                | `br dep add <id> <depends-on-id>`, `br dep tree <id>`                                |
 | Related tickets             | `br dep add <id> <other-id> -t related`                                              |
@@ -49,10 +51,33 @@ directory) and pass the path (`--description-file`, `br comments add <id> -f <fi
 `br update` refuses to shrink a field to less than half its length without `--force`.
 When a rewrite is meant to be shorter, check it first, then pass `--force`.
 
-Stages (labels): `captured` → `triaged` → `refined` → `agent-ready`, plus
-`needs-clarification` and `review`. In-progress and closed come from br's status
-(`br update --claim`, `br close`), not from labels. An issue has at most one `stage:*`
-label; `br-stage` replaces the old one.
+## Stages
+
+A ticket's stage is its br status. `.beads/policy.yaml` on the `tickets` branch declares
+them:
+
+| Status                | Meaning                                                           |
+| --------------------- | ----------------------------------------------------------------- |
+| `open`                | Captured: an idea or rough ticket, not yet triaged               |
+| `triaged`             | Type and priority set, not yet specified                          |
+| `refined`             | Spec written; waiting for human approval                          |
+| `needs-clarification` | Sent back with questions, from approval or pickup                 |
+| `agent-ready`         | Approved for unattended pickup                                    |
+| `in_progress`         | Claimed by an agent or person                                     |
+| `review`              | Implemented, with a completion note; waiting for the user         |
+| `closed`              | Done                                                              |
+
+The policy enforces:
+
+- Only `agent-ready` tickets appear in `br ready`.
+- Moving to `agent-ready` needs acceptance criteria and a `--transition-comment` (the
+  approval note).
+- Moving to `needs-clarification` needs a `--transition-comment` (the questions).
+- Moving to `review` needs a `--transition-comment` (the completion note).
+- Any status not in the list is refused.
+
+br can't stop `--claim` on a ticket that isn't `agent-ready`. Only claim tickets that
+`br ready` lists.
 
 ## Fields
 
@@ -63,7 +88,6 @@ label; `br-stage` replaces the old one.
 | design                | Decisions and their answers, constraints, affected interfaces. Flags: migration / public API / config change (only the ones that apply)                     |
 | acceptance criteria   | A checklist of testable statements (`- [ ] …`)                                                                                                               |
 | comments              | Notes: progress, questions, completion notes. Added with `br comments add`; never edited or removed                                                          |
-| labels                | `stage:<stage>`                                                                                                                                              |
 | external ref          | For tickets migrated from tk, the old tk ID (e.g. `dgr-mk2m`)                                                                                                |
 
 A description looks like this:
