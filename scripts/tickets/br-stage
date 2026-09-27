@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Set an issue's pipeline stage label (stage:<name>), replacing any other stage:* label.
+#
+# Usage: br-stage <id> <stage>
+set -euo pipefail
+
+STAGES="captured triaged refined agent-ready needs-clarification review"
+
+usage() {
+    echo "Usage: br-stage <id> <stage>" >&2
+    echo "Stages: $STAGES" >&2
+    exit 1
+}
+
+[[ $# -eq 2 ]] || usage
+id="$1" stage="$2"
+[[ " $STAGES " == *" $stage "* ]] || { echo "Error: unknown stage '$stage'" >&2; usage; }
+
+args=(--add-label "stage:$stage")
+while IFS= read -r label; do
+    [[ -n "$label" && "$label" != "stage:$stage" ]] && args+=(--remove-label "$label")
+done < <(br show "$id" --json | jq -r '.[0].labels // [] | .[] | select(startswith("stage:"))')
+
+br update "$id" "${args[@]}" --quiet
+echo "$id -> stage:$stage"
