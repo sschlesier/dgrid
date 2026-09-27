@@ -36,6 +36,7 @@ MAIN="$(git worktree list --porcelain | awk 'NR==1 {print $2}')"
 test "$(git -C "$MAIN" branch --show-current)" = main || { echo "main checkout is not on main"; exit 1; }
 git -C "$MAIN" add -- .tickets/<id>.md
 git -C "$MAIN" commit -m "chore(tickets): <id> <what changed>" -- .tickets/<id>.md
+git -C "$MAIN" reset -q -- .tickets/<id>.md
 ```
 
 - Name the ticket files explicitly after `--`. That commits only those paths and leaves
@@ -43,6 +44,10 @@ git -C "$MAIN" commit -m "chore(tickets): <id> <what changed>" -- .tickets/<id>.
   `git commit -a`.
 - `git add` first so a newly created ticket file is tracked; the pathspec commit alone
   won't pick up untracked files.
+- The final `git reset` is required. The pre-commit hook (lint-staged + prettier) can
+  reformat the file during a pathspec commit. The commit and the working tree get the
+  formatted version, but the index keeps the old one, and the next plain `git commit`
+  would silently revert the formatting.
 - Messages: `chore(tickets): <id> <action>`, e.g. `chore(tickets): dgr-a1b2 refined`,
   `chore(tickets): dgr-a1b2 agent-ready`, `chore(tickets): dgr-a1b2 blocked on permissions`.
 - If `$MAIN` isn't on `main`, stop and tell the user. Don't switch branches.
