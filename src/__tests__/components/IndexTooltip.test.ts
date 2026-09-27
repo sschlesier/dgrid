@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/svelte';
 
 import IndexTooltip from '../../components/IndexTooltip.svelte';
 
-function renderTooltip(expireAfterSeconds?: number) {
+function renderTooltip(expireAfterSeconds?: number | null) {
   render(IndexTooltip, {
     props: {
       x: 0,
@@ -25,6 +25,11 @@ describe('IndexTooltip', () => {
 
   it('shows no TTL flag for an index without a TTL', () => {
     renderTooltip();
+    expect(screen.queryByText(/TTL:/)).not.toBeInTheDocument();
+  });
+
+  it('shows no TTL flag when the backend sends a null TTL', () => {
+    renderTooltip(null);
     expect(screen.queryByText(/TTL:/)).not.toBeInTheDocument();
   });
 });

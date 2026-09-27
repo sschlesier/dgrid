@@ -9,7 +9,7 @@
     keyPattern: Record<string, unknown>;
     unique: boolean;
     sparse: boolean;
-    expireAfterSeconds?: number;
+    expireAfterSeconds?: number | null;
   }
 
   let { x, y, name, keyPattern, unique, sparse, expireAfterSeconds }: Props = $props();
@@ -43,11 +43,11 @@
 <div class="index-tooltip" bind:this={tooltipEl} style="left: {adjustedX}px; top: {adjustedY}px;">
   <div class="tooltip-name">{name}</div>
   <div class="tooltip-key">{formattedKey}</div>
-  {#if unique || sparse || expireAfterSeconds !== undefined}
+  {#if unique || sparse || expireAfterSeconds != null}
     <div class="tooltip-flags">
       {#if unique}<span class="flag">unique</span>{/if}
       {#if sparse}<span class="flag">sparse</span>{/if}
-      {#if expireAfterSeconds !== undefined}
+      {#if expireAfterSeconds != null}
         <span class="flag">TTL: {formatTtl(expireAfterSeconds)}</span>
       {/if}
     </div>

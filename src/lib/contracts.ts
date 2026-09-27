@@ -62,7 +62,7 @@ export interface IndexInfo {
   key: Record<string, unknown>;
   unique: boolean;
   sparse: boolean;
-  expireAfterSeconds?: number;
+  expireAfterSeconds?: number | null;
 }
 
 // Query Execution
