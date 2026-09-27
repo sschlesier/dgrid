@@ -1,8 +1,8 @@
 ---
 id: dgr-mk2m
-status: open
+status: in_progress
 deps: []
-links: []
+links: [dgr-bbp9]
 created: 2026-09-26T18:02:08Z
 type: chore
 priority: 2
@@ -96,3 +96,23 @@ Don't push or open a PR; commit locally and stop at the completion note.
 **2026-09-26T18:06:34Z**
 
 Refined: goal is no unaccounted critical/high in pnpm audit; fixes limited to in-range/minor bumps and overrides; any major upgrade is skipped and split into a follow-up chore (P1 if it clears a critical, else P2), including happy-dom; unfixable findings go in ignoreGhsas; P2.
+
+**2026-09-27T01:38:14Z**
+
+Completion note (implementing agent).
+
+Audit before → after: all deps 2 critical / 48 high / 43 moderate / 8 low → 1 critical / 4 high (2 ignored) / 2 moderate / 0 low. --prod: 10 high / 16 moderate / 3 low → 0.
+
+Fixes: pnpm update within existing ranges (commit 4116371). @tauri-apps/api, cli, plugin-dialog and plugin-opener pinned with ~ to their Rust crates' minors (api 2.11.1, cli 2.11.5, plugin-dialog 2.7.3, plugin-opener 2.5.5); the in-range update had pulled them to 2.12 / 2.8 / 2.6.
+
+pnpm.overrides: mocha>serialize-javascript ^7.0.3 (GHSA-5c6j-r48x-rmvq, high). @wdio/mocha-framework pins mocha ^10.8.2, which wants serialize-javascript ^6; 7.x has the same CJS API (mocha 12 uses it), and mocha 10 only loads it in parallel mode.
+
+pnpm.auditConfig.ignoreGhsas: GHSA-7pqw-9j4j-h8q3, GHSA-jmr9-qjv8-65gv (extract-zip <=2.0.1 via @wdio/cli > @puppeteer/browsers; 2.0.1 is the latest release, no fix exists).
+
+Follow-up: dgr-bbp9 Upgrade happy-dom to 20 (P1; clears critical GHSA-37j7-fg3j-429f, high GHSA-6q6h-j7hj-3r64 and GHSA-w4gp-fjgq-3q4g).
+
+Moderate left unfixed: GHSA-82fw-gwwq-j7x9 (vitest / @vitest/mocker <4.1.11, needs a major upgrade).
+
+@wdio/* changes for the reviewer: @wdio/cli, junit-reporter, local-runner, mocha-framework, spec-reporter and webdriverio 9.25.0 → 9.32.0; expect-webdriverio 5.6.5 → 5.7.0. The linux-e2e workflow must pass on the PR.
+
+Verified: pnpm verify passes (689 TS tests, 182 Rust tests, clippy, frontend build); tauri info shows npm/crate minors aligned. Not done: the manual pnpm dev check (connect, find query, Table view, autocomplete) and the linux-e2e run.
