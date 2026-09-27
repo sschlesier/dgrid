@@ -136,6 +136,9 @@ pnpm e2e
 # Real-app Tauri E2E (CI/Linux-style)
 pnpm e2e:ci
 
+# Real-app Tauri E2E, smoke spec only
+pnpm e2e:smoke
+
 # Type-check, lint, test, and build in one command
 pnpm verify
 ```
@@ -168,7 +171,6 @@ The workflow:
 ```
 src-tauri/          Tauri v2 Rust backend (commands, executor, storage, keyring)
 src/                Svelte 5 frontend (Vite build)
-tests/e2e/          Playwright E2E tests
 tests/webdriver/    WebdriverIO real-app Tauri E2E tests
 ```
 

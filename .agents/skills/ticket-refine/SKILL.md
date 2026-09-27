@@ -10,11 +10,13 @@ implement it. Refine writes the spec; it doesn't approve it. Approval is `ticket
 and it needs a human.
 
 Read these first:
+
 - `.agents/tickets/ticket-format.md`: where ticket state lives, commands, file layout
 - `.agents/tickets/definition-of-ready.md`: the checklist and the questions for each type
 
-All `tk` commands run from the main checkout (`$MAIN`), as described in
-`ticket-format.md`.
+All `tk` commands run from the main checkout (`$MAIN`), and every ticket change is
+committed to `main` right after it's made, as described in `ticket-format.md`
+("Committing ticket changes").
 
 ## 1. Load or create
 
@@ -24,14 +26,15 @@ All `tk` commands run from the main checkout (`$MAIN`), as described in
     explicitly.
   - `agent-ready`: refining it cancels the approval. Say so before changing anything.
 - **Idea given, no ticket:** search `$MAIN/.tickets/` for duplicates (`rg -il '<keywords>'`).
-  If there's none, `tk create` it with a working title and `--tags stage:captured`.
+  If there's none, `tk create` it with a working title and `--tags stage:captured`, then
+  commit it (`chore(tickets): <id> captured`).
 - **Captured (not triaged):** do a quick triage inline. Check for duplicates and set type
-  and priority. If it's clearly bigger than one PR, stop and propose splitting it into
-  separate tickets before refining.
+  and priority, and commit that. If it's clearly bigger than one PR, stop and propose
+  splitting it into separate tickets before refining.
 
 ## 2. Research just enough to draft
 
-Read the repo to answer *spec* questions: does this already exist, what does it do
+Read the repo to answer _spec_ questions: does this already exist, what does it do
 today, which interfaces does the change touch, what similar feature can serve as a
 reference. Stop there. Implementation context (which files to edit, which pattern to
 follow) is for the pickup step, when the code is current.
@@ -45,7 +48,7 @@ of Ready item you can, based on the ticket, the research and sensible defaults.
 - Each acceptance criterion describes behavior you can observe.
 - Verification: always `pnpm verify`, plus a named test or manual steps with clicks and
   expected results. Add `cargo test` (in `src-tauri/`) when Rust changes.
-- Record decisions *with their answers*. If you pick a default, write it as a decision so
+- Record decisions _with their answers_. If you pick a default, write it as a decision so
   the user can overrule it. It must not look like an assumption.
 - Add sections only when they have real content.
 
@@ -53,6 +56,7 @@ of Ready item you can, based on the ticket, the research and sensible defaults.
 
 Show the draft, then a numbered list of **gaps**: Definition of Ready items you
 couldn't settle, plus the ticket-type questions that apply. For each gap:
+
 - say what's missing and why it matters to an agent working alone;
 - give a **proposed answer** whenever you can, so the user can reply "1 yes, 2 yes,
   3: use X instead".
@@ -61,6 +65,7 @@ Also list the **defaults you chose** (decisions you made without asking), so the
 overrule them. Keep the list short: only choices an agent would otherwise have to guess.
 
 Example gaps:
+
 - Size or scope problems ("this touches the Rust executor and the UI; split into two?").
 - Empty, error and loading states for UI features.
 
@@ -82,4 +87,5 @@ the user accepts the ones that remain.
 3. `tk-stage <id> refined`
 4. `tk add-note <id> "Refined: <one line on what was settled>"`. If the ticket came
    back from needs-clarification, list which questions were answered and how.
-5. Tell the user the ticket is refined and suggest `/ticket-approve <id>`.
+5. Commit the ticket file on `main` (`chore(tickets): <id> refined`).
+6. Tell the user the ticket is refined and suggest `/ticket-approve <id>`.

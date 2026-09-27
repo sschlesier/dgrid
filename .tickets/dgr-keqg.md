@@ -1,6 +1,6 @@
 ---
 id: dgr-keqg
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-09-26T23:36:52Z
@@ -93,3 +93,11 @@ Refined: full rewrite of .claude/rules/e2e-testing.md for WebdriverIO in one doc
 **2026-09-26T23:56:18Z**
 
 Approved for agent pickup by Scott Schlesier. Preview cold read: pass.
+
+**2026-09-27T00:20:04Z**
+
+Rules rewrite b821f08 + AGENTS.md cleanup 43cf3ad; all AC checks and smoke e2e pass. Left open: pnpm verify as written fails in the main checkout because eslint and vitest pick up the ignored nested worktree .claude/worktrees/dgrid-db-aggregate (1155 lint errors, locate-app/wait-port test failures, all under that path). With that path excluded, every verify step passes (lint, 672 vitest, build, clippy, 182 cargo tests). Also: the rules file backticks tests/webdriver/artifacts/, which the runner creates (gitignored), so it does not exist on a clean checkout.
+
+**2026-09-27T00:39:28Z**
+
+pnpm verify passes after removing the stale .claude/worktrees/dgrid-db-aggregate worktree (it was the only cause of the lint/test failure). Closing.
