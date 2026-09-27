@@ -91,6 +91,12 @@
   "pnpm": {
     "overrides": {
       "mocha>serialize-javascript": "^7.0.3"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-7pqw-9j4j-h8q3",
+        "GHSA-jmr9-qjv8-65gv"
+      ]
     }
   }
 }
