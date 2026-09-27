@@ -2,7 +2,7 @@
 id: dgr-h97q
 status: open
 deps: []
-links: []
+links: [dgr-cuuy]
 created: 2026-09-26T22:53:23Z
 type: feature
 priority: 3

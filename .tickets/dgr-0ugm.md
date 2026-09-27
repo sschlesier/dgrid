@@ -1,6 +1,6 @@
 ---
 id: dgr-0ugm
-status: open
+status: in_progress
 deps: [dgr-keqg]
 links: []
 created: 2026-09-26T23:41:40Z
@@ -79,3 +79,7 @@ Refined after send-back. Q1 (smoke run unavailable): live run stays the main che
 **2026-09-27T00:02:19Z**
 
 Approved for agent pickup by Scott Schlesier. Preview cold read: not run.
+
+**2026-09-27T00:40:47Z**
+
+Pickup blocked before any edits: couldn't create the e2e-smoke-script worktree. EnterWorktree is refused from a subagent with a cwd override, and a direct 'gtr new --from-current' was denied by the auto-mode permission classifier. Also: origin/main lacks b821f08/43cf3ad (the dgr-keqg commits), so a default gtr worktree (based on origin/main) would miss them. Needs --from-current or a push first. Ticket left open (in_progress).
