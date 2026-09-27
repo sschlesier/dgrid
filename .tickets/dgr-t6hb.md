@@ -7,7 +7,7 @@ created: 2026-09-27T01:38:13Z
 type: chore
 priority: 2
 assignee: Scott Schlesier
-tags: [stage:refined]
+tags: [stage:needs-clarification]
 ---
 
 # Update Rust dependencies, upgrade Tauri to 2.12 and fix cargo audit findings
@@ -128,3 +128,7 @@ Don't push or open a PR; commit on the branch and stop at the completion note.
 **2026-09-27T03:04:25Z**
 
 Refined: Tauri upgrade to latest 2.x (2.12 on 2026-09-26) folded in with cargo update and audit fixes; baseline 5 vulns, all cleared by cargo update; Cargo.toml Tauri requirements raised with caret to the new minor; stays P2 (quick-xml reached only via Tauri's plist parsing).
+
+**2026-09-27T03:05:43Z**
+
+Sent back by Scott Schlesier at approval review. Questions: (1) Commit order: with the "2" ranges, the full cargo update in commit 1 already moves Cargo.lock to Tauri 2.12 while npm is still pinned ~2.11, so the Tauri CLI build fails between commits. Should the Tauri bump (Cargo.toml requirements, cargo update -p for the four Tauri crates, npm pins) come first and the full cargo update second? (2) The manual pnpm dev checks (native file dialogs, browser opening, relaunch for keyring) can't be done by an unattended agent. Should they move to a 'reviewer, after handoff' verification line, leaving the agent the automated commands?
