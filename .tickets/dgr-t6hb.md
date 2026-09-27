@@ -7,7 +7,7 @@ created: 2026-09-27T01:38:13Z
 type: chore
 priority: 2
 assignee: Scott Schlesier
-tags: [stage:needs-clarification]
+tags: [stage:refined]
 ---
 
 # Update Rust dependencies, upgrade Tauri to 2.12 and fix cargo audit findings
@@ -60,8 +60,13 @@ Out of scope:
 - **npm pins:** raise the four `~` ranges in `package.json` to the new versions (e.g.
   `~2.12.0`) and update `pnpm-lock.yaml`. The Tauri crates and npm packages move in the
   same commit.
-- **Lockfile:** run a full `cargo update` in `src-tauri/` (every crate, within its
-  existing range), as its own commit, separate from the Tauri bump.
+- **Order:** the Tauri bump comes first, the full lockfile refresh second. With the old
+  `"2"` ranges a full `cargo update` would move `Cargo.lock` to the new Tauri minor while
+  the npm pins still hold the old one, and the Tauri CLI refuses to build on that
+  mismatch. So the Tauri commit updates the lockfile only for the Tauri crates
+  (`cargo update -p tauri -p tauri-build -p tauri-plugin-dialog -p tauri-plugin-opener`,
+  plus whatever cargo must move with them), and a later commit runs a full
+  `cargo update` in `src-tauri/` (every crate, within its existing range).
 - **Generated files:** if the build regenerates `src-tauri/gen/schemas/*`, commit the
   result with the Tauri bump.
 - **Audit leftovers:** any vulnerability still reported after the update that needs a
@@ -76,10 +81,12 @@ Out of scope:
   note, with no follow-up chore. The expected ones (`instant`, `proc-macro-error`,
   `unic-*`, `glib` 0.18) come in through Tauri's own dependency tree (gtk3 / urlpattern
   / proc-macro stack), which this repo doesn't control.
-- **Commits:** (1) `chore(deps): cargo update`; (2)
+- **Commits**, each one building and passing `pnpm verify`: (1)
   `chore(deps): upgrade Tauri to 2.x` (Cargo.toml, Cargo.lock, package.json,
-  pnpm-lock.yaml, regenerated schemas); (3) any code changes the release notes require,
-  one per change; (4) `style: apply cargo fmt` if it changes anything.
+  pnpm-lock.yaml, regenerated schemas, plus any code change the release notes make
+  necessary for the build to pass); (2) `chore(deps): cargo update`; (3) any other code
+  changes the release notes call for, one per change; (4) `style: apply cargo fmt` if it
+  changes anything.
 - Flags: dependency update only, no migration, no public API or config format change.
 
 ## Acceptance Criteria
@@ -95,6 +102,8 @@ Out of scope:
       from the Tauri minors above.
 - [ ] `pnpm verify` and `cargo test` (in `src-tauri/`) pass, and `pnpm build` produces
       the app bundle.
+- [ ] Every commit on the branch builds and passes `pnpm verify` (in particular, no
+      commit has the Tauri crates and npm packages on different minors).
 - [ ] The completion note records: audit counts before/after; the Tauri versions
       before/after; each release-note breaking or behavior change as "affects us" (with
       file refs) or "doesn't affect us" (with a reason); any `audit.toml` entries and
@@ -108,7 +117,10 @@ Out of scope:
 - `cargo test` in `src-tauri/`
 - `pnpm build`
 - `pnpm e2e` (covers the Tauri runtime and `tauri-plugin-webdriver` with the new Tauri)
-- Manual (`pnpm dev`): the app launches; create a connection to a local MongoDB with a
+- Agent, before handoff: every command above, run after the last commit; `pnpm verify`
+  also run after each commit.
+- Reviewer, after handoff (needs a person; the agent doesn't do these): the
+  `linux-e2e` workflow passes on the PR, and in `pnpm dev` the app launches; create a connection to a local MongoDB with a
   saved password, quit and relaunch, connect (keyring); open a collection and run
   `db.<coll>.find({})`, results show; click Export and pick a file (plugin-dialog), the
   file is written; in the query panel, open a query file (plugin-dialog `open`); click the
@@ -132,3 +144,7 @@ Refined: Tauri upgrade to latest 2.x (2.12 on 2026-09-26) folded in with cargo u
 **2026-09-27T03:05:43Z**
 
 Sent back by Scott Schlesier at approval review. Questions: (1) Commit order: with the "2" ranges, the full cargo update in commit 1 already moves Cargo.lock to Tauri 2.12 while npm is still pinned ~2.11, so the Tauri CLI build fails between commits. Should the Tauri bump (Cargo.toml requirements, cargo update -p for the four Tauri crates, npm pins) come first and the full cargo update second? (2) The manual pnpm dev checks (native file dialogs, browser opening, relaunch for keyring) can't be done by an unattended agent. Should they move to a 'reviewer, after handoff' verification line, leaving the agent the automated commands?
+
+**2026-09-27T03:06:38Z**
+
+Refined after send-back. (1) Commit order: yes, the Tauri bump comes first (Cargo.toml requirements, cargo update -p for the four Tauri crates, npm pins), then the full cargo update; every commit must build and pass pnpm verify (added as an acceptance criterion). (2) Manual checks: yes, the pnpm dev checks and linux-e2e moved to a reviewer-after-handoff verification line; the agent runs the automated commands.
