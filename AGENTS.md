@@ -57,7 +57,7 @@ pnpm build:frontend   # Build frontend only
 - Focus on behavior, not implementation details
 - Rust tests use `#[cfg(test)]` modules with `cargo test`
 - Component tests use @testing-library/svelte
-- E2E tests use WebdriverIO (mocha `describe`/`it`) in `tests/webdriver/specs/`; the Playwright suite in `tests/e2e/` is kept as reference only (see `tests/e2e/README.md`)
+- E2E tests use WebdriverIO (mocha `describe`/`it`) in `tests/webdriver/specs/`
 
 ## Architecture Patterns
 

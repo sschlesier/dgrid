@@ -171,7 +171,6 @@ The workflow:
 ```
 src-tauri/          Tauri v2 Rust backend (commands, executor, storage, keyring)
 src/                Svelte 5 frontend (Vite build)
-tests/e2e/          Playwright E2E tests
 tests/webdriver/    WebdriverIO real-app Tauri E2E tests
 ```
 

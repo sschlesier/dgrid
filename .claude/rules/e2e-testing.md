@@ -2,7 +2,7 @@
 
 E2E tests drive the real Tauri app through WebdriverIO + mocha and the `tauri-webdriver`
 driver, against a throwaway MongoDB (`mongodb-memory-server`) that the runner starts for
-each run. The old Playwright suite in `tests/e2e/` is reference only; see `tests/e2e/README.md`.
+each run.
 
 ## File Organization
 
