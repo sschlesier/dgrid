@@ -1,13 +1,13 @@
 ---
 id: dgr-t6hb
-status: open
+status: in_progress
 deps: []
 links: [dgr-mk2m, dgr-3m7w]
 created: 2026-09-27T01:38:13Z
 type: chore
 priority: 2
 assignee: Scott Schlesier
-tags: [stage:agent-ready]
+tags: [stage:review]
 ---
 
 # Update Rust dependencies, upgrade Tauri to 2.12 and fix cargo audit findings
@@ -152,3 +152,16 @@ Refined after send-back. (1) Commit order: yes, the Tauri bump comes first (Carg
 **2026-09-27T03:11:36Z**
 
 Approved for agent pickup by Scott Schlesier. Preview cold read: pass (non-blocking spec issues: edit Cargo.toml before the targeted cargo update -p; unic-* warnings likely cleared by the Tauri bump; '2.x' in commit template means the actual minor).
+
+**2026-09-27T03:25:19Z**
+
+Completion (branch upgrade-tauri-2-12: 4007f3e Tauri upgrade, a73d6dc cargo update; cargo fmt no changes).
+Audit: before 5 vulns (RUSTSEC-2026-0204 crossbeam-epoch, -0258 h2, -0194/-0195 quick-xml, -0285 rustls) + 11 warnings; after 0 vulns + 3 warnings. No audit.toml, no follow-up chores.
+Tauri before/after: tauri 2.11.3->2.12.0, tauri-build 2.6.3->2.7.0, plugin-dialog 2.7.1->2.8.0, plugin-opener 2.5.4->2.6.0; npm api/cli 2.11->2.12.0, plugin-dialog 2.7->2.8.0, plugin-opener 2.5->2.6.0. pnpm tauri info: no mismatch. Direct deps: minor/patch only (mongodb 3.7.0->3.9.1, tokio 1.52.3->1.53.1, reqwest 0.13.4->0.13.5, uuid, serde, thiserror...).
+Release notes: none affects us. ACL deny scoping: doesn't affect us (capabilities/default.json has no deny rules). Channel/listener leak fixes and unlisten guard: benefit only, src/api/websocket.ts and src/stores/export.svelte.ts use listen/unlisten unchanged. exit-code transfer, asset://, menu/tray, dynamic-acl, setBackgroundColor, path.normalize: APIs not used. InvokeMessage::state deprecation: not used in src-tauri/src. withGlobalTauri plugin script change: not set in tauri.conf.json. MSRV 1.90: local rustc 1.98, CI installs stable. tauri-build edition 2024: our crate stays on 2021. productName default warning: ours is DGrid. Android/iOS/Windows-only changes: we ship macOS/Linux desktop only (Windows fixes irrelevant to bundle).
+Warnings left: instant 0.1.13 (unmaintained, via notify-types <- notify 7, a direct dep; notify 8 would drop it, out of scope as a major); proc-macro-error 1.0.4 (unmaintained) and glib 0.18.5 (unsound), both Linux-only via gtk 0.18 <- muda/tauri. The unic-* crates were removed by the Tauri bump.
+Checks after last commit: pnpm verify pass (689 TS tests, clippy, 182 Rust tests), pnpm build pass (DGrid.app + dmg), pnpm e2e 20/20 specs pass. Reviewer still to do: linux-e2e on the PR and the pnpm dev manual checks.
+
+**2026-09-27T03:25:29Z**
+
+Correction to the completion note: we do ship Windows (release.yml build-windows, NSIS). The Windows items in the release notes still don't affect us, for these reasons: default_window_icon now loads from the embedded icon resource and bundle icon .ico is resolved relative to the config dir (src-tauri/tauri.conf.json sits next to icons/, so same path); focus, redirection bitmap and multi-webview fixes are bug fixes or opt-in features. Not verified on Windows locally; the release workflow's build-windows job is the check.
