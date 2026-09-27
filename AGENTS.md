@@ -116,8 +116,8 @@ at it, so `br` works from anywhere. Never commit ticket changes; the user does t
 `tickets` branch. Run `br --help` for commands. Ticket pipeline conventions, the Definition
 of Ready and the cold read are in `.agents/tickets/`; helpers are in `scripts/tickets/`.
 
-Only pick up tickets from `br ready -l stage:agent-ready`. Plain `br ready` also lists
-tickets nobody has approved for agent pickup.
+Only pick up tickets that `br ready` lists: those are the ones approved for agent pickup
+(status `agent-ready`). br doesn't stop `--claim` on other tickets, so don't claim them.
 
 When talking to people, refer to tickets by title or a short form of it ("the pnpm audit
 ticket", "Filter query history"), not by ID alone. IDs like `dgr-x91` mean nothing to a
