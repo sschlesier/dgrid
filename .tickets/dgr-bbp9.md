@@ -1,6 +1,6 @@
 ---
 id: dgr-bbp9
-status: open
+status: in_progress
 deps: []
 links: [dgr-mk2m]
 created: 2026-09-27T01:37:17Z
@@ -88,3 +88,7 @@ Refined: happy-dom -> latest 20.x (>=20.8.9); release notes for 16-20 reviewed a
 **2026-09-27T02:08:03Z**
 
 Approved for agent pickup by Scott Schlesier. Preview cold read: not run.
+
+**2026-09-27T02:08:45Z**
+
+Picked up; working on branch happy-dom-20.
