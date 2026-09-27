@@ -1,117 +1,81 @@
 # Ticket format and operations
 
-Tickets are managed with `tk` (wedow/ticket) and live as Markdown files in `.tickets/`.
-Pipeline helpers: `tk-stage`, `tk-stages`, `tk-lint` (standalone commands on PATH).
+Tickets are issues in [br](https://github.com/Dicklesworthstone/beads_rust) (beads_rust).
+Pipeline helpers live in `scripts/tickets/`: `br-stage`, `br-stages`, `br-lint`.
 
 ## Where ticket state lives
 
-Ticket state lives in the **main checkout**, never in a worktree's copy of `.tickets/`.
-Otherwise stage changes made in one worktree are invisible to the others. Run every
-ticket command from the main checkout:
+The br workspace is on the `tickets` branch, an orphan branch that shares no history with
+`main`, checked out as a worktree at `~/src/worktrees/dgrid/tickets`. Every Claude session
+gets `BEADS_DIR` pointing at its `.beads/` from `.claude/settings.json`, so `br` works the
+same from the main checkout, any worktree, or anywhere else, and every agent sees the same
+state immediately.
 
-```bash
-MAIN="$(git worktree list --porcelain | awk 'NR==1 {print $2}')"
-cd "$MAIN" && tk show abc1
-```
+- `br where` shows the workspace in use. If `br` says "Beads not initialized", `BEADS_DIR`
+  isn't set: stop and tell the user. Never run `br init`.
+- Change tickets only through `br` and the helpers. Never edit files in `.beads/`.
+- **Agents never commit tickets.** br keeps its SQLite database and `.beads/issues.jsonl`
+  up to date; the user commits `issues.jsonl` on the `tickets` branch. Don't run git in
+  the tickets worktree, and ticket changes never go in a code commit.
 
-Running from `$MAIN` also matters for `tk create`: it takes the ID prefix from the
-current directory's name, so creating a ticket from a worktree produces the wrong
-prefix. Edit ticket files at `$MAIN/.tickets/<id>.md`.
+## Running br in a worktree
 
-## Committing ticket changes
-
-Commit every ticket change to `main` in `$MAIN` as soon as it's made, so every agent sees
-the same ticket state and nothing is left uncommitted. Never commit ticket changes on a
-branch or in a worktree.
-
-**When:** after each ticket action and before moving on or ending your turn. A ticket
-action is one logical change: creating a ticket, a stage change with its note, writing a
-refined spec (plus its stage change and note), a progress note during pickup, or the
-completion note plus the move to `review`. Touch several tickets in one action (e.g.
-`tk dep`)? Commit them together.
-
-Finishing a pickup: the completion note and the stage change to `review` are one ticket
-action. Commit them to `main` before you stop, even when the ticket says to stop at the
-completion note. That stop applies to the code branch, not the ticket.
-
-**How:**
-
-```bash
-MAIN="$(git worktree list --porcelain | awk 'NR==1 {print $2}')"
-test "$(git -C "$MAIN" branch --show-current)" = main || { echo "main checkout is not on main"; exit 1; }
-git -C "$MAIN" add -- .tickets/<id>.md
-git -C "$MAIN" commit -m "chore(tickets): <id> <what changed>" -- .tickets/<id>.md
-git -C "$MAIN" reset -q -- .tickets/<id>.md
-```
-
-- Name the ticket files explicitly after `--`. That commits only those paths and leaves
-  anything else staged or modified in `$MAIN` alone. Never `git add -A` or
-  `git commit -a`.
-- `git add` first so a newly created ticket file is tracked; the pathspec commit alone
-  won't pick up untracked files.
-- The final `git reset` is required. The pre-commit hook (lint-staged + prettier) can
-  reformat the file during a pathspec commit. The commit and the working tree get the
-  formatted version, but the index keeps the old one, and the next plain `git commit`
-  would silently revert the formatting.
-- Messages: `chore(tickets): <id> <action>`, e.g. `chore(tickets): dgr-a1b2 refined`,
-  `chore(tickets): dgr-a1b2 agent-ready`, `chore(tickets): dgr-a1b2 blocked on permissions`.
-- If `$MAIN` isn't on `main`, stop and tell the user. Don't switch branches.
-- If the commit fails because `.git/index.lock` exists (another agent is committing),
-  wait a few seconds and retry. Don't delete the lock.
-- Don't push; pushing stays with the user.
+Worktree-isolated sessions refuse commands they can't verify. Run each `br` command as its
+own Bash call with literal arguments: no `$VAR`, `$(...)`, `$'...'` or `&&` chains. Use
+the ticket ID itself, not a variable holding it. Multi-line Markdown in a quoted argument
+is fine; for long text, write it to a file outside the repo (your scratchpad or temp
+directory) and pass the path (`--description-file`, `br comments add <id> -f <file>`).
 
 ## Operations
 
-| Operation                      | Command                                                                 |
-| ------------------------------ | ----------------------------------------------------------------------- |
-| Read                           | `tk show <id>` (partial IDs work)                                       |
-| Create                         | `tk create "<title>" -t <type> -p <0-4> -d "<outcome>"` (prints the ID) |
-| Set stage                      | `tk-stage <id> <stage>`                                                 |
-| Add a note                     | `tk add-note <id> "<text>"` (timestamped, appended under `## Notes`)    |
-| List by stage                  | `tk ls -T stage:<stage>`, or `tk-stages` for the whole board            |
-| Pickup candidates              | `tk ready -T stage:agent-ready`                                         |
-| Lint                           | `tk-lint <id>` (exits 1 on FAIL)                                        |
-| Change type, priority or title | edit the frontmatter or the `# Title` line in the file                  |
-| Dependencies                   | `tk dep <id> <depends-on-id>`, `tk dep tree <id>`                       |
+| Operation                   | Command                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| Read                        | `br show <id>` (`--json` for scripts)                                                |
+| Create                      | `br create "<title>" -t <type> -p <0-4> -l stage:captured -d "<outcome>" --silent` (prints the ID) |
+| Set description             | `br update <id> --description-file <file>`                                           |
+| Set design                  | `br update <id> --design "<text>"`                                                   |
+| Set acceptance criteria     | `br update <id> --acceptance-criteria "<checklist>"`                                 |
+| Set stage                   | `scripts/tickets/br-stage <id> <stage>`                                              |
+| Add a note                  | `br comments add <id> -m "<text>"` (or `-f <file>`); timestamped, append-only        |
+| List by stage               | `br list -l stage:<stage>`, or `scripts/tickets/br-stages` for the whole board       |
+| Pickup candidates           | `br ready -l stage:agent-ready`                                                      |
+| Lint                        | `scripts/tickets/br-lint <id>` (exits 1 on FAIL)                                     |
+| Start / close               | `br update <id> --claim`, `br close <id> -r "<reason>"`                              |
+| Type, priority, title       | `br update <id> -t <type>`, `-p <n>`, `--title "<title>"`                            |
+| Dependencies                | `br dep add <id> <depends-on-id>`, `br dep tree <id>`                                |
+| Related tickets             | `br dep add <id> <other-id> -t related`                                              |
+| Search                      | `br search "<text>"` (titles, descriptions, IDs, comments; `--all` for closed)       |
 
-Stages (tags): `captured` → `triaged` → `refined` → `agent-ready`, plus
-`needs-clarification` and `review`. In-progress and closed come from tk's status
-(`tk start`, `tk close`), not from tags.
+`br update` refuses to shrink a field to less than half its length without `--force`.
+When a rewrite is meant to be shorter, check it first, then pass `--force`.
 
-## File layout
+Stages (labels): `captured` → `triaged` → `refined` → `agent-ready`, plus
+`needs-clarification` and `review`. In-progress and closed come from br's status
+(`br update --claim`, `br close`), not from labels. An issue has at most one `stage:*`
+label; `br-stage` replaces the old one.
+
+## Fields
+
+| Field                 | Holds                                                                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| title                 | Short imperative title                                                                                                                                       |
+| description           | The **Outcome** (first paragraph), then optional `Context:` and `Out of scope:` paragraphs, then `## Verification`, then optional `## Boundaries`          |
+| design                | Decisions and their answers, constraints, affected interfaces. Flags: migration / public API / config change (only the ones that apply)                     |
+| acceptance criteria   | A checklist of testable statements (`- [ ] …`)                                                                                                               |
+| comments              | Notes: progress, questions, completion notes. Added with `br comments add`; never edited or removed                                                          |
+| labels                | `stage:<stage>`                                                                                                                                              |
+| external ref          | For tickets migrated from tk, the old tk ID (e.g. `dgr-mk2m`)                                                                                                |
+
+A description looks like this:
 
 ```markdown
----
-id: dgr-a1b2
-status: open
-deps: []
-links: []
-created: 2026-09-26T16:31:05Z
-type: feature
-priority: 2
-assignee: Scott Schlesier
-tags: [stage:refined]
----
+Users can export the current result grid to a CSV file from the toolbar.
 
-# Export query results as CSV
+Context: why this matters, current behavior, links.
 
-Users can export the current result grid to a CSV file from the toolbar. ← Outcome (first paragraph)
-
-Context: why this matters, current behavior, links. ← optional
-
-Out of scope: ← optional
+Out of scope:
 
 - Excel export
-
-## Design
-
-Decisions and their answers, constraints, affected interfaces.
-Flags: migration / public API / config change (only the ones that apply).
-
-## Acceptance Criteria
-
-- [ ] Testable statement
-- [ ] Testable statement
 
 ## Verification
 
@@ -119,22 +83,21 @@ Flags: migration / public API / config change (only the ones that apply).
 - `pnpm test src/lib/export.test.ts`
 - Manual: open a collection, click Export, open the file
 
-## Boundaries ← optional
+## Boundaries
 
 Stop and send back if: …
 Don't touch: …
-
-## Notes
-
-**2026-09-26T16:31:05Z**
-
-Added by `tk add-note`. Never edit or remove existing notes.
 ```
 
 Rules:
 
-- **Required:** the Outcome paragraph, `## Acceptance Criteria` and `## Verification`
-  (`tk-lint` enforces them).
+- **Required:** the Outcome, acceptance criteria and `## Verification` (`br-lint` enforces
+  them).
 - Write any other section only when it has real content. Never leave an empty heading.
-- `## Verification` and `## Boundaries` go before `## Notes`.
-- `## Notes` belongs to `tk add-note`. Leave it as the last section.
+
+## Tickets from tk
+
+Tickets created before the move to br kept their history but got new IDs. The old tk ID is
+the issue's external ref and appears in its first comment, so `br search dgr-mk2m --all`
+finds it (`--all` includes closed tickets). `tk-id-map.json` on the `tickets` branch maps every old ID to its new one. Commit
+messages from before the move use the old IDs.

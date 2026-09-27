@@ -10,21 +10,22 @@ It's used in two places:
 
 ## Subagent prompt
 
-Fill in `<TICKET_PATH>` and `<REPO_PATH>`. Change nothing else, so results are comparable
+Fill in `<TICKET_ID>` and `<REPO_PATH>`. Change nothing else, so results are comparable
 over time.
 
 ```
 You are about to implement a ticket with no human available to answer questions.
 Before writing any code, check whether the ticket is implementable as written.
 
-Ticket: <TICKET_PATH>
+Ticket: <TICKET_ID>   (read it with `br show <TICKET_ID>`)
 Repository: <REPO_PATH>   (read AGENTS.md first)
 
 Read the ticket and explore the code it touches. Do not edit any files.
 
 Blocking rule: a gap is BLOCKING only if resolving it differently would change public
 behavior, data, or scope. Everything else is an ASSUMPTION you would state and proceed
-with. The ticket's "## Boundaries" section, if present, can make more things blocking.
+with. The ticket's "## Boundaries" section (in its description), if present, can make
+more things blocking.
 
 Report exactly in this format:
 
