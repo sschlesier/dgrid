@@ -1,6 +1,6 @@
 ---
 name: ticket-refine
-description: Turn a rough ticket or idea into a spec an agent can implement unattended. Drafts the whole ticket from the repo first, then asks only about the gaps against the Definition of Ready. Use when asked to refine, spec out, flesh out or clarify a ticket, when given a ticket ID in stage captured, triaged, needs-clarification or refined, or when given a new idea to turn into a ticket.
+description: Turn a rough ticket or idea into a spec an agent can implement unattended. Drafts the whole ticket from the repo first, then asks only about the gaps against the Definition of Ready. Use when asked to refine, spec out, flesh out or clarify a ticket, when given a ticket ID with status open, triaged, needs-clarification or refined, or when given a new idea to turn into a ticket.
 ---
 
 # Refine a ticket
@@ -19,14 +19,14 @@ changes; the user commits them on the `tickets` branch.
 
 ## 1. Load or create
 
-- **Ticket ID given:** `br show <id>`. Note its stage.
+- **Ticket ID given:** `br show <id>`. Note its status.
   - `needs-clarification`: the most recent comment has the questions from the agent that
     sent it back. Those questions are the agenda for this pass. Answer each one
     explicitly.
   - `agent-ready`: refining it cancels the approval. Say so before changing anything.
 - **Idea given, no ticket:** search for duplicates (`br search "<keywords>" --all`). If
-  there's none, `br create` it with a working title and `-l stage:captured`.
-- **Captured (not triaged):** do a quick triage inline. Check for duplicates and set type
+  there's none, `br create` it with a working title. It starts as `open` (captured).
+- **Open (not triaged):** do a quick triage inline. Check for duplicates and set type
   and priority. If it's clearly bigger than one PR, stop and propose
   splitting it into separate tickets before refining.
 
@@ -81,7 +81,7 @@ the user accepts the ones that remain.
    and `-p` when they changed. Leave the comments alone. If br refuses a rewrite for
    being much shorter, check that the shorter text is intended, then add `--force`.
 2. `scripts/tickets/br-lint <id>`: fix every FAIL. Fix WARNs unless the user accepts them.
-3. `scripts/tickets/br-stage <id> refined`
+3. `br update <id> -s refined`
 4. `br comments add <id> -m "Refined: <one line on what was settled>"`. If the ticket came
    back from needs-clarification, list which questions were answered and how.
 5. Tell the user the ticket is refined and suggest `/ticket-approve <id>`.

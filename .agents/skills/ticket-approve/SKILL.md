@@ -16,9 +16,9 @@ commits them on the `tickets` branch.
 ## 1. Select
 
 - Ticket ID given: use it.
-- None given: list `br list -l stage:refined` and ask which one. Review one ticket at a time.
-- The ticket must be in stage `refined`. Otherwise stop and name the right skill
-  (`ticket-refine` for captured, triaged or needs-clarification).
+- None given: list `br list -s refined` and ask which one. Review one ticket at a time.
+- The ticket must have status `refined`. Otherwise stop and name the right skill
+  (`ticket-refine` for open, triaged or needs-clarification).
 
 ## 2. Lint
 
@@ -63,19 +63,16 @@ Use AskUserQuestion with these options:
 
 ## 6. Record it
 
-**Approve:**
+br's policy requires the comment on both transitions, so the note and the status change
+are one command.
 
-1. `scripts/tickets/br-stage <id> agent-ready`
-2. `br comments add <id> -m "Approved for agent pickup by <name>. Preview cold read: <pass | blocked, overridden: reason | not run>."`,
-   with `<name>` from `git config user.name`
+**Approve:** `br update <id> -s agent-ready --transition-comment "Approved for agent pickup by <name>. Preview cold read: <pass | blocked, overridden: reason | not run>."`,
+with `<name>` from `git config user.name`.
 
-**Send back:**
-
-1. `scripts/tickets/br-stage <id> needs-clarification`
-2. `br comments add <id>` with the concerns written as questions, so `ticket-refine` can
-   use them as its agenda.
+**Send back:** `br update <id> -s needs-clarification --transition-comment "<the concerns, written as questions>"`,
+so `ticket-refine` can use them as its agenda.
 
 **Leave as is:** change nothing.
 
-Report the final stage. If you approved it and `br ready -l stage:agent-ready` doesn't
-list it, say which dependency is still open.
+Report the final status. If you approved it and `br ready` doesn't list it, say which
+dependency is still open.
