@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { formatTtl } from '../lib/format';
 
   interface Props {
     x: number;
@@ -47,7 +48,7 @@
       {#if unique}<span class="flag">unique</span>{/if}
       {#if sparse}<span class="flag">sparse</span>{/if}
       {#if expireAfterSeconds !== undefined}
-        <span class="flag">TTL: {expireAfterSeconds}s</span>
+        <span class="flag">TTL: {formatTtl(expireAfterSeconds)}</span>
       {/if}
     </div>
   {/if}
