@@ -7,102 +7,124 @@ created: 2026-09-27T01:38:13Z
 type: chore
 priority: 2
 assignee: Scott Schlesier
-tags: [stage:captured]
+tags: [stage:refined]
 ---
 
-# Fix cargo audit findings and update Rust dependencies
+# Update Rust dependencies, upgrade Tauri to 2.12 and fix cargo audit findings
 
-Every vulnerability or unmaintained-crate warning reported by `cargo audit` for
-`src-tauri/` is either fixed or accounted for: accepted because no fix exists, or tracked
-in its own upgrade ticket. The Rust side gets the same treatment the pnpm audit ticket
-gave the npm side, and the shipped app stops carrying known-vulnerable crates silently.
+The shipped app runs on the latest Tauri 2.x with every Rust dependency refreshed within
+its semver range, and `cargo audit` reports no vulnerabilities for `src-tauri/`.
 
-Context: `cargo-audit` isn't installed yet (`cargo install cargo-audit`), so there is no
-baseline count. On 2026-09-27, `cargo update --dry-run` would update 192 of 229 locked
-packages within their existing ranges, including `tauri` 2.11.3 → 2.12.0,
-`tauri-plugin-dialog` 2.7.1 → 2.8.0, `tauri-plugin-opener` 2.5.4 → 2.6.0,
-`mongodb` 3.7.0 → 3.9.1 and `tokio` 1.52.3 → 1.53.1. Run the audit at pickup and record
-the baseline.
+Context: baseline on 2026-09-26 (`cargo audit` in `src-tauri/`): 5 vulnerabilities —
+RUSTSEC-2026-0204 `crossbeam-epoch` 0.9.18, RUSTSEC-2026-0258 `h2` 0.4.15,
+RUSTSEC-2026-0194 and RUSTSEC-2026-0195 `quick-xml` 0.39.4 (via `plist` ← `tauri`, CVSS
+7.5 DoS), RUSTSEC-2026-0285 `rustls` 0.23.40 — plus warnings: unmaintained `instant`,
+`proc-macro-error` and five `unic-*` crates; unsound `anyhow` 1.0.102, `event-listener`
+5.4.1, `glib` 0.18.5; yanked `chacha20` 0.10.0. `cargo update --dry-run` moves all five
+vulnerable crates and `anyhow`, `event-listener` and `chacha20` to fixed versions.
 
-The pnpm audit ticket pinned the npm `@tauri-apps/api`, `cli`, `plugin-dialog` and
-`plugin-opener` packages with `~` ranges to the minor versions of their Rust crates,
-because the Tauri CLI refuses to build on a major.minor mismatch. Any Tauri crate minor
-bump here has to move those npm pins with it.
+Latest releases on 2026-09-26: `tauri` 2.12.0 (locked 2.11.3), `tauri-build` 2.7.0
+(2.6.3), `tauri-plugin-dialog` 2.8.0 (2.7.1), `tauri-plugin-opener` 2.6.0 (2.5.4);
+npm `@tauri-apps/api` and `cli` 2.12.0, `plugin-dialog` 2.8.0, `plugin-opener` 2.6.0.
+`tauri-plugin-webdriver` 0.2.3 is already latest.
+
+The pnpm audit ticket pinned the npm `@tauri-apps/*` packages with `~` ranges to the
+minor versions of their Rust crates, because the Tauri CLI refuses to build on a
+major.minor mismatch. They move together here.
 
 Out of scope:
 
-- Any major version upgrade of a direct dependency (e.g. `notify` 7 → 8,
-  `reqwest` 0.12 → 0.13 if that counts as a break); these become follow-up chores
-- Upgrading crates that have no audit finding just because they're outdated, beyond what
-  `cargo update` does within existing ranges
-- npm dependencies (covered by the pnpm audit ticket, dgr-mk2m)
+- Tauri 3 or any other major version upgrade of a direct dependency (for 0.x crates, a
+  minor: e.g. `notify` 7 → 8, `reqwest` 0.12 → 0.13); these become follow-up chores
+- Changing the `tauri-webdriver` CLI pin (0.2.0) or `tauri-plugin-webdriver`'s `0.2` range
+- npm dependencies other than the four `@tauri-apps/*` packages
 - Adding `cargo audit` or `cargo deny` to CI
 - Changing the Rust edition or MSRV
+- Adopting new Tauri 2.12 features or APIs
 
-## Design (draft, to confirm in refinement)
+## Design
 
-- Order of preference for each finding:
-  1. `cargo update` within existing ranges (lockfile refresh);
-  2. raise a direct dependency's version requirement in `Cargo.toml` to a patched
-     minor/patch version;
-  3. `cargo update -p <crate> --precise <ver>` for a transitive crate, when its parent's
-     range allows the patched version.
-- **Fixes that need a major upgrade are skipped.** For each direct dependency that needs
-  one, create a follow-up chore from the main checkout:
-  `tk create "Upgrade <crate> to <major> to fix audit findings" -t chore -p <P> --tags stage:captured`.
-  P1 if any advisory it clears is critical or high (CVSS ≥ 7), otherwise P2. The
-  description lists the RUSTSEC IDs it clears. Link it with `tk link dgr-t6hb <new-id>`.
-- Tauri crates (`tauri`, `tauri-build`, `tauri-plugin-*`) and the matching npm
-  `@tauri-apps/*` packages move together, in one commit, to the same major.minor. The
-  `~` ranges in `package.json` are raised to the new minor.
-- Findings with no fix (or unmaintained crates with no replacement in the dependency
-  tree's control) are accepted in `src-tauri/.cargo/audit.toml` under
-  `[advisories] ignore = [...]`, each with a comment giving the reason.
-- Unmaintained/yanked warnings that `cargo update` doesn't clear: list them in the
-  completion note; no follow-up chore unless they're on a direct dependency.
-- Run `cargo fmt` and commit any formatting-only changes separately
-  (`style: apply cargo fmt`), per AGENTS.md.
+- **Target versions:** the latest 2.x release of each Tauri crate and its npm package at
+  pickup (2.12 / 2.7 / 2.8 / 2.6 as of 2026-09-26). If a newer 2.x minor has shipped by
+  then, take it; the rules below apply unchanged.
+- **Release notes:** before changing anything, read the changelogs for every Tauri minor
+  crossed — `tauri` 2.12, `tauri-build` 2.7, `tauri-plugin-dialog` 2.8,
+  `tauri-plugin-opener` 2.6, and the matching `@tauri-apps/api`, `cli`, `plugin-dialog`
+  and `plugin-opener` releases — and check each breaking or behavior change against how
+  the repo uses them (`src-tauri/src/`, `src-tauri/capabilities/`,
+  `src-tauri/tauri.conf.json`, `src/api/`, and every `@tauri-apps/*` import in `src/`).
+- **Cargo.toml requirements:** raise `tauri`, `tauri-build`, `tauri-plugin-dialog` and
+  `tauri-plugin-opener` from `"2"` to the new major.minor (e.g. `"2.12"`, caret semantics).
+  A fresh lockfile then can't fall below the minor the npm `~` pins expect. Leave every
+  other requirement as is.
+- **npm pins:** raise the four `~` ranges in `package.json` to the new versions (e.g.
+  `~2.12.0`) and update `pnpm-lock.yaml`. The Tauri crates and npm packages move in the
+  same commit.
+- **Lockfile:** run a full `cargo update` in `src-tauri/` (every crate, within its
+  existing range), as its own commit, separate from the Tauri bump.
+- **Generated files:** if the build regenerates `src-tauri/gen/schemas/*`, commit the
+  result with the Tauri bump.
+- **Audit leftovers:** any vulnerability still reported after the update that needs a
+  major upgrade of a direct dependency gets a follow-up chore, created from the main
+  checkout:
+  `tk create "Upgrade <crate> to <major> to fix audit findings" -t chore -p <P> --tags stage:captured`,
+  P1 if any advisory it clears has CVSS ≥ 7, otherwise P2, with the RUSTSEC IDs in the
+  description, linked with `tk link dgr-t6hb <new-id>`. A vulnerability with no fix at
+  all goes in `src-tauri/.cargo/audit.toml` (`[advisories] ignore = [...]`, a comment
+  with the reason for each entry). Create that file only if it has an entry.
+- **Warnings** (unmaintained, unsound, yanked) that remain: list them in the completion
+  note, with no follow-up chore. The expected ones (`instant`, `proc-macro-error`,
+  `unic-*`, `glib` 0.18) come in through Tauri's own dependency tree (gtk3 / urlpattern
+  / proc-macro stack), which this repo doesn't control.
+- **Commits:** (1) `chore(deps): cargo update`; (2)
+  `chore(deps): upgrade Tauri to 2.x` (Cargo.toml, Cargo.lock, package.json,
+  pnpm-lock.yaml, regenerated schemas); (3) any code changes the release notes require,
+  one per change; (4) `style: apply cargo fmt` if it changes anything.
+- Flags: dependency update only, no migration, no public API or config format change.
 
 ## Acceptance Criteria
 
-- [ ] Every vulnerability still reported by `cargo audit` is either in
-      `src-tauri/.cargo/audit.toml` `ignore` (with a reason) or covered by a linked
-      follow-up chore that names its RUSTSEC ID.
-- [ ] Every `ignore` entry has no patched version reachable without a major upgrade of a
-      direct dependency.
-- [ ] No direct dependency changed its major version (for 0.x crates, its minor).
-- [ ] The Tauri crates and the npm `@tauri-apps/*` packages share a major.minor, and
+- [ ] `cargo audit` in `src-tauri/` reports 0 vulnerabilities, or each one left is in
+      `audit.toml` with a reason or named in a linked follow-up chore.
+- [ ] `Cargo.lock` locks `tauri` 2.12.0 or newer 2.x, `tauri-build` 2.7+,
+      `tauri-plugin-dialog` 2.8+ and `tauri-plugin-opener` 2.6+.
+- [ ] `src-tauri/Cargo.toml` requires those four crates at their new major.minor.
+- [ ] The four npm `@tauri-apps/*` packages share each crate's major.minor, and
       `pnpm tauri info` reports no version mismatch.
-- [ ] Each follow-up chore exists with stage `captured`, is linked to `dgr-t6hb`, and has
-      the priority from Design.
-- [ ] `pnpm verify` passes (includes `cargo clippy -D warnings` and `cargo test`), and the
-      app builds and runs.
-- [ ] The completion note records: audit counts before/after; each `ignore` entry and
-      why; the follow-up chore IDs; any unmaintained/yanked warnings left; the Tauri
-      version before/after.
+- [ ] No direct dependency changed its major version (for 0.x crates, its minor), apart
+      from the Tauri minors above.
+- [ ] `pnpm verify` and `cargo test` (in `src-tauri/`) pass, and `pnpm build` produces
+      the app bundle.
+- [ ] The completion note records: audit counts before/after; the Tauri versions
+      before/after; each release-note breaking or behavior change as "affects us" (with
+      file refs) or "doesn't affect us" (with a reason); any `audit.toml` entries and
+      follow-up chore IDs; the warnings left.
 
 ## Verification
 
-- `cargo audit` in `src-tauri/`: what's still reported matches `ignore` plus the
-  follow-up chores
-- `pnpm verify`
+- `cargo audit` in `src-tauri/`
 - `pnpm tauri info`: no Tauri package version mismatch
-- After handoff (reviewer): the `linux-e2e` workflow passes on the PR (covers
-  `tauri-plugin-webdriver` and the Tauri runtime update)
-- Manual (`pnpm dev`): the app launches, connects to a local MongoDB, runs a `find`
-  query and shows results; the export dialog opens (plugin-dialog) and a saved-password
-  connection still connects (keyring)
-
-## Open questions for refinement
-
-- Should a Tauri minor bump (2.11 → 2.12) happen here even with no audit finding on it,
-  since `cargo update` does it within range? Or hold Tauri at 2.11 with `~2.11` in
-  `Cargo.toml` and leave the bump to its own ticket?
-- Commit `.cargo/audit.toml`, or keep the ignore list in the ticket only?
+- `pnpm verify`
+- `cargo test` in `src-tauri/`
+- `pnpm build`
+- `pnpm e2e` (covers the Tauri runtime and `tauri-plugin-webdriver` with the new Tauri)
+- Manual (`pnpm dev`): the app launches; create a connection to a local MongoDB with a
+  saved password, quit and relaunch, connect (keyring); open a collection and run
+  `db.<coll>.find({})`, results show; click Export and pick a file (plugin-dialog), the
+  file is written; in the query panel, open a query file (plugin-dialog `open`); click the
+  version link at the bottom of the sidebar (plugin-opener) and the GitHub release page
+  opens in the browser.
 
 ## Boundaries
 
-Stop and send back if: a fix needs a Tauri major/minor bump the npm side can't match, or
-the MongoDB driver update changes query results in tests.
+Stop and send back if: a release note forces a change to IPC contracts, capabilities or
+stored data; `tauri-plugin-webdriver` 0.2.x doesn't build against the new Tauri; the
+MongoDB driver update changes query results in tests.
 Don't touch: `CHANGES.md`.
-Don't push or open a PR; commit locally and stop at the completion note.
+Don't push or open a PR; commit on the branch and stop at the completion note.
+
+## Notes
+
+**2026-09-27T03:04:25Z**
+
+Refined: Tauri upgrade to latest 2.x (2.12 on 2026-09-26) folded in with cargo update and audit fixes; baseline 5 vulns, all cleared by cargo update; Cargo.toml Tauri requirements raised with caret to the new minor; stays P2 (quick-xml reached only via Tauri's plist parsing).
