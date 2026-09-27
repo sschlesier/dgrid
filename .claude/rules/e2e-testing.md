@@ -298,5 +298,6 @@ excerpt in its error when the app shell never renders.
 pnpm e2e:install-driver   # One-time: cargo install tauri-webdriver
 pnpm e2e                  # Build debug app, start MongoDB + driver, run all specs
 pnpm e2e:ci               # Same with --ci (longer timeouts; CI runs it on Linux under xvfb-run)
+pnpm e2e:smoke            # Run only the smoke spec
 node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs   # One spec
 ```

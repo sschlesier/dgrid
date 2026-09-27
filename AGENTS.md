@@ -42,6 +42,7 @@ cargo test            # Run Rust test suite (in src-tauri/)
 pnpm e2e:install-driver   # One-time: cargo install tauri-webdriver
 pnpm e2e                  # Build debug app, start MongoDB + driver, run all specs
 pnpm e2e:ci               # Same with --ci (CI runs it on Linux under xvfb-run)
+pnpm e2e:smoke            # Run only the smoke spec
 node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs   # One spec
 
 # Building

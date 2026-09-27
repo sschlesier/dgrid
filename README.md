@@ -136,6 +136,9 @@ pnpm e2e
 # Real-app Tauri E2E (CI/Linux-style)
 pnpm e2e:ci
 
+# Real-app Tauri E2E, smoke spec only
+pnpm e2e:smoke
+
 # Type-check, lint, test, and build in one command
 pnpm verify
 ```
