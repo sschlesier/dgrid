@@ -8,7 +8,7 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    exclude: ['node_modules', 'dist', 'tests/e2e/**'],
+    exclude: ['node_modules', 'dist'],
     environment: 'happy-dom',
     setupFiles: ['./tests/setup.ts', '@testing-library/svelte/vitest'],
     coverage: {
