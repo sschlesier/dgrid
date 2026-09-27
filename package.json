@@ -26,10 +26,9 @@
     "prepare": "husky",
     "tauri": "tauri",
     "e2e": "node scripts/run-tauri-e2e.mjs",
-    "e2e:headed": "node scripts/run-tauri-e2e.mjs",
     "e2e:ci": "node scripts/run-tauri-e2e.mjs --ci",
     "e2e:install-driver": "cargo install tauri-webdriver",
-    "e2e:report": "node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs"
+    "e2e:smoke": "node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/smoke.e2e.mjs"
   },
   "keywords": [
     "mongodb",
