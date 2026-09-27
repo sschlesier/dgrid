@@ -7,7 +7,7 @@ created: 2026-09-27T01:37:17Z
 type: chore
 priority: 1
 assignee: Scott Schlesier
-tags: [stage:agent-ready]
+tags: [stage:review]
 ---
 
 # Upgrade happy-dom to 20 to fix audit findings
@@ -92,3 +92,21 @@ Approved for agent pickup by Scott Schlesier. Preview cold read: not run.
 **2026-09-27T02:08:45Z**
 
 Picked up; working on branch happy-dom-20.
+
+**2026-09-27T02:12:27Z**
+
+Completion note (implementing agent). Branch happy-dom-20, commit 18c59cc.
+
+happy-dom ^15.11.7 -> ^20.14.5 (lockfile 20.14.5). package.json diff vs main: only the happy-dom line. Lockfile: happy-dom plus its own new deps (ws, entities 7, buffer-image-size, @types/ws, @types/whatwg-mimetype).
+
+Breaking changes 16-20 vs actual usage (happy-dom is only referenced as environment: 'happy-dom' in vitest.config.ts; nothing imports it):
+
+- v16 HTML/XML parser + serializer rewrite: affects us only indirectly. Svelte 5 renders component templates and TreeNode.svelte {@html} SVG icons through the parser; covered by the component tests (Sidebar.test.ts renders TreeNode), all pass. No tests assert on innerHTML/outerHTML or snapshots.
+- v17 ESM support in scripts; setAttribute() rejects invalid attribute names: doesn't affect us. No script elements in tests; the only setAttribute calls use 'data-theme' (src/stores/app.svelte.ts:703,705).
+- v18 strict types, BrowserContext.close() on default context throws: doesn't affect us. We don't import happy-dom types or its Browser API (skipLibCheck is true anyway).
+- v19 CommonJS removed: doesn't affect us. Vitest loads it as ESM; Node 24 locally and in CI (>=20 required).
+- v20 JavaScript evaluation disabled by default: doesn't affect us. No script tags, inline on* handlers or eval inside the DOM in tests or setup.
+
+Tests: 689/689 pass before and after; no test files changed, no new warnings.
+Audit before -> after: 1 critical / 4 high (2 ignored) / 2 moderate -> 0 critical / 2 high (2 ignored, extract-zip) / 2 moderate. GHSA-37j7-fg3j-429f, GHSA-6q6h-j7hj-3r64, GHSA-w4gp-fjgq-3q4g no longer reported.
+Verified: pnpm test --run, pnpm audit grep (empty), pnpm verify (exit 0; includes 182 Rust tests).
