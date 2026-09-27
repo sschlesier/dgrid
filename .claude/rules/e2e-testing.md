@@ -295,7 +295,7 @@ excerpt in its error when the app shell never renders.
 ## Running Tests
 
 ```bash
-pnpm e2e:install-driver   # One-time: cargo install tauri-webdriver
+pnpm e2e:install-driver   # Install the pinned tauri-webdriver (rerun when the pin changes)
 pnpm e2e                  # Build debug app, start MongoDB + driver, run all specs
 pnpm e2e:ci               # Same with --ci (longer timeouts; CI runs it on Linux under xvfb-run)
 pnpm e2e:smoke            # Run only the smoke spec

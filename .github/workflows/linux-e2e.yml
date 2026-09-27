@@ -98,7 +98,7 @@ jobs:
         run: pnpm tauri build --debug --no-bundle --ci
 
       - name: Install tauri-webdriver
-        run: cargo install tauri-webdriver
+        run: pnpm e2e:install-driver
 
       - name: Upload app binary
         uses: actions/upload-artifact@v6.0.0
