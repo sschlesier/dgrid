@@ -2,7 +2,7 @@
 id: dgr-t6hb
 status: open
 deps: []
-links: [dgr-mk2m]
+links: [dgr-mk2m, dgr-3m7w]
 created: 2026-09-27T01:38:13Z
 type: chore
 priority: 2
