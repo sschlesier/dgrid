@@ -1,6 +1,6 @@
 ---
 id: dgr-mk2m
-status: in_progress
+status: closed
 deps: []
 links: [dgr-bbp9, dgr-t6hb, dgr-yq4c]
 created: 2026-09-26T18:02:08Z
@@ -116,3 +116,7 @@ Moderate left unfixed: GHSA-82fw-gwwq-j7x9 (vitest / @vitest/mocker <4.1.11, nee
 @wdio/* changes for the reviewer: @wdio/cli, junit-reporter, local-runner, mocha-framework, spec-reporter and webdriverio 9.25.0 → 9.32.0; expect-webdriverio 5.6.5 → 5.7.0. The linux-e2e workflow must pass on the PR.
 
 Verified: pnpm verify passes (689 TS tests, 182 Rust tests, clippy, frontend build); tauri info shows npm/crate minors aligned. Not done: the manual pnpm dev check (connect, find query, Table view, autocomplete) and the linux-e2e run.
+
+**2026-09-27T02:57:31Z**
+
+Remaining verification done by the user: the manual pnpm dev check (connect, find query, Table view, autocomplete) and linux-e2e both pass. Fixes are on main (4116371, a485c50, a6899ac); follow-ups dgr-bbp9 (happy-dom 20) and dgr-yq4c (vitest 5) are merged and closed. pnpm audit on main reports only the 2 ignored extract-zip highs. Closing.
