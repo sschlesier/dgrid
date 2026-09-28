@@ -49,3 +49,8 @@ mongo-data/
 # Tauri
 src-tauri/target/
 src-tauri/gen/
+
+# br doctor per-run artifacts
+.doctor/
+# br WAL index scratch directories
+.beads/.br-wal-index-*/

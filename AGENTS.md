@@ -110,14 +110,16 @@ A bad E2E test: "Password field disables when save-password checkbox is unchecke
 
 ## Tickets
 
-This project uses `br` (beads_rust) for tickets. The workspace lives on the `tickets`
-branch, and `BEADS_DIR` (set in `.claude/settings.json`) points every checkout and worktree
-at it, so `br` works from anywhere. Never commit ticket changes; the user does that on the
-`tickets` branch. Run `br --help` for commands. Ticket pipeline conventions, the Definition
-of Ready and the cold read are in `.agents/tickets/`; helpers are in `scripts/tickets/`.
+Tickets are `br` (beads_rust) issues in `.beads/`, tracked on `main`. br resolves `.beads/`
+in the main checkout from any worktree, so every agent sees the same tickets. Before
+creating, refining or working a ticket, read `.agents/tickets.md`: where tickets live and
+how to commit them, what a good ticket contains, approval, and the cold read. Run
+`br --help` for commands; `scripts/tickets/br-lint` checks a ticket's required parts.
 
-Only pick up tickets that `br ready` lists: those are the ones approved for agent pickup
-(status `agent-ready`). br doesn't stop `--claim` on other tickets, so don't claim them.
+Start only approved tickets: those listed by `br ready -l approved`. If asked to work on a
+ticket that isn't approved, run `/ticket-review` on it first instead of refusing. When the
+work is done, add a completion note and leave the ticket `in_progress`; the user closes it
+after merging.
 
 When talking to people, refer to tickets by title or a short form of it ("the pnpm audit
 ticket", "Filter query history"), not by ID alone. IDs like `dgr-x91` mean nothing to a
