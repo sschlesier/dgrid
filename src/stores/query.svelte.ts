@@ -8,7 +8,7 @@ import { ApiError, QueryCancelledError } from '../api/client';
 
 // localStorage keys
 const HISTORY_KEY = 'dgrid-query-history';
-const MAX_HISTORY_ITEMS = 20;
+const MAX_HISTORY_ITEMS = 200;
 
 // Generate unique IDs
 function generateId(): string {
