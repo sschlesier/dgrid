@@ -159,5 +159,9 @@ export const selectors = {
     itemQuery: () => $$('.item-query'),
     clearButton: () => $('.clear-btn'),
     emptyState: () => $('.empty-history'),
+    filterInput: () => $('.history-filter input'),
+    filterClearButton: () => $('.history-filter .filter-clear'),
+    noMatches: () =>
+      $(`//*[contains(@class, "empty-history")][contains(normalize-space(.), ${quoteXPath('No matching queries')})]`),
   },
 };
