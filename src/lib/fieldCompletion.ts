@@ -4,12 +4,54 @@ import {
   acceptCompletion,
   closeCompletion,
   moveCompletionSelection,
+  pickedCompletion,
+  type Completion,
   type CompletionContext,
   type CompletionResult,
   type CompletionSource,
 } from '@codemirror/autocomplete';
-import { keymap, type KeyBinding } from '@codemirror/view';
-import { Prec, type Extension } from '@codemirror/state';
+import { keymap, type EditorView, type KeyBinding } from '@codemirror/view';
+import { Prec, type EditorState, type Extension } from '@codemirror/state';
+import { syntaxTree } from '@codemirror/language';
+
+/** Keys the query parser accepts without quotes (mirrors the unquoted-key regex in queries.ts). */
+const UNQUOTED_KEY = /^[A-Za-z_$][\w$]*$/;
+
+/** Syntax nodes where a completion must be inserted bare, never quoted. */
+const BARE_CONTEXTS = new Set([
+  'String',
+  'TemplateString',
+  'RegExp',
+  'LineComment',
+  'BlockComment',
+]);
+
+function isInBareContext(state: EditorState, pos: number): boolean {
+  const inner = syntaxTree(state).resolveInner(pos, -1);
+  for (let node: typeof inner | null = inner; node; node = node.parent) {
+    if (BARE_CONTEXTS.has(node.name)) return true;
+    // Code inside a template `${...}` is not part of the string.
+    if (node.name === 'Interpolation') return false;
+  }
+  return false;
+}
+
+/** Insert the field path, quoting it when the parser would not accept it as a bare key. */
+export function applyFieldCompletion(
+  view: EditorView,
+  completion: Completion,
+  from: number,
+  to: number
+): void {
+  const path = completion.label;
+  const insert = UNQUOTED_KEY.test(path) || isInBareContext(view.state, from) ? path : `"${path}"`;
+  view.dispatch({
+    changes: { from, to, insert },
+    selection: { anchor: from + insert.length },
+    userEvent: 'input.complete',
+    annotations: pickedCompletion.of(completion),
+  });
+}
 
 /** Create a CompletionSource that offers field names matching a word/dot-notation prefix. */
 export function createFieldCompletionSource(getFields: () => string[]): CompletionSource {
@@ -24,7 +66,7 @@ export function createFieldCompletionSource(getFields: () => string[]): Completi
     const prefix = word.text.toLowerCase();
     const options = fields
       .filter((f) => f.toLowerCase().startsWith(prefix) || f.toLowerCase().includes(prefix))
-      .map((f) => ({ label: f, type: 'property' }));
+      .map((f) => ({ label: f, type: 'property', apply: applyFieldCompletion }));
 
     if (options.length === 0) return null;
 

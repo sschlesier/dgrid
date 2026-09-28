@@ -99,6 +99,25 @@ describe('Field Autocomplete', () => {
     await expect(s.query.autocompleteOption('address.zip')).toBeDisplayed();
   });
 
+  it('quotes an accepted dot-notation path so the query runs', async () => {
+    await openSeededCollection([
+      { name: 'Nested', fee: { foo: 1 } },
+      { name: 'Other', fee: { foo: 2 } },
+    ]);
+
+    await openAutocomplete(`db.${TEST_COLLECTION}.find({ fee.f`, 'fee.foo');
+    await dispatchQueryEditorCommand('dgrid:editor-accept-completion');
+    await s.query.autocomplete().waitForDisplayed({ reverse: true, timeout: 5_000 });
+    await expect(s.query.editorContent()).toHaveText(`db.${TEST_COLLECTION}.find({ "fee.foo"`);
+
+    const completed = await s.query.editorContent().getText();
+    await clearAndTypeQuery(`${completed}: 1 })`);
+    await (await s.query.executeButton()).click();
+    await expect(s.results.gridViewport()).toBeDisplayed();
+    await expect(s.results.gridViewport()).toHaveText(expect.stringContaining('Nested'));
+    await expect(s.results.gridViewport()).not.toHaveText(expect.stringContaining('Other'));
+  });
+
   it('moves the selected popup option with arrow-style commands', async () => {
     await openSeededCollection([{ name: 'Alice', nickname: 'Ally', notes: 'hello' }]);
 
