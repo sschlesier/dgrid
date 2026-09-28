@@ -76,6 +76,44 @@ describe('Query History', () => {
     );
   });
 
+  it('filters history and restores the matching entry', async () => {
+    await setupQueryTab();
+    await runDefaultQuery();
+    await clearAndTypeQuery(`db.${TEST_COLLECTION}.find({ name: "Alice" })`);
+    await (await s.query.executeButton()).click();
+    await expect(s.results.gridViewport()).toBeDisplayed();
+
+    await clearAndTypeQuery('');
+    await openQueryHistory();
+    await browser.waitUntil(async () => (await s.history.item()).length === 2, {
+      timeout: 5_000,
+      timeoutMsg: 'Expected two query history entries before filtering',
+    });
+    await expect(s.history.filterInput()).toBeFocused();
+
+    await (await s.history.filterInput()).setValue('no-such-query');
+    await expect(s.history.noMatches()).toBeDisplayed();
+
+    await (await s.history.filterClearButton()).click();
+    await (await s.history.filterInput()).setValue('ALICE');
+    await browser.waitUntil(async () => (await s.history.item()).length === 1, {
+      timeout: 5_000,
+      timeoutMsg: 'Expected the filter to narrow history to one entry',
+    });
+    await expect((await s.history.itemQuery())[0]).toHaveText(expect.stringContaining('Alice'));
+
+    await (await s.history.item())[0].click();
+    await s.history.dropdown().waitForDisplayed({ reverse: true, timeout: 5_000 });
+
+    await browser.waitUntil(
+      async () => (await (await s.query.editorContent()).getText()).includes('name: "Alice"'),
+      {
+        timeout: 5_000,
+        timeoutMsg: 'Expected the filtered query to be restored into the editor',
+      }
+    );
+  });
+
   it('clears all query history entries', async () => {
     await setupQueryTab();
     await runDefaultQuery();
