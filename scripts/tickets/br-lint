@@ -3,12 +3,12 @@
 #
 # Usage: br-lint [--all] [id...]
 #
-# With no ids, lints issues with status refined or agent-ready.
+# With no ids, lints issues labelled approved that are not closed.
 # --all lints every issue that is not closed. Exits 1 if any issue has a FAIL.
 #
 # FAIL: empty outcome (description before its first ## heading), empty acceptance
-#       criteria, missing/empty "## Verification" in the description, type epic.
-#       (br itself refuses dependency cycles.)
+#       criteria, missing/empty "## Verification" in the description, a bug with
+#       no "## Steps to Reproduce", type epic. (br itself refuses dependency cycles.)
 # WARN: placeholder text (TBD/TODO/???) in a required part, acceptance criteria
 #       with no list items.
 set -euo pipefail
@@ -26,8 +26,8 @@ done
 if [[ ${#ids[@]} -eq 0 ]]; then
     while IFS= read -r id; do ids+=("$id"); done < <(br list --json --limit 0 | jq -r --arg mode "$mode" '
         .issues[]
-        | select(if $mode == "all" then .status != "closed"
-                 else .status == "refined" or .status == "agent-ready" end)
+        | select(.status != "closed" and .status != "tombstone")
+        | select($mode == "all" or ((.labels // []) | index("approved")))
         | .id')
 fi
 [[ ${#ids[@]} -gt 0 ]] || { echo "No issues to lint"; exit 0; }
@@ -47,6 +47,8 @@ br show "${ids[@]}" --json | jq -r '
             (if outcome == "" then "FAIL empty description (outcome)" else empty end),
             (if $ac == "" then "FAIL empty acceptance criteria" else empty end),
             (if verification == "" then "FAIL missing or empty ## Verification" else empty end),
+            (if .issue_type == "bug" and ((.description // "") | test("(^|\\n)## Steps to Reproduce") | not)
+             then "FAIL bug without ## Steps to Reproduce" else empty end),
             (if .issue_type == "epic" then "FAIL type is epic (split it into tasks)" else empty end)
           ]) as $fails
         | ([
