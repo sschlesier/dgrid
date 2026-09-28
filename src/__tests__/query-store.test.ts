@@ -258,8 +258,8 @@ describe('queryStore', () => {
       expect(queryStore.history[0].id).toBe('2');
     });
 
-    it('addToHistory limits to 20 items', () => {
-      for (let i = 0; i < 25; i++) {
+    it('addToHistory limits to 200 items', () => {
+      for (let i = 0; i < 201; i++) {
         queryStore.addToHistory({
           id: `${i}`,
           query: `query${i}`,
@@ -269,8 +269,9 @@ describe('queryStore', () => {
         });
       }
 
-      expect(queryStore.history).toHaveLength(20);
-      expect(queryStore.history[0].id).toBe('24'); // Most recent
+      expect(queryStore.history).toHaveLength(200);
+      expect(queryStore.history[0].id).toBe('200'); // Most recent
+      expect(queryStore.history[199].id).toBe('1'); // Oldest dropped
     });
 
     it('clearHistory removes all history', () => {
