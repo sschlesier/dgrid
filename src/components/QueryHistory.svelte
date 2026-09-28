@@ -10,6 +10,28 @@
 
   let { history, onselect, onclear, onclose }: Props = $props();
 
+  let filterText = $state('');
+  let filterInputEl = $state<HTMLInputElement | undefined>();
+
+  const filteredHistory = $derived.by(() => {
+    const query = filterText.trim().toLocaleLowerCase();
+    if (!query) return history;
+    return history.filter(
+      (item) =>
+        item.query.toLocaleLowerCase().includes(query) ||
+        item.database.toLocaleLowerCase().includes(query)
+    );
+  });
+
+  $effect(() => {
+    filterInputEl?.focus();
+  });
+
+  function clearFilter() {
+    filterText = '';
+    filterInputEl?.focus();
+  }
+
   // Hover popup state
   let hoveredItem = $state<QueryHistoryItem | null>(null);
   let mouseX = $state(0);
@@ -21,6 +43,10 @@
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       event.preventDefault();
+      if (filterText) {
+        clearFilter();
+        return;
+      }
       onclose();
     }
   }
@@ -122,13 +148,63 @@
       </div>
     </div>
 
+    {#if history.length > 0}
+      <div class="history-filter">
+        <div class="filter-input-wrap">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            class="filter-icon"
+            aria-hidden="true"
+          >
+            <path
+              d="M6.75 2.5a4.25 4.25 0 1 0 0 8.5 4.25 4.25 0 0 0 0-8.5ZM1 6.75a5.75 5.75 0 1 1 10.173 3.652l3.212 3.213a.75.75 0 1 1-1.06 1.06l-3.213-3.212A5.75 5.75 0 0 1 1 6.75Z"
+            />
+          </svg>
+          <input
+            bind:this={filterInputEl}
+            bind:value={filterText}
+            type="text"
+            placeholder="Filter history..."
+            aria-label="Filter history"
+          />
+          {#if filterText}
+            <button
+              class="filter-clear"
+              onclick={clearFilter}
+              title="Clear filter"
+              aria-label="Clear filter"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  d="M3.22 3.22a.75.75 0 0 1 1.06 0L8 6.94l3.72-3.72a.75.75 0 1 1 1.06 1.06L9.06 8l3.72 3.72a.75.75 0 1 1-1.06 1.06L8 9.06l-3.72 3.72a.75.75 0 1 1-1.06-1.06L6.94 8 3.22 4.28a.75.75 0 0 1 0-1.06Z"
+                />
+              </svg>
+            </button>
+          {/if}
+        </div>
+      </div>
+    {/if}
+
     <div class="history-list">
       {#if history.length === 0}
         <div class="empty-history">
           <p>No queries in history</p>
         </div>
+      {:else if filteredHistory.length === 0}
+        <div class="empty-history">
+          <p>No matching queries</p>
+        </div>
       {:else}
-        {#each history as item (item.id)}
+        {#each filteredHistory as item (item.id)}
           <button
             class="history-item"
             onclick={() => onselect(item)}
@@ -227,6 +303,63 @@
   .close-btn:hover {
     background-color: var(--color-bg-hover);
     color: var(--color-text-primary);
+  }
+
+  .history-filter {
+    padding: var(--space-xs) var(--space-sm);
+    border-bottom: 1px solid var(--color-border-light);
+  }
+
+  .filter-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    min-height: 28px;
+    padding: 0 var(--space-xs);
+    background-color: var(--color-bg-primary);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-sm);
+  }
+
+  .filter-icon {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+  }
+
+  .history-filter input {
+    flex: 1;
+    min-width: 0;
+    height: 28px;
+    border: 0;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+  }
+
+  .history-filter input:focus {
+    outline: none;
+  }
+
+  .history-filter input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .filter-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: var(--color-text-muted);
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+  }
+
+  .filter-clear:hover {
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-tertiary);
   }
 
   .history-list {
