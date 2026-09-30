@@ -45,6 +45,10 @@
   let adjustedX = $state(0);
   let adjustedY = $state(0);
 
+  const popupItem = $derived(
+    hoveredItem && filteredHistory.some((item) => item.id === hoveredItem?.id) ? hoveredItem : null
+  );
+
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -93,7 +97,7 @@
 
   // Clamp popup to stay within viewport after it renders
   $effect(() => {
-    if (hoveredItem && popupEl) {
+    if (popupItem && popupEl) {
       const rect = popupEl.getBoundingClientRect();
       adjustedX = rect.right > window.innerWidth ? mouseX - rect.width - 32 : mouseX;
       adjustedY = rect.bottom > window.innerHeight ? mouseY - rect.height - 16 : mouseY;
@@ -232,9 +236,9 @@
   </div>
 </div>
 
-{#if hoveredItem}
+{#if popupItem}
   <div class="query-popup" bind:this={popupEl} style="left: {adjustedX}px; top: {adjustedY}px;">
-    {popupQuery(hoveredItem.query)}
+    {popupQuery(popupItem.query)}
   </div>
 {/if}
 
