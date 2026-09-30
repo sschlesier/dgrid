@@ -173,6 +173,19 @@ describe('QueryHistory', () => {
       expect(onclear).toHaveBeenCalledOnce();
     });
 
+    it('hides the hover popup when the filter removes the hovered item', async () => {
+      const { container } = renderHistory();
+
+      await fireEvent.mouseEnter(screen.getByText('db.users.find({})').closest('button')!);
+      expect(container.ownerDocument.querySelector('.query-popup')).not.toBeNull();
+
+      await fireEvent.input(screen.getByLabelText('Filter history'), {
+        target: { value: 'shop' },
+      });
+
+      expect(container.ownerDocument.querySelector('.query-popup')).toBeNull();
+    });
+
     it('closes on the first Escape after Clear All empties a filtered history', async () => {
       const { rerender } = renderHistory();
 
