@@ -172,5 +172,18 @@ describe('QueryHistory', () => {
 
       expect(onclear).toHaveBeenCalledOnce();
     });
+
+    it('closes on the first Escape after Clear All empties a filtered history', async () => {
+      const { rerender } = renderHistory();
+
+      await fireEvent.input(screen.getByLabelText('Filter history'), {
+        target: { value: 'users' },
+      });
+      await fireEvent.click(screen.getByText('Clear All'));
+      await rerender({ history: [], onselect, onclear, onclose });
+      await fireEvent.keyDown(window, { key: 'Escape' });
+
+      expect(onclose).toHaveBeenCalledOnce();
+    });
   });
 });
