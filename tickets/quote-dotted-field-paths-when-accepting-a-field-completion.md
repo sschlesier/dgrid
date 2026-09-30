@@ -102,5 +102,6 @@ Don't touch: `src/lib/queries.ts` (the parser)
   Not done: the manual `pnpm dev` check (no interactive session); the E2E test drives the same flow in the real app.
 
   Observed: in two runs without the fix, the app quit silently in a later test after the new test failed (WebDriver socket errors, empty app log). It didn't happen in any run with the fix. Not investigated.
+
 - 2026-09-30: Imported from br as dgr-o0k.
 - 2026-09-30: Merged on 2026-09-28 as PR #42 (77f5303), before the move to the spec store. Criteria left unticked: not checked by a pr-review.
