@@ -32,6 +32,11 @@
     filterInputEl?.focus();
   }
 
+  function handleClearAll() {
+    filterText = '';
+    onclear();
+  }
+
   // Hover popup state
   let hoveredItem = $state<QueryHistoryItem | null>(null);
   let mouseX = $state(0);
@@ -136,7 +141,7 @@
       <span class="history-title">Query History</span>
       <div class="history-actions">
         {#if history.length > 0}
-          <button class="clear-btn" onclick={onclear}>Clear All</button>
+          <button class="clear-btn" onclick={handleClearAll}>Clear All</button>
         {/if}
         <button class="close-btn" onclick={onclose} aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
