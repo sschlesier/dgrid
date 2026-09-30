@@ -2,7 +2,7 @@
 title: Filter query history
 type: feature
 priority: 3
-approved: "Scott Schlesier, 2026-09-28: filter by query text and database, Escape clear-then-close, cap 20→200, happy-path e2e. Cold read: pass."
+approved: 'Scott Schlesier, 2026-09-28: filter by query text and database, Escape clear-then-close, cap 20→200, happy-path e2e. Cold read: pass.'
 status: in-review
 ---
 
@@ -91,11 +91,13 @@ Out of scope:
 
   - MAX_HISTORY_ITEMS 20 → 200; store test updated (201 distinct items keep the newest 200).
   - QueryHistory.svelte: filter input ("Filter history...", aria-labelled, focused on open), × clear button, case-insensitive trimmed substring match on full query text and database, "No matching queries" state, filter hidden when history is empty. Escape handling lives in the existing window keydown handler: clears text first, closes when empty. Filter state is component-local, so it's empty on every open.
-  - New src/__tests__/components/QueryHistory.test.ts (13 cases) covering the Verification list.
+  - New `src/__tests__/components/QueryHistory.test.ts` (13 cases) covering the Verification list.
   - E2E: new happy-path test in query-history.e2e.mjs plus history.filterInput / filterClearButton / noMatches selectors.
 
   Verified: `pnpm verify` passes (702 TS tests, clippy, 183 Rust tests). `node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/query-history.e2e.mjs` passes, 4/4. The e2e runner has to run outside the agent sandbox (the driver can't bind :4444 inside it); one run also failed because a driver from the previous run was still holding the port.
 
   Not done: the manual `pnpm dev` walkthrough.
+
 - 2026-09-30: Imported from br as dgr-43r. Related: `keyboard-navigation-in-query-history-list`.
 - 2026-09-30: Imported into the spec store; PR #41 open for review.
+- 2026-09-30: Review started (PR #41, round 1).
