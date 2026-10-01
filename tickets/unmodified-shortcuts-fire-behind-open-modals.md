@@ -103,3 +103,4 @@ test in a way that needs more than a selector update.
   other three. Checks run: `pnpm verify` passes; E2E `smoke` and `tab-shortcuts` pass.
   Manual steps under `pnpm dev` not run yet.
 - 2026-09-30: Review started
+- 2026-09-30: Manual steps under `pnpm dev` run by Scott Schlesier: all as expected.
