@@ -3,7 +3,7 @@ title: Shortcuts fire behind open modals
 type: bug
 priority: 3
 approved: 'Scott Schlesier, 2026-09-30: suppress all dispatcher shortcuts behind aria-modal dialogs. Cold read: pass'
-status: in-progress
+status: in-review
 ---
 
 While a modal dialog is open, global shortcuts (`?`, new tab, close tab, and any added
@@ -102,3 +102,4 @@ test in a way that needs more than a selector update.
   `tabindex`. Marker checks: component tests for the four tested dialogs, grep for the
   other three. Checks run: `pnpm verify` passes; E2E `smoke` and `tab-shortcuts` pass.
   Manual steps under `pnpm dev` not run yet.
+- 2026-09-30: Review started
