@@ -9,6 +9,10 @@ import { ApiError, QueryCancelledError } from '../api/client';
 // localStorage keys
 const HISTORY_KEY = 'dgrid-query-history';
 const MAX_HISTORY_ITEMS = 200;
+// Max serialized history length, in UTF-16 code units. WebKit's localStorage quota is
+// 5 MiB per origin for all keys, at 2 bytes per character once any non-Latin-1
+// character is stored, so this leaves room for the other stores.
+export const HISTORY_STORAGE_BUDGET = 1_500_000;
 
 // Generate unique IDs
 function generateId(): string {
@@ -20,7 +24,7 @@ function loadHistory(): QueryHistoryItem[] {
   try {
     const stored = localStorage.getItem(HISTORY_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      return selectEntriesForStorage(JSON.parse(stored), HISTORY_STORAGE_BUDGET);
     }
   } catch {
     // Ignore parse errors
@@ -28,12 +32,64 @@ function loadHistory(): QueryHistoryItem[] {
   return [];
 }
 
-// Save history to localStorage
-function saveHistory(history: QueryHistoryItem[]): void {
-  try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-  } catch {
-    // Ignore storage errors
+// Select the history entries whose JSON array fits in `budget` characters. Drops the
+// largest entries first (the older on ties), keeps the newest entry unless it alone
+// exceeds the budget, and preserves order. Once an oversized newest entry is dropped, no
+// other entry is protected.
+export function selectEntriesForStorage(
+  history: QueryHistoryItem[],
+  budget: number,
+  protectNewest = true
+): QueryHistoryItem[] {
+  if (history.length === 0) return [];
+
+  const sizes = history.map((item) => JSON.stringify(item).length);
+  if (protectNewest && 2 + sizes[0] > budget) {
+    return selectEntriesForStorage(history.slice(1), budget, false);
+  }
+
+  // "[" + entries joined by "," + "]"
+  let total = 2 + sizes.reduce((sum, size) => sum + size, 0) + history.length - 1;
+  const dropOrder = sizes
+    .map((_, i) => i)
+    .slice(protectNewest ? 1 : 0)
+    .sort((a, b) => sizes[b] - sizes[a] || b - a);
+  const dropped = new Set<number>();
+  for (const i of dropOrder) {
+    if (total <= budget) break;
+    dropped.add(i);
+    total -= sizes[i] + 1;
+  }
+  return history.filter((_, i) => !dropped.has(i));
+}
+
+// Save history to localStorage within the storage budget. On storage errors, halve the
+// budget but never below the newest kept entry alone, then fall back to an empty list.
+// Returns the entries that were saved.
+function saveHistory(history: QueryHistoryItem[]): QueryHistoryItem[] {
+  let budget = HISTORY_STORAGE_BUDGET;
+  for (;;) {
+    const entries = selectEntriesForStorage(history, budget);
+    const json = JSON.stringify(entries);
+    try {
+      localStorage.setItem(HISTORY_KEY, json);
+      return entries;
+    } catch {
+      if (entries.length === 0) {
+        try {
+          localStorage.removeItem(HISTORY_KEY);
+        } catch {
+          // Ignore storage errors
+        }
+        return entries;
+      }
+      if (entries.length === 1) {
+        history = [];
+      } else {
+        const newestAlone = 2 + JSON.stringify(entries[0]).length;
+        budget = Math.max(Math.floor(json.length / 2), newestAlone);
+      }
+    }
   }
 }
 
@@ -456,13 +512,11 @@ class QueryStore {
     );
 
     // Add new item at the beginning
-    this.history = [item, ...filtered].slice(0, MAX_HISTORY_ITEMS);
-    saveHistory(this.history);
+    this.history = saveHistory([item, ...filtered].slice(0, MAX_HISTORY_ITEMS));
   }
 
   clearHistory(): void {
-    this.history = [];
-    saveHistory(this.history);
+    this.history = saveHistory([]);
   }
 
   loadHistory(): void {
