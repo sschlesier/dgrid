@@ -104,3 +104,9 @@ test in a way that needs more than a selector update.
   Manual steps under `pnpm dev` not run yet.
 - 2026-09-30: Review started
 - 2026-09-30: Manual steps under `pnpm dev` run by Scott Schlesier: all as expected.
+- 2026-09-30: Review round 1 triage. Fixed: test for a `?` typed in an input inside a modal
+  (not preventDefaulted); marker render tests for `ConnectionProgressModal`,
+  `PasswordPromptDialog` and `SettingsModal` (were grep-only). Dismissed as equivalent
+  mutants: selector `[aria-modal]` (nothing sets `aria-modal="false"`); `return` →
+  `continue` in the modal branch (no two shortcuts share a binding; Settings rejects
+  conflicts).
