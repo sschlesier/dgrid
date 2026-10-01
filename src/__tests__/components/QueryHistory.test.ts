@@ -243,6 +243,17 @@ describe('QueryHistory', () => {
       expect(container.ownerDocument.querySelector('.query-popup')).toBeNull();
     });
 
+    it('keeps the hover popup hidden after clearing a filter that hid the hovered item', async () => {
+      const { container } = renderHistory();
+      const input = screen.getByLabelText('Filter history');
+
+      await fireEvent.mouseEnter(screen.getByText('db.users.find({})').closest('button')!);
+      await fireEvent.input(input, { target: { value: 'nothing-here' } });
+      await fireEvent.click(screen.getByLabelText('Clear filter'));
+
+      expect(container.ownerDocument.querySelector('.query-popup')).toBeNull();
+    });
+
     it('closes on the first Escape after Clear All empties a filtered history', async () => {
       const { rerender } = renderHistory();
 
