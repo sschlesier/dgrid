@@ -3,7 +3,7 @@ title: Bound query history storage
 type: bug
 priority: 3
 approved: 'Scott Schlesier, 2026-09-30: largest-first trimming to a 1.5M-char budget, newest protected, panel matches saved copy. Cold read: not run (one area, no flags)'
-status: in-progress
+status: in-review
 ---
 
 Query history keeps persisting, and other localStorage writes keep working, however large
@@ -123,3 +123,4 @@ Out of scope:
 - 2026-09-30: Assumption: when the newest entry alone exceeds the budget it is dropped and the next newest becomes the protected entry.
 - 2026-09-30: Assumption: loading applies only the size budget, not the 200-entry cap; the cap still applies on the next add.
 - 2026-09-30: Assumption: the cross-store criterion is tested with a localStorage stub that enforces a shared character quota (happy-dom has no quota), writing the column-widths key directly rather than through the grid store.
+- 2026-09-30: Review started
