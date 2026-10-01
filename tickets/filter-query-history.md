@@ -103,3 +103,4 @@ Out of scope:
 - 2026-09-30: Review started (PR #41, round 1).
 - 2026-09-30: Dismissed review finding: dropping `if (!query) return history;` in `QueryHistory.svelte` is an equivalent mutant (`includes('')` is always true).
 - 2026-09-30: Review round 1 fixes beyond the criteria: Clear All resets the filter (so the first Escape on the emptied dropdown closes it), and any filter change resets the hover popup (a filtered-out row's popup stayed on screen, then came back after clearing). Rows themselves are unchanged.
+- 2026-09-30: Review round 1 answers (Scott Schlesier): × keeps refocusing the input (test added); focus after Clear All stays on the body; matching keeps `toLocaleLowerCase()` like the sidebar; the localStorage quota risk at 200 entries goes to a separate spec, `bound-query-history-storage`; review profile added to AGENTS.md. Manual walkthrough: Scott is running it.
