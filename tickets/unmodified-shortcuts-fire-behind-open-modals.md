@@ -110,3 +110,8 @@ test in a way that needs more than a selector update.
   mutants: selector `[aria-modal]` (nothing sets `aria-modal="false"`); `return` →
   `continue` in the modal branch (no two shortcuts share a binding; Settings rejects
   conflicts).
+- 2026-09-30: Correction to the Design's `tabindex` rationale: without `tabindex="-1"`,
+  `pnpm lint` still passes; it avoids a vite-plugin-svelte build warning
+  (`a11y_interactive_supports_focus`). The code is unchanged. Review round 2: pass, no open
+  decisions or risks; the first-match `return` was confirmed equivalent (Settings rejects
+  conflicting bindings).
