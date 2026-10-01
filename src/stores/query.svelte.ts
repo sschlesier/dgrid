@@ -9,6 +9,10 @@ import { ApiError, QueryCancelledError } from '../api/client';
 // localStorage keys
 const HISTORY_KEY = 'dgrid-query-history';
 const MAX_HISTORY_ITEMS = 200;
+// Max serialized history length, in UTF-16 code units. WebKit's localStorage quota is
+// 5 MiB per origin for all keys, at 2 bytes per character once any non-Latin-1
+// character is stored, so this leaves room for the other stores.
+export const HISTORY_STORAGE_BUDGET = 1_500_000;
 
 // Generate unique IDs
 function generateId(): string {
@@ -20,7 +24,7 @@ function loadHistory(): QueryHistoryItem[] {
   try {
     const stored = localStorage.getItem(HISTORY_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      return selectEntriesForStorage(JSON.parse(stored), HISTORY_STORAGE_BUDGET);
     }
   } catch {
     // Ignore parse errors
@@ -28,12 +32,49 @@ function loadHistory(): QueryHistoryItem[] {
   return [];
 }
 
-// Save history to localStorage
-function saveHistory(history: QueryHistoryItem[]): void {
-  try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-  } catch {
-    // Ignore storage errors
+// Select the history entries whose JSON array fits in `budget` characters. Drops the
+// largest entries first (the older on ties), keeps the newest entry unless it alone
+// exceeds the budget, and preserves order.
+export function selectEntriesForStorage(
+  history: QueryHistoryItem[],
+  budget: number
+): QueryHistoryItem[] {
+  if (history.length === 0) return [];
+
+  const sizes = history.map((item) => JSON.stringify(item).length);
+  if (2 + sizes[0] > budget) {
+    return selectEntriesForStorage(history.slice(1), budget);
+  }
+
+  // "[" + entries joined by "," + "]"
+  let total = 2 + sizes.reduce((sum, size) => sum + size, 0) + history.length - 1;
+  const dropOrder = sizes
+    .map((_, i) => i)
+    .slice(1)
+    .sort((a, b) => sizes[b] - sizes[a] || b - a);
+  const dropped = new Set<number>();
+  for (const i of dropOrder) {
+    if (total <= budget) break;
+    dropped.add(i);
+    total -= sizes[i] + 1;
+  }
+  return history.filter((_, i) => !dropped.has(i));
+}
+
+// Save history to localStorage within the storage budget, halving the budget on storage
+// errors. Returns the entries that were saved.
+function saveHistory(history: QueryHistoryItem[]): QueryHistoryItem[] {
+  let budget = HISTORY_STORAGE_BUDGET;
+  for (;;) {
+    const entries = selectEntriesForStorage(history, budget);
+    const json = JSON.stringify(entries);
+    try {
+      localStorage.setItem(HISTORY_KEY, json);
+      return entries;
+    } catch {
+      if (entries.length === 0) return entries;
+      budget = Math.floor(json.length / 2);
+    }
   }
 }
 
@@ -456,13 +497,11 @@ class QueryStore {
     );
 
     // Add new item at the beginning
-    this.history = [item, ...filtered].slice(0, MAX_HISTORY_ITEMS);
-    saveHistory(this.history);
+    this.history = saveHistory([item, ...filtered].slice(0, MAX_HISTORY_ITEMS));
   }
 
   clearHistory(): void {
-    this.history = [];
-    saveHistory(this.history);
+    this.history = saveHistory([]);
   }
 
   loadHistory(): void {

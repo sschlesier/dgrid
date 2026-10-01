@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Mock the API module before importing the store
 vi.mock('../api/client', () => ({
@@ -25,7 +25,12 @@ vi.mock('../api/client', () => ({
 
 // Import after mocking
 import * as api from '../api/client';
-import { queryStore } from '../stores/query.svelte';
+import {
+  HISTORY_STORAGE_BUDGET,
+  queryStore,
+  selectEntriesForStorage,
+} from '../stores/query.svelte';
+import type { QueryHistoryItem } from '../types';
 
 const mockedApi = api as unknown as {
   executeQuery: ReturnType<typeof vi.fn>;
@@ -286,6 +291,164 @@ describe('queryStore', () => {
       queryStore.clearHistory();
 
       expect(queryStore.history).toHaveLength(0);
+    });
+  });
+
+  describe('history storage budget', () => {
+    const HISTORY_KEY = 'dgrid-query-history';
+
+    function entry(id: string, querySize = 10): QueryHistoryItem {
+      return {
+        id,
+        query: `q${id}`.padEnd(querySize, 'x'),
+        database: 'db',
+        connectionId: 'conn',
+        timestamp: '2024-01-01',
+      };
+    }
+
+    function storedHistory(): QueryHistoryItem[] {
+      return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]');
+    }
+
+    function ids(items: QueryHistoryItem[]): string[] {
+      return items.map((item) => item.id);
+    }
+
+    // Adds entries oldest first, so the last one ends up newest.
+    function addAll(items: QueryHistoryItem[]): void {
+      for (const item of items) queryStore.addToHistory(item);
+    }
+
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
+
+    it('drops the largest entries, not the oldest, and preserves order', () => {
+      // newest first: small, large, small, large, small
+      const history = [entry('a'), entry('b', 400), entry('c'), entry('d', 300), entry('e')];
+      const budget = JSON.stringify(history).length - 200;
+
+      const selected = selectEntriesForStorage(history, budget);
+
+      expect(ids(selected)).toEqual(['a', 'c', 'd', 'e']);
+      expect(JSON.stringify(selected).length).toBeLessThanOrEqual(budget);
+    });
+
+    it('drops the older entry first among equal sizes', () => {
+      const history = [entry('a'), entry('b', 300), entry('c', 300)];
+      const budget = JSON.stringify(history).length - 100;
+
+      expect(ids(selectEntriesForStorage(history, budget))).toEqual(['a', 'b']);
+    });
+
+    it('keeps the newest entry when it is the largest but fits', () => {
+      const history = [entry('a', 500), entry('b', 300), entry('c'), entry('d', 200)];
+      const budget = JSON.stringify(history).length - 100;
+
+      expect(ids(selectEntriesForStorage(history, budget))).toEqual(['a', 'c', 'd']);
+    });
+
+    it('drops a newest entry that alone exceeds the budget and keeps the rest', () => {
+      const history = [entry('a', 1000), entry('b'), entry('c')];
+
+      expect(ids(selectEntriesForStorage(history, 500))).toEqual(['b', 'c']);
+    });
+
+    it('saves at most the budget and keeps short queries over large ones', () => {
+      const small = Array.from({ length: 20 }, (_, i) => entry(`s${i}`));
+      const large = Array.from({ length: 70 }, (_, i) => entry(`l${i}`, 25_000));
+
+      addAll([...small, ...large]);
+
+      const saved = localStorage.getItem(HISTORY_KEY) ?? '';
+      expect(saved.length).toBeLessThanOrEqual(HISTORY_STORAGE_BUDGET);
+      expect(ids(storedHistory())).toEqual(expect.arrayContaining(ids(small)));
+      expect(storedHistory()[0].id).toBe('l69');
+    });
+
+    it('keeps the in-memory history equal to the saved history', () => {
+      addAll([entry('a'), entry('b'), entry('c', HISTORY_STORAGE_BUDGET)]);
+
+      expect(ids(queryStore.history)).toEqual(['b', 'a']);
+      expect(storedHistory()).toEqual(queryStore.history);
+    });
+
+    // Replaces localStorage with one whose keys and values share a quota of `quota`
+    // characters, like a browser's per-origin limit.
+    function stubQuotaStorage(quota: number): Map<string, string> {
+      const data = new Map<string, string>();
+      const used = () => [...data].reduce((sum, [k, v]) => sum + k.length + v.length, 0);
+      vi.stubGlobal('localStorage', {
+        getItem: (key: string) => data.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          const current = data.get(key);
+          const others = used() - (current === undefined ? 0 : key.length + current.length);
+          if (others + key.length + value.length > quota) {
+            throw new DOMException('full', 'QuotaExceededError');
+          }
+          data.set(key, value);
+        },
+        clear: () => data.clear(),
+      });
+      return data;
+    }
+
+    it('retries with fewer entries when setItem throws and never throws itself', () => {
+      stubQuotaStorage(4000);
+      addAll(Array.from({ length: 10 }, (_, i) => entry(`${i}`, 1000)));
+
+      expect(() => queryStore.addToHistory(entry('new', 1000))).not.toThrow();
+
+      const saved = storedHistory();
+      expect(saved.length).toBeGreaterThan(0);
+      expect(saved[0].id).toBe('new');
+      expect(JSON.stringify(saved).length).toBeLessThanOrEqual(4000);
+      expect(queryStore.history).toEqual(saved);
+    });
+
+    it('frees quota for other stores after history hits it', () => {
+      const data = stubQuotaStorage(1_600_000);
+      data.set('dgrid-other', 'x'.repeat(200_000));
+
+      addAll(Array.from({ length: 70 }, (_, i) => entry(`l${i}`, 25_000)));
+
+      expect(() =>
+        localStorage.setItem('dgrid-grid-column-widths', JSON.stringify({ name: 120 }))
+      ).not.toThrow();
+      expect(queryStore.history[0].id).toBe('l69');
+      expect(queryStore.history).toEqual(storedHistory());
+    });
+
+    it('trims an over-budget stored history on load', () => {
+      const history = [entry('a'), entry('b', HISTORY_STORAGE_BUDGET), entry('c')];
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+
+      queryStore.loadHistory();
+
+      expect(ids(queryStore.history)).toEqual(['a', 'c']);
+    });
+
+    it('loads a stored history within the budget unchanged', () => {
+      const history = [entry('a'), entry('b')];
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+
+      queryStore.loadHistory();
+
+      expect(queryStore.history).toEqual(history);
+    });
+
+    it('clearHistory saves an empty list', () => {
+      addAll([entry('a')]);
+
+      queryStore.clearHistory();
+
+      expect(localStorage.getItem(HISTORY_KEY)).toBe('[]');
     });
   });
 });
