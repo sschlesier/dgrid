@@ -3,7 +3,7 @@ title: Filter query history
 type: feature
 priority: 3
 approved: 'Scott Schlesier, 2026-09-28: filter by query text and database, Escape clear-then-close, cap 20→200, happy-path e2e. Cold read: pass.'
-status: in-review
+status: done
 ---
 
 Users can type in the Query History dropdown to narrow the list to queries whose text or
@@ -22,18 +22,18 @@ Out of scope:
 
 ## Acceptance criteria
 
-- [ ] Opening History focuses a filter input at the top of the dropdown.
-- [ ] Typing narrows the list to items whose query text or database contains the input,
+- [x] Opening History focuses a filter input at the top of the dropdown.
+- [x] Typing narrows the list to items whose query text or database contains the input,
       ignoring case, including text that appears only after the preview is truncated.
-- [ ] With the filter empty, the full list is shown in the same order as today.
-- [ ] Nothing matches → "No matching queries" is shown; no history at all → "No queries in
+- [x] With the filter empty, the full list is shown in the same order as today.
+- [x] Nothing matches → "No matching queries" is shown; no history at all → "No queries in
       history" and no filter input.
-- [ ] Escape with text clears the filter and keeps the dropdown open; Escape when empty
+- [x] Escape with text clears the filter and keeps the dropdown open; Escape when empty
       closes it.
-- [ ] Clicking a filtered item loads that query into the editor, as today.
-- [ ] Reopening the dropdown shows an empty filter.
-- [ ] "Clear All" empties the whole history even while a filter is active.
-- [ ] History keeps up to 200 entries; the 201st distinct query drops the oldest.
+- [x] Clicking a filtered item loads that query into the editor, as today.
+- [x] Reopening the dropdown shows an empty filter.
+- [x] "Clear All" empties the whole history even while a filter is active.
+- [x] History keeps up to 200 entries; the 201st distinct query drops the oldest.
 
 ## Verification
 
@@ -105,3 +105,5 @@ Out of scope:
 - 2026-09-30: Review round 1 fixes beyond the criteria: Clear All resets the filter (so the first Escape on the emptied dropdown closes it), and any filter change resets the hover popup (a filtered-out row's popup stayed on screen, then came back after clearing). Rows themselves are unchanged.
 - 2026-09-30: Review round 1 answers (Scott Schlesier): × keeps refocusing the input (test added); focus after Clear All stays on the body; matching keeps `toLocaleLowerCase()` like the sidebar; the localStorage quota risk at 200 entries goes to a separate spec, `bound-query-history-storage`; review profile added to AGENTS.md. Manual walkthrough: Scott is running it.
 - 2026-09-30: Manual `pnpm dev` walkthrough passed, all steps (checked by Scott Schlesier).
+- 2026-09-30: Accepted: Scott Schlesier, 2026-09-30, round 1
+- 2026-09-30: Done: filter input in the History dropdown (query text + database, case-insensitive, Escape clear-then-close, × and empty states), history cap 20 → 200. Review fixed Clear All/Escape and hover-popup bugs and added 8 tests; quota risk split to `bound-query-history-storage`. All 9 criteria verified by tests that fail on revert; manual walkthrough passed.
