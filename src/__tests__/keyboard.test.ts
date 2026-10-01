@@ -311,6 +311,18 @@ describe('keyboard utilities', () => {
         expect(event.defaultPrevented).toBe(false);
       });
 
+      it('lets an unmodified shortcut key reach an input inside the modal', () => {
+        const handler = vi.fn();
+        registerShortcut('help', { key: '?', handler });
+        const input = document.createElement('input');
+        modal.appendChild(input);
+
+        const event = pressFrom(input, { key: '?', shiftKey: true });
+
+        expect(handler).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(false);
+      });
+
       it('fires the shortcut again once the modal closes', () => {
         const handler = vi.fn();
         registerShortcut('help', { key: '?', handler });
