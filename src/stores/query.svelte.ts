@@ -61,8 +61,9 @@ export function selectEntriesForStorage(
   return history.filter((_, i) => !dropped.has(i));
 }
 
-// Save history to localStorage within the storage budget, halving the budget on storage
-// errors. Returns the entries that were saved.
+// Save history to localStorage within the storage budget. On storage errors, halve the
+// budget but never below the newest kept entry alone, then fall back to an empty list.
+// Returns the entries that were saved.
 function saveHistory(history: QueryHistoryItem[]): QueryHistoryItem[] {
   let budget = HISTORY_STORAGE_BUDGET;
   for (;;) {
@@ -73,7 +74,12 @@ function saveHistory(history: QueryHistoryItem[]): QueryHistoryItem[] {
       return entries;
     } catch {
       if (entries.length === 0) return entries;
-      budget = Math.floor(json.length / 2);
+      if (entries.length === 1) {
+        history = [];
+      } else {
+        const newestAlone = 2 + JSON.stringify(entries[0]).length;
+        budget = Math.max(Math.floor(json.length / 2), newestAlone);
+      }
     }
   }
 }

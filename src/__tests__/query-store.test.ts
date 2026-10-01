@@ -394,6 +394,7 @@ describe('queryStore', () => {
           }
           data.set(key, value);
         },
+        removeItem: (key: string) => data.delete(key),
         clear: () => data.clear(),
       });
       return data;
@@ -410,6 +411,16 @@ describe('queryStore', () => {
       expect(saved[0].id).toBe('new');
       expect(JSON.stringify(saved).length).toBeLessThanOrEqual(4000);
       expect(queryStore.history).toEqual(saved);
+    });
+
+    it('keeps a newest entry that fits alone when a quota retry halves the budget', () => {
+      stubQuotaStorage(11_000);
+      addAll([entry('a', 1000), entry('b', 1000), entry('c', 1000)]);
+
+      queryStore.addToHistory(entry('new', 10_000));
+
+      expect(ids(storedHistory())).toEqual(['new']);
+      expect(queryStore.history).toEqual(storedHistory());
     });
 
     it('frees quota for other stores after history hits it', () => {
