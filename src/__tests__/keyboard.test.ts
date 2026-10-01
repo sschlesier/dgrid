@@ -278,6 +278,95 @@ describe('keyboard utilities', () => {
 
       expect(handler).not.toHaveBeenCalled();
     });
+
+    describe('with a modal open', () => {
+      let modal: HTMLElement;
+
+      beforeEach(() => {
+        modal = document.createElement('div');
+        modal.setAttribute('aria-modal', 'true');
+        document.body.appendChild(modal);
+      });
+
+      afterEach(() => {
+        modal.remove();
+      });
+
+      function pressFrom(
+        target: EventTarget,
+        init: ConstructorParameters<typeof KeyboardEvent>[1]
+      ): KeyboardEvent {
+        const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+        target.dispatchEvent(event);
+        return event;
+      }
+
+      it('skips an unmodified shortcut without preventing the key', () => {
+        const handler = vi.fn();
+        registerShortcut('help', { key: '?', handler });
+
+        const event = pressFrom(window, { key: '?', shiftKey: true });
+
+        expect(handler).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(false);
+      });
+
+      it('lets an unmodified shortcut key reach an input inside the modal', () => {
+        const handler = vi.fn();
+        registerShortcut('help', { key: '?', handler });
+        const input = document.createElement('input');
+        modal.appendChild(input);
+
+        const event = pressFrom(input, { key: '?', shiftKey: true });
+
+        expect(handler).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(false);
+      });
+
+      it('fires the shortcut again once the modal closes', () => {
+        const handler = vi.fn();
+        registerShortcut('help', { key: '?', handler });
+        modal.remove();
+
+        pressFrom(window, { key: '?', shiftKey: true });
+
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+
+      it('skips an alwaysGlobal shortcut but still prevents the key', () => {
+        const handler = vi.fn();
+        registerShortcut('close', { key: 'w', ctrl: true, alwaysGlobal: true, handler });
+
+        const event = pressFrom(window, { key: 'w', ctrlKey: true });
+
+        expect(handler).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(true);
+      });
+
+      it('skips an alwaysGlobal shortcut pressed in an input inside the modal', () => {
+        const handler = vi.fn();
+        registerShortcut('close', { key: 'w', ctrl: true, alwaysGlobal: true, handler });
+        const input = document.createElement('input');
+        modal.appendChild(input);
+
+        pressFrom(input, { key: 'w', ctrlKey: true });
+
+        expect(handler).not.toHaveBeenCalled();
+      });
+
+      it('fires an alwaysGlobal shortcut from an input once the modal closes', () => {
+        const handler = vi.fn();
+        registerShortcut('close', { key: 'w', ctrl: true, alwaysGlobal: true, handler });
+        modal.remove();
+        const input = document.createElement('input');
+        document.body.appendChild(input);
+
+        pressFrom(input, { key: 'w', ctrlKey: true });
+        input.remove();
+
+        expect(handler).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 
   describe('matchesBinding', () => {

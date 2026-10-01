@@ -27,7 +27,13 @@
 <div class="dialog-overlay" onclick={oncancel}>
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="dialog" onclick={(e) => e.stopPropagation()}>
+  <div
+    class="dialog"
+    role="alertdialog"
+    aria-modal="true"
+    tabindex="-1"
+    onclick={(e) => e.stopPropagation()}
+  >
     <div class="dialog-header">
       <h2>{title}</h2>
     </div>

@@ -117,7 +117,13 @@
 <div class="dialog-overlay" onclick={onclose}>
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="dialog json-editor-dialog" onclick={(e) => e.stopPropagation()}>
+  <div
+    class="dialog json-editor-dialog"
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+    onclick={(e) => e.stopPropagation()}
+  >
     <div class="dialog-header">
       <h2>{title}</h2>
       <button class="close-btn" onclick={onclose} title="Close">

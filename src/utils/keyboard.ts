@@ -139,6 +139,14 @@ export function bindingToShortcut(
 }
 
 /**
+ * A modal is open when any element carries aria-modal="true". Modal dialogs opt in by
+ * setting that attribute; no shortcut fires behind them.
+ */
+function isModalOpen(): boolean {
+  return document.querySelector('[aria-modal="true"]') !== null;
+}
+
+/**
  * Handle keyboard events and dispatch to registered shortcuts
  */
 function handleKeyDown(event: KeyboardEvent): void {
@@ -146,9 +154,16 @@ function handleKeyDown(event: KeyboardEvent): void {
   const target = event.target as HTMLElement;
   const isInput =
     target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+  const modalOpen = isModalOpen();
 
   for (const shortcut of shortcuts.values()) {
     if (matchesShortcut(event, shortcut)) {
+      if (modalOpen) {
+        // Keep blocking the default for global shortcuts (e.g. Cmd+W) so it can't fall
+        // through to the webview or window.
+        if (shortcut.alwaysGlobal) event.preventDefault();
+        return;
+      }
       if (!isInput || shortcut.alwaysGlobal) {
         event.preventDefault();
         shortcut.handler(event);

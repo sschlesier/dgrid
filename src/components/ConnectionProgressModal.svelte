@@ -11,7 +11,12 @@
 </script>
 
 <div class="modal-overlay connection-progress-overlay" data-testid="connection-progress-overlay">
-  <div class="modal connection-progress-modal" data-testid="connection-progress-modal">
+  <div
+    class="modal connection-progress-modal"
+    role="dialog"
+    aria-modal="true"
+    data-testid="connection-progress-modal"
+  >
     <div class="modal-header">
       <h2>Working on "{targetName}"</h2>
     </div>
