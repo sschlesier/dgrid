@@ -124,3 +124,5 @@ Out of scope:
 - 2026-09-30: Assumption: loading applies only the size budget, not the 200-entry cap; the cap still applies on the next add.
 - 2026-09-30: Assumption: the cross-store criterion is tested with a localStorage stub that enforces a shared character quota (happy-dom has no quota), writing the column-widths key directly rather than through the grid store.
 - 2026-09-30: Review started
+- 2026-09-30: Review round 1 triage: fixed the quota retry dropping a newest entry that fits alone (Design: "down to the newest alone, then empty"); fixed stale stored history when even `[]` can't be saved by removing the key (criterion: panel matches what was saved); added boundary, budget-value and halving tests.
+- 2026-09-30: Dismissed mutant: removing the empty-list guard in `selectEntriesForStorage` is equivalent (an empty history still returns []).
