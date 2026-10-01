@@ -173,6 +173,63 @@ describe('QueryHistory', () => {
       expect(onclear).toHaveBeenCalledOnce();
     });
 
+    it('shows the "Filter history..." placeholder', () => {
+      renderHistory();
+
+      expect(screen.getByPlaceholderText('Filter history...')).toBeInTheDocument();
+    });
+
+    it('shows every item when the filter is empty, beyond the old 20-item cap', () => {
+      const many = Array.from({ length: 25 }, (_, i) =>
+        createItem(`${i}`, `db.c${i}.find({})`, 'app')
+      );
+      const { container } = renderHistory(many);
+
+      expect(visibleQueries(container)).toEqual(many.map((item) => item.query));
+    });
+
+    it('keeps newest-first order among several matches', async () => {
+      const { container } = renderHistory();
+
+      await fireEvent.input(screen.getByLabelText('Filter history'), {
+        target: { value: 'find' },
+      });
+
+      expect(visibleQueries(container)).toEqual([
+        'db.users.find({})',
+        'db.products.find({ price: { $gt: 10 } })',
+        expect.stringContaining('db.orders.find'),
+      ]);
+    });
+
+    it('matches a mixed-case database name ignoring case', async () => {
+      const { container } = renderHistory([
+        createItem('1', 'db.users.find({})', 'MyDB'),
+        createItem('2', 'db.users.find({})', 'other'),
+      ]);
+
+      await fireEvent.input(screen.getByLabelText('Filter history'), {
+        target: { value: 'mydb' },
+      });
+
+      expect(visibleQueries(container)).toHaveLength(1);
+    });
+
+    it('clears a whitespace-only filter on Escape before closing', async () => {
+      renderHistory();
+      const input = screen.getByLabelText('Filter history');
+
+      await fireEvent.input(input, { target: { value: '   ' } });
+      await fireEvent.keyDown(input, { key: 'Escape' });
+
+      expect(input).toHaveValue('');
+      expect(onclose).not.toHaveBeenCalled();
+
+      await fireEvent.keyDown(input, { key: 'Escape' });
+
+      expect(onclose).toHaveBeenCalledOnce();
+    });
+
     it('hides the hover popup when the filter removes the hovered item', async () => {
       const { container } = renderHistory();
 
