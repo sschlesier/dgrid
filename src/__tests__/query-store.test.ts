@@ -354,6 +354,33 @@ describe('queryStore', () => {
       expect(ids(selectEntriesForStorage(history, budget))).toEqual(['a', 'c', 'd']);
     });
 
+    it('keeps every entry when the history fits the budget exactly', () => {
+      const history = [entry('a'), entry('b', 300), entry('c')];
+      const budget = JSON.stringify(history).length;
+
+      expect(selectEntriesForStorage(history, budget)).toEqual(history);
+      expect(ids(selectEntriesForStorage(history, budget - 1))).toEqual(['a', 'c']);
+    });
+
+    it('keeps a newest entry that alone fits the budget exactly', () => {
+      const history = [entry('a', 300)];
+      const budget = JSON.stringify(history).length;
+
+      expect(selectEntriesForStorage(history, budget)).toEqual(history);
+      expect(selectEntriesForStorage(history, budget - 1)).toEqual([]);
+    });
+
+    it('drops only as many entries as needed to fit', () => {
+      const history = [entry('a'), entry('b', 300), entry('c', 200), entry('d')];
+      const budget = JSON.stringify([entry('a'), entry('c', 200), entry('d')]).length;
+
+      expect(ids(selectEntriesForStorage(history, budget))).toEqual(['a', 'c', 'd']);
+    });
+
+    it('uses a 1,500,000-character budget', () => {
+      expect(HISTORY_STORAGE_BUDGET).toBe(1_500_000);
+    });
+
     it('drops a newest entry that alone exceeds the budget and keeps the rest', () => {
       const history = [entry('a', 1000), entry('b'), entry('c')];
 
@@ -401,13 +428,19 @@ describe('queryStore', () => {
     }
 
     it('retries with fewer entries when setItem throws and never throws itself', () => {
-      stubQuotaStorage(4000);
       addAll(Array.from({ length: 10 }, (_, i) => entry(`${i}`, 1000)));
+      stubQuotaStorage(4000);
+      const setItem = vi.spyOn(localStorage, 'setItem');
 
       expect(() => queryStore.addToHistory(entry('new', 1000))).not.toThrow();
 
+      // Each retry is at most half the size of the attempt before it.
+      const attempts = setItem.mock.calls.map(([, value]) => value.length);
+      expect(attempts.length).toBeGreaterThanOrEqual(3);
+      for (let i = 1; i < attempts.length; i++) {
+        expect(attempts[i]).toBeLessThanOrEqual(Math.floor(attempts[i - 1] / 2));
+      }
       const saved = storedHistory();
-      expect(saved.length).toBeGreaterThan(0);
       expect(saved[0].id).toBe('new');
       expect(JSON.stringify(saved).length).toBeLessThanOrEqual(4000);
       expect(queryStore.history).toEqual(saved);
