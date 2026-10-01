@@ -34,23 +34,25 @@ function loadHistory(): QueryHistoryItem[] {
 
 // Select the history entries whose JSON array fits in `budget` characters. Drops the
 // largest entries first (the older on ties), keeps the newest entry unless it alone
-// exceeds the budget, and preserves order.
+// exceeds the budget, and preserves order. Once an oversized newest entry is dropped, no
+// other entry is protected.
 export function selectEntriesForStorage(
   history: QueryHistoryItem[],
-  budget: number
+  budget: number,
+  protectNewest = true
 ): QueryHistoryItem[] {
   if (history.length === 0) return [];
 
   const sizes = history.map((item) => JSON.stringify(item).length);
-  if (2 + sizes[0] > budget) {
-    return selectEntriesForStorage(history.slice(1), budget);
+  if (protectNewest && 2 + sizes[0] > budget) {
+    return selectEntriesForStorage(history.slice(1), budget, false);
   }
 
   // "[" + entries joined by "," + "]"
   let total = 2 + sizes.reduce((sum, size) => sum + size, 0) + history.length - 1;
   const dropOrder = sizes
     .map((_, i) => i)
-    .slice(1)
+    .slice(protectNewest ? 1 : 0)
     .sort((a, b) => sizes[b] - sizes[a] || b - a);
   const dropped = new Set<number>();
   for (const i of dropOrder) {

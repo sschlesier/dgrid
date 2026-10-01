@@ -381,6 +381,13 @@ describe('queryStore', () => {
       expect(HISTORY_STORAGE_BUDGET).toBe(1_500_000);
     });
 
+    it('protects no other entry once an oversized newest entry is dropped', () => {
+      const small = Array.from({ length: 10 }, (_, i) => entry(`s${i}`, 50));
+      const history = [entry('new', 2000), entry('second', 1400), ...small];
+
+      expect(ids(selectEntriesForStorage(history, 1500))).toEqual(ids(small));
+    });
+
     it('drops a newest entry that alone exceeds the budget and keeps the rest', () => {
       const history = [entry('a', 1000), entry('b'), entry('c')];
 
