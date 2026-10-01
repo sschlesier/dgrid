@@ -3,7 +3,7 @@ title: Shortcuts fire behind open modals
 type: bug
 priority: 3
 approved: 'Scott Schlesier, 2026-09-30: suppress all dispatcher shortcuts behind aria-modal dialogs. Cold read: pass'
-status: in-review
+status: done
 ---
 
 While a modal dialog is open, global shortcuts (`?`, new tab, close tab, and any added
@@ -34,14 +34,14 @@ dialog.
 
 ## Acceptance criteria
 
-- [ ] With any modal from the list in Design open and focus on a non-text element, `?`
+- [x] With any modal from the list in Design open and focus on a non-text element, `?`
       doesn't run its handler and isn't `preventDefault`ed.
-- [ ] With no modal open, `?` still opens Settings when focus is outside a text field.
-- [ ] With a modal open, the new-tab and close-tab shortcuts don't run their handlers, even
+- [x] With no modal open, `?` still opens Settings when focus is outside a text field.
+- [x] With a modal open, the new-tab and close-tab shortcuts don't run their handlers, even
       with focus in a text field inside the modal; the tab bar is unchanged.
-- [ ] With no modal open, new tab and close tab keep their current behavior, including from
+- [x] With no modal open, new tab and close tab keep their current behavior, including from
       inside text fields.
-- [ ] A shortcut registered through the dispatcher in the future is suppressed behind a
+- [x] A shortcut registered through the dispatcher in the future is suppressed behind a
       modal with no per-shortcut code.
 
 ## Verification
@@ -115,3 +115,8 @@ test in a way that needs more than a selector update.
   (`a11y_interactive_supports_focus`). The code is unchanged. Review round 2: pass, no open
   decisions or risks; the first-match `return` was confirmed equivalent (Settings rejects
   conflicting bindings).
+- 2026-09-30: Accepted: Scott Schlesier, 2026-09-30, round 1
+- 2026-09-30: Done: the shortcut dispatcher skips every registered shortcut while an
+  `aria-modal="true"` element is present (still preventDefaulting alwaysGlobal ones); the
+  seven modal dialogs carry `role` and `aria-modal`. Covered by dispatcher unit tests and
+  marker render tests for all seven modals.
