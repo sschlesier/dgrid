@@ -108,23 +108,24 @@ A bad E2E test: "Password field disables when save-password checkbox is unchecke
 
 > Extend the matching spec in `tests/webdriver/specs/` (or add one for a genuinely new feature area). Add selectors to `tests/webdriver/selectors.mjs` and use them via `s` from `helpers.mjs` rather than inlining them. See `.claude/rules/e2e-testing.md` for the full conventions.
 
-## Tickets
+## Specs
 
-Tickets are `br` (beads_rust) issues in `.beads/`, tracked on `main`. br resolves `.beads/`
-in the main checkout from any worktree, so every agent sees the same tickets. Before
-creating, refining or working a ticket, read `.agents/tickets.md`: where tickets live and
-how to commit them, what a good ticket contains, approval, and the cold read. Run
-`br --help` for commands; `scripts/tickets/br-lint` checks a ticket's required parts.
+Specs (tickets) follow the `spec-review` skill with its default store tracker: they are
+drafted and approved in the spec store (`~/src/specs/dgrid/`) and enter this repo only on
+the branch that implements them, as `tickets/<slug>.md`. Use `/spec-review` to write,
+refine or approve one, and start only approved specs.
 
-Start only approved tickets: those listed by `br ready -l approved`. If asked to work on a
-ticket that isn't approved, run `/ticket-review` on it first instead of refusing. When the
-work is done, add a completion note and leave the ticket `in_progress`; the user closes it
-after merging.
+Repo specifics for specs:
 
-When talking to people, refer to tickets by title or a short form of it ("the pnpm audit
-ticket", "Filter query history"), not by ID alone. IDs like `dgr-x91` mean nothing to a
-reader. Include the ID only where tooling needs it: `br` commands, commit messages, ticket
-cross-references.
+- **Verification:** `pnpm verify` always; `cargo test` in `src-tauri/` when Rust changes;
+  named Vitest files (`pnpm test <file>`) or an E2E spec
+  (`node scripts/run-tauri-e2e.mjs --spec tests/webdriver/specs/<feature>.e2e.mjs`) for
+  the criteria; manual steps under `pnpm dev` with expected results.
+- **Areas:** the Rust backend (`src-tauri/`) and the Svelte frontend (`src/`). A spec that
+  spans both gets a cold read.
+
+When talking to people, refer to specs by title or a short form of it ("the pnpm audit
+spec", "Filter query history"), not by slug alone.
 
 ## Security Principles
 
