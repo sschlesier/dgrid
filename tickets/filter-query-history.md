@@ -101,3 +101,4 @@ Out of scope:
 - 2026-09-30: Imported from br as dgr-43r. Related: `keyboard-navigation-in-query-history-list`.
 - 2026-09-30: Imported into the spec store; PR #41 open for review.
 - 2026-09-30: Review started (PR #41, round 1).
+- 2026-09-30: Dismissed review finding: dropping `if (!query) return history;` in `QueryHistory.svelte` is an equivalent mutant (`includes('')` is always true).
