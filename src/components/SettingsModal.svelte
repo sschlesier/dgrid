@@ -168,7 +168,14 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="modal-overlay" onclick={onclose} onkeydown={() => {}}>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
+  <div
+    class="modal"
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+    onclick={(e) => e.stopPropagation()}
+    onkeydown={() => {}}
+  >
     <div class="modal-header">
       <h2>Settings</h2>
       <button class="close-btn" onclick={onclose} title="Close">

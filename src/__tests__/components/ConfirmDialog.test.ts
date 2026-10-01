@@ -25,6 +25,11 @@ describe('ConfirmDialog', () => {
     expect(screen.getByText('Delete this document? This cannot be undone.')).toBeInTheDocument();
   });
 
+  it('marks itself as a modal alert dialog', () => {
+    renderDialog();
+    expect(screen.getByRole('alertdialog')).toHaveAttribute('aria-modal', 'true');
+  });
+
   it('calls onconfirm when confirm button is clicked', async () => {
     const { onconfirm } = renderDialog();
     await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));

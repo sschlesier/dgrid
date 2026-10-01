@@ -36,6 +36,14 @@ describe('ConnectionDialog', () => {
     (appStore as { connections: unknown[] }).connections = [];
   });
 
+  it('marks itself as a modal dialog', () => {
+    render(ConnectionDialog, {
+      props: { connectionId: null, onClose: mockOnClose },
+    });
+
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+  });
+
   describe('form field rendering', () => {
     it('renders all required form fields', () => {
       render(ConnectionDialog, {

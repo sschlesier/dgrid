@@ -27,6 +27,27 @@ describe('EditFieldDialog', () => {
     });
   });
 
+  it('marks itself as a modal dialog', () => {
+    render(EditFieldDialog, {
+      props: {
+        field: {
+          connectionId: 'conn-1',
+          database: 'testdb',
+          collection: 'items',
+          docId: 'abc',
+          fieldPath: 'name',
+          value: 'Alice',
+          cellType: 'string',
+          queryText: 'db.items.find({})',
+        },
+        onclose: vi.fn(),
+        onsaved: vi.fn(),
+      },
+    });
+
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+  });
+
   it('shows a blocking warning and disables save when _id is missing', () => {
     render(EditFieldDialog, {
       props: {

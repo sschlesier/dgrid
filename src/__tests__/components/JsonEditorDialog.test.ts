@@ -47,6 +47,11 @@ describe('JsonEditorDialog', () => {
   });
 
   describe('rendering', () => {
+    it('marks itself as a modal dialog', () => {
+      render(JsonEditorDialog, { props: baseEditProps });
+      expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+    });
+
     it('shows "Edit Document" title and "Save" button in edit mode', () => {
       render(JsonEditorDialog, { props: baseEditProps });
       expect(screen.getByRole('heading', { name: 'Edit Document' })).toBeInTheDocument();
