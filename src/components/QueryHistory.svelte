@@ -27,13 +27,18 @@
     filterInputEl?.focus();
   });
 
+  function setFilter(text: string) {
+    filterText = text;
+    hoveredItem = null;
+  }
+
   function clearFilter() {
-    filterText = '';
+    setFilter('');
     filterInputEl?.focus();
   }
 
   function handleClearAll() {
-    filterText = '';
+    setFilter('');
     onclear();
   }
 
@@ -44,10 +49,6 @@
   let popupEl = $state<HTMLDivElement | undefined>();
   let adjustedX = $state(0);
   let adjustedY = $state(0);
-
-  const popupItem = $derived(
-    hoveredItem && filteredHistory.some((item) => item.id === hoveredItem?.id) ? hoveredItem : null
-  );
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
@@ -97,7 +98,7 @@
 
   // Clamp popup to stay within viewport after it renders
   $effect(() => {
-    if (popupItem && popupEl) {
+    if (hoveredItem && popupEl) {
       const rect = popupEl.getBoundingClientRect();
       adjustedX = rect.right > window.innerWidth ? mouseX - rect.width - 32 : mouseX;
       adjustedY = rect.bottom > window.innerHeight ? mouseY - rect.height - 16 : mouseY;
@@ -174,7 +175,7 @@
           </svg>
           <input
             bind:this={filterInputEl}
-            bind:value={filterText}
+            bind:value={() => filterText, setFilter}
             type="text"
             placeholder="Filter history..."
             aria-label="Filter history"
@@ -236,9 +237,9 @@
   </div>
 </div>
 
-{#if popupItem}
+{#if hoveredItem}
   <div class="query-popup" bind:this={popupEl} style="left: {adjustedX}px; top: {adjustedY}px;">
-    {popupQuery(popupItem.query)}
+    {popupQuery(hoveredItem.query)}
   </div>
 {/if}
 
