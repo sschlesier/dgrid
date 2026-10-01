@@ -184,3 +184,19 @@ See `.claude/rules/` for detailed guidelines on:
 - Testing patterns
 - TypeScript conventions
 - E2E testing patterns (WebdriverIO suite in `tests/webdriver/`)
+
+## Review profile
+
+Purpose: Desktop MongoDB GUI for developers: browse databases, run shell-syntax queries, edit documents. One user per install.
+Deploy: Native app (macOS, Windows, Linux) from GitHub Releases and a Homebrew cask. No network listener; the UI talks to Rust over in-process Tauri IPC.
+Load: One interactive user. Local lists (history, connections) hold hundreds of items, not thousands.
+Data: Reads and writes the user's MongoDB databases. Connections in `~/.dgrid/connections.json` with credentials stripped; passwords only in the OS keyring. Query history and UI settings in webview localStorage. Query text may contain sensitive values.
+
+Invariants:
+
+- Passwords are never written to disk or localStorage, only to the OS keyring.
+- The app opens no HTTP server or network listener.
+- The app writes to MongoDB only on an explicit user action.
+- Stored formats (`connections.json`, localStorage keys) stay readable by the previous release; changes are additive or migrated.
+
+Coverage: pnpm test:coverage
