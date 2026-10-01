@@ -117,9 +117,12 @@ describe('QueryHistory', () => {
 
       expect(screen.queryByLabelText('Clear filter')).not.toBeInTheDocument();
       await fireEvent.input(input, { target: { value: 'users' } });
-      await fireEvent.click(screen.getByLabelText('Clear filter'));
+      const clearButton = screen.getByLabelText('Clear filter');
+      clearButton.focus();
+      await fireEvent.click(clearButton);
 
       expect(input).toHaveValue('');
+      expect(input).toHaveFocus();
       expect(visibleQueries(container)).toHaveLength(3);
     });
 
