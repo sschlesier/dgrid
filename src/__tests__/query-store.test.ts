@@ -423,6 +423,16 @@ describe('queryStore', () => {
       expect(queryStore.history).toEqual(storedHistory());
     });
 
+    it('removes the stored history when even an empty list cannot be saved', () => {
+      const data = stubQuotaStorage(0);
+      data.set(HISTORY_KEY, JSON.stringify([entry('old')]));
+
+      queryStore.addToHistory(entry('new'));
+
+      expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
+      expect(queryStore.history).toEqual([]);
+    });
+
     it('frees quota for other stores after history hits it', () => {
       const data = stubQuotaStorage(1_600_000);
       data.set('dgrid-other', 'x'.repeat(200_000));

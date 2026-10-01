@@ -73,7 +73,14 @@ function saveHistory(history: QueryHistoryItem[]): QueryHistoryItem[] {
       localStorage.setItem(HISTORY_KEY, json);
       return entries;
     } catch {
-      if (entries.length === 0) return entries;
+      if (entries.length === 0) {
+        try {
+          localStorage.removeItem(HISTORY_KEY);
+        } catch {
+          // Ignore storage errors
+        }
+        return entries;
+      }
       if (entries.length === 1) {
         history = [];
       } else {
