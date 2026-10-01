@@ -3,7 +3,7 @@ title: Bound query history storage
 type: bug
 priority: 3
 approved: 'Scott Schlesier, 2026-09-30: largest-first trimming to a 1.5M-char budget, newest protected, panel matches saved copy. Cold read: not run (one area, no flags)'
-status: in-review
+status: done
 ---
 
 Query history keeps persisting, and other localStorage writes keep working, however large
@@ -33,28 +33,28 @@ Out of scope:
 
 ## Acceptance criteria
 
-- [ ] The saved `dgrid-query-history` value is never longer than 1,500,000 characters.
-- [ ] When the history (newest 200 entries) serializes larger than the budget, the
+- [x] The saved `dgrid-query-history` value is never longer than 1,500,000 characters.
+- [x] When the history (newest 200 entries) serializes larger than the budget, the
       largest entries are dropped first, one at a time, until it fits; among entries of
       equal size the older one goes first. The newest entry is never dropped this way.
       Every smaller entry is kept, whatever its age, and the remaining entries keep their
       newest-first order.
-- [ ] A single entry whose own serialized form exceeds the budget is never saved, even
+- [x] A single entry whose own serialized form exceeds the budget is never saved, even
       the newest, and every other entry that fits still is.
-- [ ] The history shown in the panel always matches what was saved: after each add, the
+- [x] The history shown in the panel always matches what was saved: after each add, the
       in-memory list is the saved list, so entries dropped by the budget are not shown
       during the session either.
-- [ ] When `setItem` throws (e.g. `QuotaExceededError`), the save retries with the budget
+- [x] When `setItem` throws (e.g. `QuotaExceededError`), the save retries with the budget
       halved to half the size it just tried, dropping largest entries first by the same
       rule (newest kept until it is the only entry left), until it succeeds or the list
       is empty; the in-memory list becomes the list
       that was saved. It never throws to the caller and shows nothing to the user.
-- [ ] After a quota failure caused by the history, a write by another store (e.g.
+- [x] After a quota failure caused by the history, a write by another store (e.g.
       `dgrid-grid-column-widths`) succeeds, because history no longer fills the origin
       quota.
-- [ ] A stored history over the budget (saved by an earlier release) loads trimmed to the
+- [x] A stored history over the budget (saved by an earlier release) loads trimmed to the
       budget by the same rule.
-- [ ] `clearHistory` still saves an empty list, and stored histories within the budget
+- [x] `clearHistory` still saves an empty list, and stored histories within the budget
       load unchanged (no format change).
 
 ## Verification
@@ -127,3 +127,5 @@ Out of scope:
 - 2026-09-30: Review round 1 triage: fixed the quota retry dropping a newest entry that fits alone (Design: "down to the newest alone, then empty"); fixed stale stored history when even `[]` can't be saved by removing the key (criterion: panel matches what was saved); added boundary, budget-value and halving tests.
 - 2026-09-30: Dismissed mutant: removing the empty-list guard in `selectEntriesForStorage` is equivalent (an empty history still returns []).
 - 2026-09-30: Review answers (Scott Schlesier): once an oversized newest entry is dropped, no other entry is protected (replaces the earlier assumption; fixed in 42ec917). Load keeps trimming in memory only; accepted risk: after upgrading with an over-budget stored history, other stores' writes can fail until the first query. Valid while: only `addToHistory` and `clearHistory` write the history key. Manual `pnpm dev` step accepted unverified; the unit test replays the scenario. Clearing of `removeItem` confirmed.
+- 2026-09-30: Accepted: Scott Schlesier, 2026-09-30, round 1
+- 2026-09-30: Done: query history is saved within a 1,500,000-character budget, dropping the largest entries first and keeping the newest unless it alone exceeds the budget; quota errors retry with a halved budget and the panel always shows what was saved. Accepted risk: an over-budget history from an earlier release is trimmed on disk only at the next save.
