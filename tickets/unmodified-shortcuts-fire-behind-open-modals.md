@@ -2,7 +2,7 @@
 title: Shortcuts fire behind open modals
 type: bug
 priority: 3
-approved: "Scott Schlesier, 2026-09-30: suppress all dispatcher shortcuts behind aria-modal dialogs. Cold read: pass"
+approved: 'Scott Schlesier, 2026-09-30: suppress all dispatcher shortcuts behind aria-modal dialogs. Cold read: pass'
 status: in-progress
 ---
 
@@ -96,3 +96,9 @@ test in a way that needs more than a selector update.
 - 2026-09-30: Refined: suppress every dispatcher shortcut behind modals (alwaysGlobal included, still preventDefaulted); modals marked with role/aria-modal; cold read: pass.
 - 2026-09-30: Approved: Scott Schlesier, 2026-09-30: suppress all dispatcher shortcuts behind aria-modal dialogs. Cold read: pass
 - 2026-09-30: Started on branch fix/shortcuts-behind-modals
+- 2026-09-30: Implemented. Assumptions: the dispatcher returns on the first matching
+  shortcut while a modal is open (it doesn't scan for another match); the marker goes on
+  the inner dialog element; `ConnectionProgressModal` has no `onclick`, so it gets no
+  `tabindex`. Marker checks: component tests for the four tested dialogs, grep for the
+  other three. Checks run: `pnpm verify` passes; E2E `smoke` and `tab-shortcuts` pass.
+  Manual steps under `pnpm dev` not run yet.
