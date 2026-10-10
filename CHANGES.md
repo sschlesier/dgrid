@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.7.0
+
+- Support `db.aggregate()` for collectionless pipelines
+- Fix: aggregate pipelines ending in `$out` or `$merge` are no longer paginated
+- Fix: `$currentOp` pipelines run against the admin database
+- Human-readable duration for TTL indexes
+- Fix: field completions quote dotted field paths
+- Filter the query history dropdown
+- Query history now keeps up to 200 entries
+- Fix: keyboard shortcuts no longer fire while a modal is open
+- Fix: `createIndex` applies every option (TTL, name, sparse, ...) and rejects unknown ones
+- Fix: `getIndexes` shows every index option
+
 ## 1.6.0
 
 - Insert and edit documents as JSON
