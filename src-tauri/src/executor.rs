@@ -610,14 +610,7 @@ async fn execute_collection_query(
 
         CollectionOperation::CreateIndex => {
             let index_spec = value_to_doc(&query.index_spec)?;
-            let opts_val = query.options.as_ref();
-
-            let mut idx_model_opts = mongodb::options::IndexOptions::default();
-            if let Some(o) = opts_val {
-                if let Some(unique) = o.get("unique").and_then(|v| v.as_bool()) {
-                    idx_model_opts.unique = Some(unique);
-                }
-            }
+            let idx_model_opts = parse_index_options(&query.options)?;
 
             let model = mongodb::IndexModel::builder()
                 .keys(index_spec)
@@ -674,25 +667,10 @@ async fn execute_collection_query(
                 .await
                 .map_err(|e| e.to_string())?;
 
-            let documents: Vec<Map<String, Value>> = indexes
+            let documents = indexes
                 .iter()
-                .map(|idx| {
-                    let mut m = Map::new();
-                    m.insert(
-                        "key".into(),
-                        Value::Object(bson_ser::serialize_document(&idx.keys)),
-                    );
-                    if let Some(opts) = &idx.options {
-                        if let Some(name) = &opts.name {
-                            m.insert("name".into(), Value::String(name.clone()));
-                        }
-                        if let Some(unique) = opts.unique {
-                            m.insert("unique".into(), Value::Bool(unique));
-                        }
-                    }
-                    m
-                })
-                .collect();
+                .map(serialize_index_model)
+                .collect::<Result<Vec<_>, _>>()?;
 
             Ok(ExecuteQueryResponse {
                 documents,
@@ -1221,6 +1199,65 @@ fn parse_update_options(value: &Option<Value>) -> Result<mongodb::options::Updat
     Ok(opts)
 }
 
+/// An index as getIndexes shows it: `key` plus every option the server reported.
+fn serialize_index_model(idx: &mongodb::IndexModel) -> Result<Map<String, Value>, String> {
+    let mut m = Map::new();
+    m.insert(
+        "key".into(),
+        Value::Object(bson_ser::serialize_document(&idx.keys)),
+    );
+    if let Some(opts) = &idx.options {
+        let opts_doc = mongodb::bson::to_document(opts).map_err(|e| e.to_string())?;
+        m.extend(bson_ser::serialize_document(&opts_doc));
+    }
+    Ok(m)
+}
+
+/// The serde names of `IndexOptions` fields a user may pass to createIndex.
+/// Serde ignores unknown keys, so anything outside this list is rejected up front.
+const INDEX_OPTION_KEYS: &[&str] = &[
+    "background",
+    "expireAfterSeconds",
+    "name",
+    "sparse",
+    "storageEngine",
+    "unique",
+    "v",
+    "default_language",
+    "language_override",
+    "textIndexVersion",
+    "weights",
+    "2dsphereIndexVersion",
+    "bits",
+    "max",
+    "min",
+    "bucketSize",
+    "partialFilterExpression",
+    "collation",
+    "wildcardProjection",
+    "hidden",
+];
+
+fn parse_index_options(value: &Option<Value>) -> Result<mongodb::options::IndexOptions, String> {
+    let Some(v) = value else {
+        return Ok(mongodb::options::IndexOptions::default());
+    };
+    let doc = bson_ser::json_to_document(v).map_err(|e| format!("createIndex: {e}"))?;
+
+    for (key, val) in &doc {
+        if !INDEX_OPTION_KEYS.contains(&key.as_str()) {
+            return Err(format!("createIndex: unknown option '{key}'"));
+        }
+        // Deserialize each option alone so a type error can name the key.
+        let mut single = Document::new();
+        single.insert(key.clone(), val.clone());
+        mongodb::bson::from_document::<mongodb::options::IndexOptions>(single)
+            .map_err(|e| format!("createIndex: invalid value for option '{key}': {e}"))?;
+    }
+
+    mongodb::bson::from_document(doc).map_err(|e| format!("createIndex: invalid options: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1466,5 +1503,146 @@ mod tests {
             let result: Result<ParsedQuery, _> = serde_json::from_value(json);
             assert!(result.is_ok(), "Failed to deserialize operation: {op}");
         }
+    }
+
+    #[test]
+    fn parse_index_options_none_gives_defaults() {
+        let opts = parse_index_options(&None).unwrap();
+        assert!(opts.name.is_none());
+        assert!(opts.unique.is_none());
+        assert!(opts.expire_after.is_none());
+        assert!(opts.sparse.is_none());
+    }
+
+    #[test]
+    fn parse_index_options_unique_only() {
+        let opts = parse_index_options(&Some(serde_json::json!({"unique": true}))).unwrap();
+        assert_eq!(opts.unique, Some(true));
+        assert!(opts.name.is_none());
+    }
+
+    #[test]
+    fn parse_index_options_maps_every_supported_option() {
+        use mongodb::options::{IndexVersion, Sphere2DIndexVersion, TextIndexVersion};
+        use std::time::Duration;
+
+        let opts = parse_index_options(&Some(serde_json::json!({
+            "background": true,
+            "expireAfterSeconds": 3600,
+            "name": "ttl_created",
+            "unique": true,
+            "sparse": true,
+            "partialFilterExpression": {"createdAt": {"$gt": {"_type": "Date", "_value": "2024-01-01T00:00:00.000Z"}}},
+            "collation": {"locale": "fr", "strength": 2},
+            "hidden": false,
+            "weights": {"title": 10},
+            "default_language": "english",
+            "language_override": "lang",
+            "textIndexVersion": 3,
+            "2dsphereIndexVersion": 3,
+            "bits": 26,
+            "min": -180,
+            "max": 180.5,
+            "bucketSize": 5,
+            "wildcardProjection": {"a": 1},
+            "storageEngine": {"wiredTiger": {}},
+            "v": 2,
+        })))
+        .unwrap();
+
+        assert_eq!(opts.expire_after, Some(Duration::from_secs(3600)));
+        assert_eq!(opts.name.as_deref(), Some("ttl_created"));
+        assert_eq!(opts.unique, Some(true));
+        assert_eq!(opts.sparse, Some(true));
+        let pfe = opts.partial_filter_expression.unwrap();
+        let gt = pfe.get_document("createdAt").unwrap().get("$gt").unwrap();
+        assert!(matches!(gt, Bson::DateTime(_)), "got {gt:?}");
+        let collation = opts.collation.unwrap();
+        assert_eq!(collation.locale, "fr");
+        assert!(collation.strength.is_some());
+        assert_eq!(opts.hidden, Some(false));
+        assert_eq!(opts.weights, Some(doc! {"title": 10}));
+        assert_eq!(opts.default_language.as_deref(), Some("english"));
+        assert_eq!(opts.language_override.as_deref(), Some("lang"));
+        assert!(matches!(
+            opts.text_index_version,
+            Some(TextIndexVersion::V3)
+        ));
+        assert!(matches!(
+            opts.sphere_2d_index_version,
+            Some(Sphere2DIndexVersion::V3)
+        ));
+        assert_eq!(opts.bits, Some(26));
+        assert_eq!(opts.min, Some(-180.0));
+        assert_eq!(opts.max, Some(180.5));
+        assert_eq!(opts.bucket_size, Some(5));
+        assert_eq!(opts.wildcard_projection, Some(doc! {"a": 1}));
+        assert_eq!(opts.storage_engine, Some(doc! {"wiredTiger": {}}));
+        assert!(matches!(opts.version, Some(IndexVersion::V2)));
+    }
+
+    #[test]
+    fn parse_index_options_rejects_unknown_key() {
+        let err =
+            parse_index_options(&Some(serde_json::json!({"expireAfterSecond": 3600}))).unwrap_err();
+        assert_eq!(err, "createIndex: unknown option 'expireAfterSecond'");
+    }
+
+    #[test]
+    fn parse_index_options_rejects_wrong_types() {
+        for (key, val) in [
+            ("expireAfterSeconds", serde_json::json!("abc")),
+            ("sparse", serde_json::json!("yes")),
+            ("name", serde_json::json!(5)),
+            ("partialFilterExpression", serde_json::json!(true)),
+        ] {
+            let mut m = Map::new();
+            m.insert(key.into(), val);
+            let err = parse_index_options(&Some(Value::Object(m))).unwrap_err();
+            assert!(
+                err.starts_with(&format!("createIndex: invalid value for option '{key}': ")),
+                "unexpected error for {key}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_index_options_rejects_non_object() {
+        let err = parse_index_options(&Some(serde_json::json!(true))).unwrap_err();
+        assert!(err.starts_with("createIndex: "), "{err}");
+    }
+
+    #[test]
+    fn serialize_index_model_includes_every_option() {
+        let opts = parse_index_options(&Some(serde_json::json!({
+            "name": "ttl_created",
+            "expireAfterSeconds": 3600,
+            "sparse": true,
+            "v": 2,
+        })))
+        .unwrap();
+        let model = mongodb::IndexModel::builder()
+            .keys(doc! {"createdAt": 1})
+            .options(opts)
+            .build();
+
+        let m = serialize_index_model(&model).unwrap();
+        assert_eq!(
+            Value::Object(m),
+            serde_json::json!({
+                "key": {"createdAt": 1},
+                "name": "ttl_created",
+                "expireAfterSeconds": 3600,
+                "sparse": true,
+                "v": 2,
+            })
+        );
+    }
+
+    #[test]
+    fn serialize_index_model_without_options() {
+        let model = mongodb::IndexModel::builder().keys(doc! {"a": 1}).build();
+        let m = serialize_index_model(&model).unwrap();
+        assert_eq!(Value::Object(m), serde_json::json!({"key": {"a": 1}}));
     }
 }

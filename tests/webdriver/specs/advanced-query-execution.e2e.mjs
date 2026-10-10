@@ -82,4 +82,27 @@ describe('Advanced Query Execution', () => {
     await expect(s.results.jsonView()).toHaveText(expect.stringContaining('queryPlanner'));
     await expect(s.results.jsonView()).toHaveText(expect.stringContaining('winningPlan'));
   });
+
+  it('creates an index with every option passed to createIndex', async () => {
+    await seedDatabase(TEST_DB, TEST_COLLECTION, [{ name: 'Alice', createdAt: new Date() }]);
+
+    await openQueryTab();
+    await clearAndTypeQuery(
+      `db.${TEST_COLLECTION}.createIndex({ createdAt: 1 }, { expireAfterSeconds: 3600, name: "ttl_created", sparse: true })`
+    );
+    await (await s.query.executeButton()).click();
+    await expect(s.results.gridViewport()).toHaveText(expect.stringContaining('ttl_created'));
+
+    await clearAndTypeQuery(`db.${TEST_COLLECTION}.getIndexes()`);
+    await (await s.query.executeButton()).click();
+
+    await switchResultsView('JSON');
+    await expect(s.results.jsonView()).toHaveText(
+      expect.stringMatching(/"name":\s*"ttl_created"/)
+    );
+    await expect(s.results.jsonView()).toHaveText(
+      expect.stringMatching(/"expireAfterSeconds":\s*3600/)
+    );
+    await expect(s.results.jsonView()).toHaveText(expect.stringMatching(/"sparse":\s*true/));
+  });
 });
