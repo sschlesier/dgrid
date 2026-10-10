@@ -667,25 +667,10 @@ async fn execute_collection_query(
                 .await
                 .map_err(|e| e.to_string())?;
 
-            let documents: Vec<Map<String, Value>> = indexes
+            let documents = indexes
                 .iter()
-                .map(|idx| {
-                    let mut m = Map::new();
-                    m.insert(
-                        "key".into(),
-                        Value::Object(bson_ser::serialize_document(&idx.keys)),
-                    );
-                    if let Some(opts) = &idx.options {
-                        if let Some(name) = &opts.name {
-                            m.insert("name".into(), Value::String(name.clone()));
-                        }
-                        if let Some(unique) = opts.unique {
-                            m.insert("unique".into(), Value::Bool(unique));
-                        }
-                    }
-                    m
-                })
-                .collect();
+                .map(serialize_index_model)
+                .collect::<Result<Vec<_>, _>>()?;
 
             Ok(ExecuteQueryResponse {
                 documents,
@@ -1214,6 +1199,20 @@ fn parse_update_options(value: &Option<Value>) -> Result<mongodb::options::Updat
     Ok(opts)
 }
 
+/// An index as getIndexes shows it: `key` plus every option the server reported.
+fn serialize_index_model(idx: &mongodb::IndexModel) -> Result<Map<String, Value>, String> {
+    let mut m = Map::new();
+    m.insert(
+        "key".into(),
+        Value::Object(bson_ser::serialize_document(&idx.keys)),
+    );
+    if let Some(opts) = &idx.options {
+        let opts_doc = mongodb::bson::to_document(opts).map_err(|e| e.to_string())?;
+        m.extend(bson_ser::serialize_document(&opts_doc));
+    }
+    Ok(m)
+}
+
 /// The serde names of `IndexOptions` fields a user may pass to createIndex.
 /// Serde ignores unknown keys, so anything outside this list is rejected up front.
 const INDEX_OPTION_KEYS: &[&str] = &[
@@ -1611,5 +1610,39 @@ mod tests {
     fn parse_index_options_rejects_non_object() {
         let err = parse_index_options(&Some(serde_json::json!(true))).unwrap_err();
         assert!(err.starts_with("createIndex: "), "{err}");
+    }
+
+    #[test]
+    fn serialize_index_model_includes_every_option() {
+        let opts = parse_index_options(&Some(serde_json::json!({
+            "name": "ttl_created",
+            "expireAfterSeconds": 3600,
+            "sparse": true,
+            "v": 2,
+        })))
+        .unwrap();
+        let model = mongodb::IndexModel::builder()
+            .keys(doc! {"createdAt": 1})
+            .options(opts)
+            .build();
+
+        let m = serialize_index_model(&model).unwrap();
+        assert_eq!(
+            Value::Object(m),
+            serde_json::json!({
+                "key": {"createdAt": 1},
+                "name": "ttl_created",
+                "expireAfterSeconds": 3600,
+                "sparse": true,
+                "v": 2,
+            })
+        );
+    }
+
+    #[test]
+    fn serialize_index_model_without_options() {
+        let model = mongodb::IndexModel::builder().keys(doc! {"a": 1}).build();
+        let m = serialize_index_model(&model).unwrap();
+        assert_eq!(Value::Object(m), serde_json::json!({"key": {"a": 1}}));
     }
 }
