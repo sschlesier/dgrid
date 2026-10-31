@@ -7,7 +7,7 @@ priority: 3
 depends-on: []
 parent:
 approved: 'Scott Schlesier, 2026-10-10: approved after review. Cold read: not run'
-status: in-review
+status: done
 ---
 
 The Query History dropdown can only be used with the mouse. Users should be able to move through the list with the arrow keys and press Enter to load the highlighted query, including while the filter input (`filter-query-history`) has focus.
@@ -66,3 +66,5 @@ Decisions (defaults, overrule if wrong):
 - 2026-10-31: Status: in-review
 - 2026-10-31: Review round 1 dismissals: optionId collision (history ids are crypto.randomUUID); Enter preventDefault mutant (input is not in a form); E2E multi-line text (E2E queries are single-line).
 - 2026-10-31: Review round 1 assumption: out-of-scope plugin-opener bump to ~2.7.2 (bd36f9b) to unblock tauri build for E2E.
+- 2026-10-31: Review round 1 decisions (Scott): ArrowUp from no highlight stays a no-op; modifier+Enter behaves like Enter; highlight drift if history changes while open accepted (unlikely behind full-screen backdrop); separate keyboard/hover highlight confirmed.
+- 2026-10-31: Status: done: Reviewed round 1: all criteria verified; 3 open decisions answered with no code change
