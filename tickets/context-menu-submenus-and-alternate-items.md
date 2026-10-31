@@ -5,7 +5,7 @@ id: yew-zho
 type: feature
 priority: 2
 approved: "Scott Schlesier, 2026-10-10: approved after refinement. Cold read: pass"
-status: in-review
+status: done
 ---
 
 In the results grid's cell/row context menu, the copy actions sit under a single "Copy ▸" submenu, and any context menu item can declare a ⌥ (Option) alternate, so the upcoming copy features don't flood the menu.
@@ -67,3 +67,5 @@ Stop and ask if: a Sidebar, TreeNode or TreeView menu needs changing for this to
 - 2026-10-31: Status: in-review
 - 2026-10-31: Review triage: dismissed double onclose on submenu click (idempotent: ResultsGrid sets contextMenu=null, ContextMenu.onclose also fires); dismissed fitSubmenu resize re-measure (menu is short-lived); fixed unrelated e2e reformatting (my prettier run), added e2e for criteria 6-8, unit tests for M6/M15/M20.
 - 2026-10-31: Review round 1 decisions: clamp submenu to viewport left/top edges (done); accepted 150 ms pointer delay proven by fake timers only; sidebar/tree menu visuals need a manual pnpm dev look (e2e behavior specs pass).
+- 2026-10-31: Sidebar, TreeNode and TreeView menus checked visually by Scott under pnpm dev: look unchanged.
+- 2026-10-31: Status: done: Reviewed round 1: all criteria verified; pointer delay proven by fake timers only
