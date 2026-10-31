@@ -78,3 +78,4 @@ Out of scope:
 - 2026-10-31: Implemented on feat/copy-grid-row (76f14c4); criteria 1-3, 5, 9 need manual check under pnpm dev. Header labels use column label.
 - 2026-10-31: Status: in-progress
 - 2026-10-31: Status: in-review
+- 2026-10-31: Review round 1: dismissed 2 equivalent mutants (header cell plain flag; typeof ClipboardItem guard, both behave identically). Added tests for lone quote, bare CR and html header flag.
