@@ -270,4 +270,131 @@ describe('QueryHistory', () => {
       expect(onclose).toHaveBeenCalledOnce();
     });
   });
+
+  describe('keyboard navigation', () => {
+    const filter = () => screen.getByLabelText('Filter history');
+    const active = (container: HTMLElement) => container.querySelector('.history-item.active');
+    const key = (k: string) => fireEvent.keyDown(filter(), { key: k });
+
+    it('highlights nothing on open', () => {
+      const { container } = renderHistory();
+      expect(active(container)).toBeNull();
+    });
+
+    it('ArrowDown highlights the first item, then moves down; ArrowUp moves back', async () => {
+      const { container } = renderHistory();
+      await key('ArrowDown');
+      expect(active(container)).toHaveTextContent('db.users.find({})');
+      await key('ArrowDown');
+      expect(active(container)).toHaveTextContent('db.products');
+      await key('ArrowUp');
+      expect(active(container)).toHaveTextContent('db.users.find({})');
+    });
+
+    it('stops at the first and last item', async () => {
+      const { container } = renderHistory();
+      await key('ArrowDown');
+      await key('ArrowUp');
+      expect(active(container)).toHaveTextContent('db.users.find({})');
+      for (let i = 0; i < 3; i++) await key('ArrowDown');
+      expect(active(container)).toHaveTextContent('trackingCode');
+      await key('ArrowDown');
+      expect(active(container)).toHaveTextContent('trackingCode');
+    });
+
+    it('ArrowUp with nothing highlighted keeps nothing highlighted', async () => {
+      const { container } = renderHistory();
+      await key('ArrowUp');
+      expect(active(container)).toBeNull();
+    });
+
+    it('Enter selects the highlighted item', async () => {
+      renderHistory();
+      await key('ArrowDown');
+      await key('ArrowDown');
+      await key('Enter');
+      expect(onselect).toHaveBeenCalledTimes(1);
+      expect(onselect).toHaveBeenCalledWith(history[1]);
+    });
+
+    it('Enter does nothing with no highlight', async () => {
+      renderHistory();
+      await key('Enter');
+      expect(onselect).not.toHaveBeenCalled();
+    });
+
+    it('clears the highlight when the filter changes', async () => {
+      const { container } = renderHistory();
+      await key('ArrowDown');
+      expect(active(container)).not.toBeNull();
+      await fireEvent.input(filter(), { target: { value: 'users' } });
+      expect(active(container)).toBeNull();
+      expect(filter()).not.toHaveAttribute('aria-activedescendant');
+    });
+
+    it('keeps focus in the filter input and exposes aria-activedescendant', async () => {
+      const { container } = renderHistory();
+      await key('ArrowDown');
+      expect(filter()).toHaveFocus();
+      expect(filter()).toHaveAttribute('aria-activedescendant', active(container)!.id);
+      expect(active(container)).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('prevents the default cursor movement for arrow keys', async () => {
+      renderHistory();
+      expect(await fireEvent.keyDown(filter(), { key: 'ArrowDown' })).toBe(false);
+    });
+
+    it('Enter keydown on an item button is not handled by the input handler; click selects once', async () => {
+      const { container } = renderHistory();
+      const button = container.querySelector('.history-item') as HTMLElement;
+      await fireEvent.keyDown(button, { key: 'Enter' });
+      expect(onselect).not.toHaveBeenCalled();
+      await fireEvent.click(button);
+      expect(onselect).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing on arrows or Enter when no items match', async () => {
+      const { container } = renderHistory();
+      await fireEvent.input(filter(), { target: { value: 'zzz-no-match' } });
+      await key('ArrowDown');
+      await key('Enter');
+      expect(active(container)).toBeNull();
+      expect(onselect).not.toHaveBeenCalled();
+    });
+
+    it('ignores Enter while an IME composition is active', async () => {
+      renderHistory();
+      await key('ArrowDown');
+      await fireEvent.keyDown(filter(), { key: 'Enter', isComposing: true });
+      expect(onselect).not.toHaveBeenCalled();
+    });
+
+    it('scrolls the highlighted item into view', async () => {
+      const spy = vi.fn();
+      const original = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = spy;
+      try {
+        const { container } = renderHistory();
+        await key('ArrowDown');
+        await key('ArrowDown');
+        expect(spy).toHaveBeenLastCalledWith({ block: 'nearest' });
+        expect(spy.mock.contexts[spy.mock.contexts.length - 1]).toBe(active(container));
+      } finally {
+        Element.prototype.scrollIntoView = original;
+      }
+    });
+
+    it('exposes listbox and option roles', () => {
+      renderHistory();
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+      expect(screen.getAllByRole('option')).toHaveLength(3);
+    });
+
+    it('keeps mouse selection working', async () => {
+      const { container } = renderHistory();
+      await fireEvent.click(container.querySelectorAll('.history-item')[1]);
+      expect(onselect).toHaveBeenCalledWith(history[1]);
+    });
+  });
 });
