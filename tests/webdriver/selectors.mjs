@@ -156,6 +156,7 @@ export const selectors = {
       $(`//*[contains(@class, "toolbar-btn")][.//*[contains(normalize-space(.), ${quoteXPath('History')})]]`),
     dropdown: () => $('.history-dropdown'),
     item: () => $$('.history-item'),
+    activeItem: () => $('.history-item.active'),
     itemQuery: () => $$('.item-query'),
     clearButton: () => $('.clear-btn'),
     emptyState: () => $('.empty-history'),

@@ -23,13 +23,46 @@
     );
   });
 
+  const activeItem = $derived(activeIndex === null ? undefined : filteredHistory[activeIndex]);
+
   $effect(() => {
     filterInputEl?.focus();
   });
 
+  let activeIndex = $state<number | null>(null);
+  let listEl = $state<HTMLDivElement | undefined>();
+
   function setFilter(text: string) {
     filterText = text;
     hoveredItem = null;
+    activeIndex = null;
+  }
+
+  function handleFilterKeydown(event: KeyboardEvent) {
+    const count = filteredHistory.length;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (count === 0) return;
+      if (event.key === 'ArrowDown') {
+        activeIndex = activeIndex === null ? 0 : Math.min(activeIndex + 1, count - 1);
+      } else if (activeIndex !== null) {
+        activeIndex = Math.max(activeIndex - 1, 0);
+      }
+      const id = activeIndex === null ? null : filteredHistory[activeIndex]?.id;
+      if (id) {
+        listEl?.querySelector(`#${optionId(id)}`)?.scrollIntoView?.({ block: 'nearest' });
+      }
+    } else if (event.key === 'Enter' && event.target === filterInputEl) {
+      const item = activeIndex === null ? undefined : filteredHistory[activeIndex];
+      if (item) {
+        event.preventDefault();
+        onselect(item);
+      }
+    }
+  }
+
+  function optionId(id: string): string {
+    return `history-option-${id.replace(/[^A-Za-z0-9_-]/g, '_')}`;
   }
 
   function clearFilter() {
@@ -179,6 +212,9 @@
             type="text"
             placeholder="Filter history..."
             aria-label="Filter history"
+            aria-controls="history-listbox"
+            aria-activedescendant={activeItem ? optionId(activeItem.id) : undefined}
+            onkeydown={handleFilterKeydown}
           />
           {#if filterText}
             <button
@@ -204,7 +240,7 @@
       </div>
     {/if}
 
-    <div class="history-list">
+    <div class="history-list" id="history-listbox" role="listbox" bind:this={listEl}>
       {#if history.length === 0}
         <div class="empty-history">
           <p>No queries in history</p>
@@ -216,7 +252,11 @@
       {:else}
         {#each filteredHistory as item (item.id)}
           <button
+            id={optionId(item.id)}
+            role="option"
+            aria-selected={activeItem?.id === item.id}
             class="history-item"
+            class:active={activeItem?.id === item.id}
             onclick={() => onselect(item)}
             onmouseenter={(e) => handleItemMouseEnter(e, item)}
             onmousemove={handleItemMouseMove}
@@ -399,6 +439,11 @@
 
   .history-item:hover {
     background-color: var(--color-bg-hover);
+  }
+
+  .history-item.active {
+    background-color: var(--color-primary-light);
+    box-shadow: inset 2px 0 0 var(--color-primary);
   }
 
   .history-item:last-child {

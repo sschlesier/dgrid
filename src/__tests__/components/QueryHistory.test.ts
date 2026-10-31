@@ -270,4 +270,90 @@ describe('QueryHistory', () => {
       expect(onclose).toHaveBeenCalledOnce();
     });
   });
+
+  describe('keyboard navigation', () => {
+    const filter = () => screen.getByLabelText('Filter history');
+    const active = (container: HTMLElement) => container.querySelector('.history-item.active');
+    const key = (k: string) => fireEvent.keyDown(filter(), { key: k });
+
+    it('highlights nothing on open', () => {
+      const { container } = renderHistory();
+      expect(active(container)).toBeNull();
+    });
+
+    it('ArrowDown highlights the first item, then moves down; ArrowUp moves back', async () => {
+      const { container } = renderHistory();
+      await key('ArrowDown');
+      expect(active(container)).toHaveTextContent('db.users.find({})');
+      await key('ArrowDown');
+      expect(active(container)).toHaveTextContent('db.products');
+      await key('ArrowUp');
+      expect(active(container)).toHaveTextContent('db.users.find({})');
+    });
+
+    it('stops at the first and last item', async () => {
+      const { container } = renderHistory();
+      await key('ArrowDown');
+      await key('ArrowUp');
+      expect(active(container)).toHaveTextContent('db.users.find({})');
+      for (let i = 0; i < 5; i++) await key('ArrowDown');
+      expect(active(container)).toHaveTextContent('trackingCode');
+    });
+
+    it('ArrowUp with nothing highlighted keeps nothing highlighted', async () => {
+      const { container } = renderHistory();
+      await key('ArrowUp');
+      expect(active(container)).toBeNull();
+    });
+
+    it('Enter selects the highlighted item', async () => {
+      renderHistory();
+      await key('ArrowDown');
+      await key('ArrowDown');
+      await key('Enter');
+      expect(onselect).toHaveBeenCalledTimes(1);
+      expect(onselect).toHaveBeenCalledWith(history[1]);
+    });
+
+    it('Enter does nothing with no highlight', async () => {
+      renderHistory();
+      await key('Enter');
+      expect(onselect).not.toHaveBeenCalled();
+    });
+
+    it('clears the highlight when the filter changes', async () => {
+      const { container } = renderHistory();
+      await key('ArrowDown');
+      await fireEvent.input(filter(), { target: { value: 'users' } });
+      expect(active(container)).toBeNull();
+    });
+
+    it('keeps focus in the filter input and exposes aria-activedescendant', async () => {
+      const { container } = renderHistory();
+      await key('ArrowDown');
+      expect(filter()).toHaveFocus();
+      expect(filter()).toHaveAttribute('aria-activedescendant', active(container)!.id);
+      expect(active(container)).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('prevents the default cursor movement for arrow keys', async () => {
+      renderHistory();
+      expect(await fireEvent.keyDown(filter(), { key: 'ArrowDown' })).toBe(false);
+    });
+
+    it('Enter keydown on a focused item button does not select via the input handler', async () => {
+      const { container } = renderHistory();
+      const button = container.querySelector('.history-item') as HTMLElement;
+      await fireEvent.keyDown(button, { key: 'Enter' });
+      expect(onselect).not.toHaveBeenCalled();
+      await fireEvent.click(button);
+      expect(onselect).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps mouse selection working', async () => {
+      const { container } = renderHistory();
+      await fireEvent.click(container.querySelectorAll('.history-item')[1]);
+      expect(onselect).toHaveBeenCalledWith(history[1]);
+    });
+  });
 });

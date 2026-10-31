@@ -114,6 +114,32 @@ describe('Query History', () => {
     );
   });
 
+  it('loads a history entry with ArrowDown and Enter', async () => {
+    await setupQueryTab();
+    await runDefaultQuery();
+    await clearAndTypeQuery(`db.${TEST_COLLECTION}.find({ name: "Alice" })`);
+    await (await s.query.executeButton()).click();
+    await expect(s.results.gridViewport()).toBeDisplayed();
+
+    await clearAndTypeQuery('');
+    await openQueryHistory();
+    await browser.waitUntil(async () => (await s.history.item()).length === 2, {
+      timeout: 5_000,
+      timeoutMsg: 'Expected two query history entries',
+    });
+
+    await browser.keys('ArrowDown');
+    await expect(s.history.activeItem()).toBeDisplayed();
+    const expected = await (await s.history.activeItem()).$('.item-query').getText();
+    await browser.keys('Enter');
+    await s.history.dropdown().waitForDisplayed({ reverse: true, timeout: 5_000 });
+
+    await browser.waitUntil(
+      async () => (await (await s.query.editorContent()).getText()).includes(expected),
+      { timeout: 5_000, timeoutMsg: 'Expected the highlighted query to be restored into the editor' }
+    );
+  });
+
   it('clears all query history entries', async () => {
     await setupQueryTab();
     await runDefaultQuery();
