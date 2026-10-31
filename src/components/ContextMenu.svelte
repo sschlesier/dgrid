@@ -104,12 +104,20 @@
   // Keep a submenu inside the viewport: flip left on right overflow, shift up on bottom overflow
   function fitSubmenu(node: HTMLElement) {
     const rect = node.getBoundingClientRect();
+    const parentRect = (node.parentElement ?? node).getBoundingClientRect();
     if (rect.right > window.innerWidth) {
-      node.style.left = 'auto';
-      node.style.right = '100%';
+      if (parentRect.left - rect.width >= 0) {
+        node.style.left = 'auto';
+        node.style.right = '100%';
+      } else {
+        // No room on either side: align to the viewport's left edge
+        node.style.left = `${-parentRect.left}px`;
+      }
     }
     if (rect.bottom > window.innerHeight) {
-      node.style.top = `${-(rect.bottom - window.innerHeight)}px`;
+      const shift = rect.bottom - window.innerHeight;
+      // Never shift above the viewport's top edge
+      node.style.top = `${-Math.min(shift, parentRect.top)}px`;
     }
   }
 </script>

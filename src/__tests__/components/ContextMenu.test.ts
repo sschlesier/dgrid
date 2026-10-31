@@ -165,41 +165,81 @@ describe('ContextMenu', () => {
       expect(screen.queryByText('First Child')).not.toBeInTheDocument();
     });
 
-    it('flips left when it would overflow the right edge', async () => {
-      vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(500);
-      vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(500);
+    function mockLayout(opts: {
+      innerWidth: number;
+      innerHeight: number;
+      submenu: Partial<DOMRect>;
+      parent: Partial<DOMRect>;
+    }) {
+      vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(opts.innerWidth);
+      vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(opts.innerHeight);
       vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
         this: HTMLElement
       ) {
-        return this.classList.contains('context-menu-submenu')
-          ? rect({ left: 480, right: 640, top: 10, bottom: 60, width: 160, height: 50 })
-          : rect({ right: 200, bottom: 100 });
+        if (this.classList.contains('context-menu-submenu')) return rect(opts.submenu);
+        if (this.classList.contains('context-menu-entry')) return rect(opts.parent);
+        return rect({ right: 200, bottom: 100 });
       });
+    }
+
+    async function openCopy(): Promise<HTMLElement> {
       setup();
-
       await fireEvent.mouseEnter(itemButton('Copy'));
+      return document.querySelector('.context-menu-submenu') as HTMLElement;
+    }
 
-      const submenu = document.querySelector('.context-menu-submenu') as HTMLElement;
+    it('flips left when it would overflow the right edge', async () => {
+      mockLayout({
+        innerWidth: 500,
+        innerHeight: 500,
+        submenu: { left: 480, right: 640, top: 10, bottom: 60, width: 160, height: 50 },
+        parent: { left: 300, right: 480, top: 10, bottom: 30 },
+      });
+
+      const submenu = await openCopy();
+
       expect(submenu.style.right).toBe('100%');
       expect(submenu.style.left).toBe('auto');
     });
 
-    it('shifts up when it would overflow the bottom edge', async () => {
-      vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1000);
-      vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(500);
-      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
-        this: HTMLElement
-      ) {
-        return this.classList.contains('context-menu-submenu')
-          ? rect({ left: 200, right: 360, top: 470, bottom: 530, width: 160, height: 60 })
-          : rect({ right: 200, bottom: 100 });
+    it('aligns to the left viewport edge when flipping would also overflow', async () => {
+      mockLayout({
+        innerWidth: 200,
+        innerHeight: 500,
+        submenu: { left: 120, right: 280, top: 10, bottom: 60, width: 160, height: 50 },
+        parent: { left: 100, right: 120, top: 10, bottom: 30 },
       });
-      setup();
 
-      await fireEvent.mouseEnter(itemButton('Copy'));
+      const submenu = await openCopy();
 
-      const submenu = document.querySelector('.context-menu-submenu') as HTMLElement;
+      expect(submenu.style.left).toBe('-100px');
+      expect(submenu.style.right).toBe('');
+    });
+
+    it('shifts up when it would overflow the bottom edge', async () => {
+      mockLayout({
+        innerWidth: 1000,
+        innerHeight: 500,
+        submenu: { left: 200, right: 360, top: 470, bottom: 530, width: 160, height: 60 },
+        parent: { left: 40, right: 200, top: 470, bottom: 490 },
+      });
+
+      const submenu = await openCopy();
+
       expect(submenu.style.top).toBe('-30px');
+    });
+
+    it('does not shift above the top of the viewport', async () => {
+      mockLayout({
+        innerWidth: 1000,
+        innerHeight: 500,
+        submenu: { left: 200, right: 360, top: 50, bottom: 700, width: 160, height: 650 },
+        parent: { left: 40, right: 200, top: 50, bottom: 70 },
+      });
+
+      const submenu = await openCopy();
+
+      expect(submenu.style.top).toBe('-50px');
     });
   });
 
