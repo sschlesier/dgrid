@@ -113,6 +113,58 @@ describe('ContextMenu', () => {
       }
     });
 
+    it('keeps the submenu open until the close delay has elapsed', async () => {
+      vi.useFakeTimers();
+      try {
+        setup();
+        await fireEvent.mouseEnter(itemButton('Copy'));
+        await fireEvent.mouseEnter(itemButton('Edit'));
+
+        await vi.advanceTimersByTimeAsync(100);
+
+        expect(screen.getByText('Copy Value')).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('stays open when the pointer returns to the parent within the delay', async () => {
+      vi.useFakeTimers();
+      try {
+        setup();
+        await fireEvent.mouseEnter(itemButton('Copy'));
+        await fireEvent.mouseEnter(itemButton('Edit'));
+        await vi.advanceTimersByTimeAsync(50);
+        await fireEvent.mouseEnter(itemButton('Copy'));
+
+        await vi.advanceTimersByTimeAsync(300);
+
+        expect(screen.getByText('Copy Value')).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('opens only the hovered submenu when there are two parents', async () => {
+      render(ContextMenu, {
+        props: {
+          x: 0,
+          y: 0,
+          items: [
+            { label: 'First', submenu: [{ label: 'First Child', onclick: vi.fn() }] },
+            { label: 'Second', submenu: [{ label: 'Second Child', onclick: vi.fn() }] },
+          ],
+          onclose: vi.fn(),
+        },
+      });
+
+      await fireEvent.mouseEnter(itemButton('First'));
+      await fireEvent.mouseEnter(itemButton('Second'));
+
+      expect(screen.getByText('Second Child')).toBeInTheDocument();
+      expect(screen.queryByText('First Child')).not.toBeInTheDocument();
+    });
+
     it('flips left when it would overflow the right edge', async () => {
       vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(500);
       vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(500);
