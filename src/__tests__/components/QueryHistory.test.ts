@@ -345,7 +345,7 @@ describe('QueryHistory', () => {
       expect(await fireEvent.keyDown(filter(), { key: 'ArrowDown' })).toBe(false);
     });
 
-    it('Enter keydown on a focused item button does not select via the input handler', async () => {
+    it('Enter keydown on an item button is not handled by the input handler; click selects once', async () => {
       const { container } = renderHistory();
       const button = container.querySelector('.history-item') as HTMLElement;
       await fireEvent.keyDown(button, { key: 'Enter' });
@@ -368,6 +368,27 @@ describe('QueryHistory', () => {
       await key('ArrowDown');
       await fireEvent.keyDown(filter(), { key: 'Enter', isComposing: true });
       expect(onselect).not.toHaveBeenCalled();
+    });
+
+    it('scrolls the highlighted item into view', async () => {
+      const spy = vi.fn();
+      const original = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = spy;
+      try {
+        const { container } = renderHistory();
+        await key('ArrowDown');
+        await key('ArrowDown');
+        expect(spy).toHaveBeenLastCalledWith({ block: 'nearest' });
+        expect(spy.mock.contexts.at(-1)).toBe(active(container));
+      } finally {
+        Element.prototype.scrollIntoView = original;
+      }
+    });
+
+    it('exposes listbox and option roles', () => {
+      renderHistory();
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+      expect(screen.getAllByRole('option')).toHaveLength(3);
     });
 
     it('keeps mouse selection working', async () => {
