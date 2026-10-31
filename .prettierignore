@@ -5,3 +5,4 @@ build
 coverage
 *.min.js
 pnpm-lock.yaml
+tickets/
