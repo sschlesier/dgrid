@@ -1,12 +1,12 @@
 ---
-agent: 'STOP: run `spx help --skill` and follow it before any work on this spec. Use spx for every store step; never edit the store by hand.'
+agent: "STOP: run `spx help --skill` and follow it before any work on this spec. Use spx for every store step; never edit the store by hand."
 title: Keyboard navigation in query history list
 id: zho-lay
 type: feature
 priority: 3
 depends-on: []
 parent:
-approved: 'Scott Schlesier, 2026-10-10: approved after review. Cold read: not run'
+approved: "Scott Schlesier, 2026-10-10: approved after review. Cold read: not run"
 status: done
 ---
 
