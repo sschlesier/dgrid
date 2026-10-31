@@ -64,3 +64,5 @@ Decisions (defaults, overrule if wrong):
 - 2026-10-31: Implemented in 84fe397; E2E not run: tauri build fails on plugin-opener version mismatch (npm 2.6.0 vs crate 2.7.1), unrelated to this change. Scroll-into-view not yet verified (jsdom).
 - 2026-10-31: Manual pnpm dev check passed (Scott). Fixed E2E blocker by aligning @tauri-apps/plugin-opener to ~2.7.2; query-history E2E passes 5/5.
 - 2026-10-31: Status: in-review
+- 2026-10-31: Review round 1 dismissals: optionId collision (history ids are crypto.randomUUID); Enter preventDefault mutant (input is not in a form); E2E multi-line text (E2E queries are single-line).
+- 2026-10-31: Review round 1 assumption: out-of-scope plugin-opener bump to ~2.7.2 (bd36f9b) to unblock tauri build for E2E.
