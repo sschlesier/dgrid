@@ -3,6 +3,7 @@ import {
   createConnection,
   openCollectionResults,
   openContextMenuFromFocusedCell,
+  openContextMenuSubmenu,
   resetApp,
   s,
 } from '../helpers.mjs';
@@ -56,6 +57,7 @@ describe('Grid Context Menu', () => {
 
     const cell = await s.results.gridCellWithText('Alice');
     await openContextMenuFromFocusedCell(cell);
+    await openContextMenuSubmenu('Copy');
     const labels = await getMenuLabels();
     expect(labels).toContain('Edit Field');
     expect(labels).toContain('Copy Value');

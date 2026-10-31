@@ -81,16 +81,24 @@ export async function expandTreeNode(name) {
 
 export async function clearAndTypeQuery(query) {
   const editor = await s.query.editorContainer();
-  await browser.execute((el, nextQuery) => {
-    el.__dgridTest?.setValue(nextQuery);
-  }, editor, query);
+  await browser.execute(
+    (el, nextQuery) => {
+      el.__dgridTest?.setValue(nextQuery);
+    },
+    editor,
+    query
+  );
 }
 
 export async function setQueryCursor(offset) {
   const editor = await s.query.editorContainer();
-  await browser.execute((el, nextOffset) => {
-    el.__dgridTest?.setSelection(nextOffset);
-  }, editor, offset);
+  await browser.execute(
+    (el, nextOffset) => {
+      el.__dgridTest?.setSelection(nextOffset);
+    },
+    editor,
+    offset
+  );
 }
 
 export async function focusQueryEditor() {
@@ -101,15 +109,19 @@ export async function focusQueryEditor() {
 
 export async function dispatchQueryEditorCommand(type) {
   const editor = await s.query.editorContainer();
-  await browser.execute((el, eventType) => {
-    el.dispatchEvent(
-      new CustomEvent(eventType, {
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-      })
-    );
-  }, editor, type);
+  await browser.execute(
+    (el, eventType) => {
+      el.dispatchEvent(
+        new CustomEvent(eventType, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+        })
+      );
+    },
+    editor,
+    type
+  );
 }
 
 export async function dispatchQueryEditorKey({
@@ -230,6 +242,14 @@ export async function openContextMenuFromFocusedCell(element) {
     );
   }, element);
   await s.contextMenu.menu().waitForDisplayed({ timeout: 5_000 });
+}
+
+export async function openContextMenuSubmenu(label) {
+  await (await s.contextMenu.submenuParent(label)).click();
+  await browser.waitUntil(async () => (await $$('.context-menu-submenu')).length > 0, {
+    timeout: 5_000,
+    timeoutMsg: `Submenu "${label}" did not open`,
+  });
 }
 
 export async function openContextMenuOnElement(element) {

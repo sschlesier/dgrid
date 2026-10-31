@@ -81,7 +81,9 @@ export const selectors = {
     tab: (name) => $(`//*[@role="tab"][contains(normalize-space(.), ${quoteXPath(name)})]`),
     activeTab: () => $('.tab.active'),
     closeButton: (name) =>
-      $(`//*[@role="tab"][contains(normalize-space(.), ${quoteXPath(name)})]//*[contains(@class, "tab-close")]`),
+      $(
+        `//*[@role="tab"][contains(normalize-space(.), ${quoteXPath(name)})]//*[contains(@class, "tab-close")]`
+      ),
     newTabButton: () => $('.new-tab-btn'),
   },
 
@@ -90,7 +92,10 @@ export const selectors = {
     gridViewport: () => $('.grid-viewport'),
     gridRow: (index) => $(`.grid-row[data-row-index="${index}"]`),
     gridCell: () => $$('.grid-cell'),
-    gridCellWithText: (text) => $(`//*[contains(@class, "grid-cell")]//*[contains(normalize-space(.), ${quoteXPath(text)})]/ancestor::*[contains(@class, "grid-cell")]`),
+    gridCellWithText: (text) =>
+      $(
+        `//*[contains(@class, "grid-cell")]//*[contains(normalize-space(.), ${quoteXPath(text)})]/ancestor::*[contains(@class, "grid-cell")]`
+      ),
     viewSelector: () => $('.view-selector'),
     viewButton: (name) => $(`.view-btn[title="${name} View"]`),
     pagination: () => $('.pagination'),
@@ -108,17 +113,29 @@ export const selectors = {
       $(
         `//*[contains(@class, "context-menu")]//button[contains(@class, "context-menu-item")][normalize-space(.)=${quoteXPath(label)}]`
       ),
+    submenuParent: (label) =>
+      $(
+        `//*[contains(@class, "context-menu")]//button[contains(@class, "has-submenu")][contains(normalize-space(.), ${quoteXPath(label)})]`
+      ),
     separator: () => $('.context-menu-separator'),
   },
 
   confirmDialog: {
-    overlay: () => $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Delete Document']]`),
-    confirmButton: () => $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Delete Document']]//button[normalize-space(.)='Delete']`),
-    cancelButton: () => $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Delete Document']]//button[normalize-space(.)='Cancel']`),
+    overlay: () =>
+      $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Delete Document']]`),
+    confirmButton: () =>
+      $(
+        `//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Delete Document']]//button[normalize-space(.)='Delete']`
+      ),
+    cancelButton: () =>
+      $(
+        `//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Delete Document']]//button[normalize-space(.)='Cancel']`
+      ),
   },
 
   editDialog: {
-    overlay: () => $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Edit Field']]`),
+    overlay: () =>
+      $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Edit Field']]`),
     fieldPath: () => $('.field-path-display'),
     typeSelect: () => $('#field-type'),
     valueInput: () => $('#field-value'),
@@ -144,7 +161,9 @@ export const selectors = {
     all: () => $$('.notification'),
     message: () => $$('.notification .notification-message'),
     withText: (text) =>
-      $(`//*[contains(@class, "notification")]//*[contains(@class, "notification-message")][contains(normalize-space(.), ${quoteXPath(text)})]`),
+      $(
+        `//*[contains(@class, "notification")]//*[contains(@class, "notification-message")][contains(normalize-space(.), ${quoteXPath(text)})]`
+      ),
   },
 
   tooltip: {
@@ -153,7 +172,9 @@ export const selectors = {
 
   history: {
     toolbarButton: () =>
-      $(`//*[contains(@class, "toolbar-btn")][.//*[contains(normalize-space(.), ${quoteXPath('History')})]]`),
+      $(
+        `//*[contains(@class, "toolbar-btn")][.//*[contains(normalize-space(.), ${quoteXPath('History')})]]`
+      ),
     dropdown: () => $('.history-dropdown'),
     item: () => $$('.history-item'),
     activeItem: () => $('.history-item.active'),
@@ -163,6 +184,8 @@ export const selectors = {
     filterInput: () => $('.history-filter input'),
     filterClearButton: () => $('.history-filter .filter-clear'),
     noMatches: () =>
-      $(`//*[contains(@class, "empty-history")][contains(normalize-space(.), ${quoteXPath('No matching queries')})]`),
+      $(
+        `//*[contains(@class, "empty-history")][contains(normalize-space(.), ${quoteXPath('No matching queries')})]`
+      ),
   },
 };

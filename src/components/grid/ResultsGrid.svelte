@@ -345,13 +345,17 @@
 
   interface ContextMenuItem {
     label: string;
-    onclick: () => void;
+    onclick?: () => void;
+    altLabel?: string;
+    altOnclick?: () => void;
+    submenu?: ContextMenuItem[];
     destructive?: boolean;
     separator?: boolean;
   }
 
   function buildContextMenuItems(ctx: ContextMenuState): ContextMenuItem[] {
     const items: ContextMenuItem[] = [];
+    const copyItems: ContextMenuItem[] = [];
     const hasCell = !!ctx.fieldKey;
     const doc = ctx.doc;
 
@@ -366,9 +370,11 @@
           handleEdit(doc, fieldKey, value);
         },
       });
+    }
 
+    if (hasCell) {
       // Copy Value
-      items.push({
+      copyItems.push({
         label: 'Copy Value',
         onclick: () => {
           const value = ctx.value;
@@ -378,7 +384,7 @@
       });
 
       // Copy Field Path
-      items.push({
+      copyItems.push({
         label: 'Copy Field Path',
         onclick: () => {
           const fieldKey = ctx.fieldKey!;
@@ -391,7 +397,7 @@
 
       // Copy Sub-Document (only for objects/arrays)
       if (isDrillable(ctx.value)) {
-        items.push({
+        copyItems.push({
           label: 'Copy Sub-Document',
           onclick: () => {
             contextMenu = null;
@@ -402,7 +408,7 @@
     }
 
     // Copy Document as JSON (always available)
-    items.push({
+    copyItems.push({
       label: 'Copy Document as JSON',
       onclick: () => {
         contextMenu = null;
@@ -413,7 +419,7 @@
     // Copy _id (when document has _id)
     const docId = doc._docId ?? doc._id;
     if (docId !== undefined && docId !== null) {
-      items.push({
+      copyItems.push({
         label: 'Copy _id',
         onclick: () => {
           contextMenu = null;
@@ -421,6 +427,8 @@
         },
       });
     }
+
+    items.push({ label: 'Copy', submenu: copyItems });
 
     // Edit Document as JSON
     items.push({
