@@ -379,7 +379,7 @@ describe('QueryHistory', () => {
         await key('ArrowDown');
         await key('ArrowDown');
         expect(spy).toHaveBeenLastCalledWith({ block: 'nearest' });
-        expect(spy.mock.contexts.at(-1)).toBe(active(container));
+        expect(spy.mock.contexts[spy.mock.contexts.length - 1]).toBe(active(container));
       } finally {
         Element.prototype.scrollIntoView = original;
       }
