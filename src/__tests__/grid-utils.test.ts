@@ -393,6 +393,11 @@ describe('Grid Utils', () => {
       );
     });
 
+    it('quotes a value containing only a double quote or only a carriage return', () => {
+      expect(formatRowsAsCsv([col('a')], [{ a: 'say "hi"' }], false)).toBe('"say ""hi"""');
+      expect(formatRowsAsCsv([col('a')], [{ a: 'a\rb' }], false)).toBe('"a\rb"');
+    });
+
     it('adds a header line only when requested', () => {
       const cols = ['a', 'b'].map(col);
       expect(formatRowsAsCsv(cols, [{ a: 1 }], true)).toBe('a,b\n1,');
@@ -448,6 +453,17 @@ describe('Grid Utils', () => {
       const item = write.mock.calls[0][0][0] as { items: Record<string, Blob> };
       expect(Object.keys(item.items).sort()).toEqual(['text/html', 'text/plain']);
       expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('puts the header line in both formats only when requested', async () => {
+      for (const includeHeaders of [true, false]) {
+        const write = vi.fn().mockResolvedValue(undefined);
+        stub(write, vi.fn());
+        await copyRowsToClipboard(cols, [{ a: 'x' }], includeHeaders);
+        const item = write.mock.calls[0][0][0] as { items: Record<string, Blob> };
+        expect(await item.items['text/plain'].text()).toBe(includeHeaders ? 'a\nx' : 'x');
+        expect((await item.items['text/html'].text()).includes('<th>a</th>')).toBe(includeHeaders);
+      }
     });
 
     it('falls back to writeText when write rejects', async () => {
