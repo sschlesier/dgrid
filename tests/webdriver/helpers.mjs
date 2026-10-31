@@ -232,6 +232,34 @@ export async function openContextMenuFromFocusedCell(element) {
   await s.contextMenu.menu().waitForDisplayed({ timeout: 5_000 });
 }
 
+export async function openContextMenuSubmenu(label) {
+  await (await s.contextMenu.submenuParent(label)).click();
+  await browser.waitUntil(async () => (await $$('.context-menu-submenu')).length > 0, {
+    timeout: 5_000,
+    timeoutMsg: `Submenu "${label}" did not open`,
+  });
+}
+
+// Dispatches contextmenu on the row element itself, so the target is not inside a cell
+export async function openContextMenuOnRowBackground(rowIndex) {
+  await dispatchContextMenu(await s.results.gridRow(rowIndex));
+}
+
+// For cells that drill down on click (objects, arrays), where F10 after a click isn't usable
+export async function dispatchContextMenu(element) {
+  await browser.execute((el) => {
+    el.dispatchEvent(
+      new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 200,
+        clientY: 200,
+      })
+    );
+  }, element);
+  await s.contextMenu.menu().waitForDisplayed({ timeout: 5_000 });
+}
+
 export async function openContextMenuOnElement(element) {
   await contextClick(element);
   await s.contextMenu.menu().waitForDisplayed({ timeout: 5_000 });

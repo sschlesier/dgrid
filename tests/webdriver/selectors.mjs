@@ -91,6 +91,7 @@ export const selectors = {
     gridRow: (index) => $(`.grid-row[data-row-index="${index}"]`),
     gridCell: () => $$('.grid-cell'),
     gridCellWithText: (text) => $(`//*[contains(@class, "grid-cell")]//*[contains(normalize-space(.), ${quoteXPath(text)})]/ancestor::*[contains(@class, "grid-cell")]`),
+    gridCellByField: (fieldKey) => $(`.grid-row[data-row-index="0"] [data-field-key="${fieldKey}"]`),
     viewSelector: () => $('.view-selector'),
     viewButton: (name) => $(`.view-btn[title="${name} View"]`),
     pagination: () => $('.pagination'),
@@ -107,6 +108,10 @@ export const selectors = {
     item: (label) =>
       $(
         `//*[contains(@class, "context-menu")]//button[contains(@class, "context-menu-item")][normalize-space(.)=${quoteXPath(label)}]`
+      ),
+    submenuParent: (label) =>
+      $(
+        `//*[contains(@class, "context-menu")]//button[contains(@class, "has-submenu")][contains(normalize-space(.), ${quoteXPath(label)})]`
       ),
     separator: () => $('.context-menu-separator'),
   },

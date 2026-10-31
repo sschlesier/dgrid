@@ -1,8 +1,11 @@
 import { expect } from 'expect-webdriverio';
 import {
   createConnection,
+  dispatchContextMenu,
   openCollectionResults,
   openContextMenuFromFocusedCell,
+  openContextMenuOnRowBackground,
+  openContextMenuSubmenu,
   resetApp,
   s,
 } from '../helpers.mjs';
@@ -51,11 +54,79 @@ describe('Grid Context Menu', () => {
     );
   }
 
+  async function getTopLevelLabels() {
+    return await browser.execute(() =>
+      Array.from(document.querySelectorAll('.context-menu > .context-menu-entry > button')).map(
+        (button) => button.textContent?.trim()
+      )
+    );
+  }
+
+  async function getSubmenuLabels() {
+    return await browser.execute(() =>
+      Array.from(document.querySelectorAll('.context-menu-submenu .context-menu-item')).map(
+        (button) => button.textContent?.trim()
+      )
+    );
+  }
+
+  it('groups copy items under Copy and keeps edit and delete items top-level', async () => {
+    await setupResults([{ name: 'Alice', profile: { city: 'Paris' } }]);
+
+    await dispatchContextMenu(await s.results.gridCellByField('profile'));
+    expect(await getTopLevelLabels()).toEqual([
+      'Edit Field',
+      'Copy ▸',
+      'Edit Document',
+      'Insert Document',
+      'Delete Document',
+    ]);
+
+    await openContextMenuSubmenu('Copy');
+    expect(await getSubmenuLabels()).toEqual([
+      'Copy Value',
+      'Copy Field Path',
+      'Copy Sub-Document',
+      'Copy Document as JSON',
+      'Copy _id',
+    ]);
+  });
+
+  it('omits Copy Sub-Document for a scalar cell', async () => {
+    await setupResults([{ name: 'Alice', profile: { city: 'Paris' } }]);
+
+    await openContextMenuFromFocusedCell(await s.results.gridCellByField('name'));
+    await openContextMenuSubmenu('Copy');
+
+    expect(await getSubmenuLabels()).toEqual([
+      'Copy Value',
+      'Copy Field Path',
+      'Copy Document as JSON',
+      'Copy _id',
+    ]);
+  });
+
+  it('shows only document copy items when right-clicking a row with no cell', async () => {
+    await setupResults([{ name: 'Alice' }]);
+
+    await openContextMenuOnRowBackground(0);
+    expect(await getTopLevelLabels()).toEqual([
+      'Copy ▸',
+      'Edit Document',
+      'Insert Document',
+      'Delete Document',
+    ]);
+
+    await openContextMenuSubmenu('Copy');
+    expect(await getSubmenuLabels()).toEqual(['Copy Document as JSON', 'Copy _id']);
+  });
+
   it('shows the current cell context menu items', async () => {
     await setupResults([{ name: 'Alice', value: 42 }]);
 
     const cell = await s.results.gridCellWithText('Alice');
     await openContextMenuFromFocusedCell(cell);
+    await openContextMenuSubmenu('Copy');
     const labels = await getMenuLabels();
     expect(labels).toContain('Edit Field');
     expect(labels).toContain('Copy Value');
