@@ -66,3 +66,4 @@ Stop and ask if: a Sidebar, TreeNode or TreeView menu needs changing for this to
 - 2026-10-31: Started on branch feat/context-menu-submenus
 - 2026-10-31: Status: in-review
 - 2026-10-31: Review triage: dismissed double onclose on submenu click (idempotent: ResultsGrid sets contextMenu=null, ContextMenu.onclose also fires); dismissed fitSubmenu resize re-measure (menu is short-lived); fixed unrelated e2e reformatting (my prettier run), added e2e for criteria 6-8, unit tests for M6/M15/M20.
+- 2026-10-31: Review round 1 decisions: clamp submenu to viewport left/top edges (done); accepted 150 ms pointer delay proven by fake timers only; sidebar/tree menu visuals need a manual pnpm dev look (e2e behavior specs pass).
