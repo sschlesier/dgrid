@@ -23,13 +23,12 @@
     );
   });
 
-  const activeItem = $derived(activeIndex === null ? undefined : filteredHistory[activeIndex]);
-
   $effect(() => {
     filterInputEl?.focus();
   });
 
   let activeIndex = $state<number | null>(null);
+  const activeItem = $derived(activeIndex === null ? undefined : filteredHistory[activeIndex]);
   let listEl = $state<HTMLDivElement | undefined>();
 
   function setFilter(text: string) {
@@ -52,7 +51,7 @@
       if (id) {
         listEl?.querySelector(`#${optionId(id)}`)?.scrollIntoView?.({ block: 'nearest' });
       }
-    } else if (event.key === 'Enter' && event.target === filterInputEl) {
+    } else if (event.key === 'Enter' && event.target === filterInputEl && !event.isComposing) {
       const item = activeIndex === null ? undefined : filteredHistory[activeIndex];
       if (item) {
         event.preventDefault();
@@ -212,7 +211,7 @@
             type="text"
             placeholder="Filter history..."
             aria-label="Filter history"
-            aria-controls="history-listbox"
+            aria-controls={filteredHistory.length > 0 ? 'history-listbox' : undefined}
             aria-activedescendant={activeItem ? optionId(activeItem.id) : undefined}
             onkeydown={handleFilterKeydown}
           />
@@ -240,7 +239,12 @@
       </div>
     {/if}
 
-    <div class="history-list" id="history-listbox" role="listbox" bind:this={listEl}>
+    <div
+      class="history-list"
+      id="history-listbox"
+      role={filteredHistory.length > 0 ? 'listbox' : undefined}
+      bind:this={listEl}
+    >
       {#if history.length === 0}
         <div class="empty-history">
           <p>No queries in history</p>

@@ -296,7 +296,9 @@ describe('QueryHistory', () => {
       await key('ArrowDown');
       await key('ArrowUp');
       expect(active(container)).toHaveTextContent('db.users.find({})');
-      for (let i = 0; i < 5; i++) await key('ArrowDown');
+      for (let i = 0; i < 3; i++) await key('ArrowDown');
+      expect(active(container)).toHaveTextContent('trackingCode');
+      await key('ArrowDown');
       expect(active(container)).toHaveTextContent('trackingCode');
     });
 
@@ -324,8 +326,10 @@ describe('QueryHistory', () => {
     it('clears the highlight when the filter changes', async () => {
       const { container } = renderHistory();
       await key('ArrowDown');
+      expect(active(container)).not.toBeNull();
       await fireEvent.input(filter(), { target: { value: 'users' } });
       expect(active(container)).toBeNull();
+      expect(filter()).not.toHaveAttribute('aria-activedescendant');
     });
 
     it('keeps focus in the filter input and exposes aria-activedescendant', async () => {
@@ -348,6 +352,22 @@ describe('QueryHistory', () => {
       expect(onselect).not.toHaveBeenCalled();
       await fireEvent.click(button);
       expect(onselect).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing on arrows or Enter when no items match', async () => {
+      const { container } = renderHistory();
+      await fireEvent.input(filter(), { target: { value: 'zzz-no-match' } });
+      await key('ArrowDown');
+      await key('Enter');
+      expect(active(container)).toBeNull();
+      expect(onselect).not.toHaveBeenCalled();
+    });
+
+    it('ignores Enter while an IME composition is active', async () => {
+      renderHistory();
+      await key('ArrowDown');
+      await fireEvent.keyDown(filter(), { key: 'Enter', isComposing: true });
+      expect(onselect).not.toHaveBeenCalled();
     });
 
     it('keeps mouse selection working', async () => {
