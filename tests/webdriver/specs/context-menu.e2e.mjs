@@ -88,6 +88,7 @@ describe('Grid Context Menu', () => {
       'Copy Field Path',
       'Copy Sub-Document',
       'Copy Document as JSON',
+      'Copy Row',
       'Copy _id',
     ]);
   });
@@ -102,6 +103,7 @@ describe('Grid Context Menu', () => {
       'Copy Value',
       'Copy Field Path',
       'Copy Document as JSON',
+      'Copy Row',
       'Copy _id',
     ]);
   });
@@ -118,7 +120,7 @@ describe('Grid Context Menu', () => {
     ]);
 
     await openContextMenuSubmenu('Copy');
-    expect(await getSubmenuLabels()).toEqual(['Copy Document as JSON', 'Copy _id']);
+    expect(await getSubmenuLabels()).toEqual(['Copy Document as JSON', 'Copy Row', 'Copy _id']);
   });
 
   it('shows the current cell context menu items', async () => {
