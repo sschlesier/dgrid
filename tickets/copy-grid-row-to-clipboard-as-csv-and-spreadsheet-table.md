@@ -6,7 +6,7 @@ type: feature
 priority: 2
 depends-on: [context-menu-submenus-and-alternate-items]
 approved: "Scott Schlesier, 2026-10-10: approved after refinement. Cold read: blocked only on the then-unrefined dependency, since approved"
-status: in-review
+status: done
 ---
 
 In the results grid, users can right-click a row and copy the whole row to the clipboard, so it pastes as comma-separated text into editors and as separate cells into spreadsheets.
@@ -25,15 +25,15 @@ Out of scope:
 
 ## Acceptance criteria
 
-- [ ] Right-clicking any row in the grid table view shows "Copy Row" in the Copy submenu, directly after "Copy Document as JSON"
-- [ ] Holding ⌥ with the menu open shows "Copy Row with Headers" in its place; releasing ⌥ shows "Copy Row" again
-- [ ] After Copy Row, pasting into a plain-text editor gives one CSV line with the row's values in grid column order
+- [x] Right-clicking any row in the grid table view shows "Copy Row" in the Copy submenu, directly after "Copy Document as JSON"
+- [x] Holding ⌥ with the menu open shows "Copy Row with Headers" in its place; releasing ⌥ shows "Copy Row" again
+- [x] After Copy Row, pasting into a plain-text editor gives one CSV line with the row's values in grid column order
 - [x] After Copy Row with Headers, the pasted plain text is a header line of column names in grid column order followed by the values line; Copy Row produces no header
-- [ ] After Copy Row, pasting into Numbers or Google Sheets puts each column's value in its own cell
+- [x] After Copy Row, pasting into Numbers or Google Sheets puts each column's value in its own cell
 - [x] A value containing a comma, a double quote or a newline is quoted and escaped in the CSV
 - [x] In the HTML format, ObjectId, Long, Decimal128, Date and string cells have the `mso-number-format` text hint; number and boolean cells don't
 - [x] Null and missing fields come out as empty cells; nested objects and arrays come out as one-line JSON
-- [ ] In drilldown view, Copy Row copies the drilled-into row's displayed columns
+- [x] In drilldown view, Copy Row copies the drilled-into row's displayed columns
 - [x] If writing the multi-format clipboard fails, CSV is still copied as plain text
 
 ## Verification
@@ -80,3 +80,5 @@ Out of scope:
 - 2026-10-31: Status: in-review
 - 2026-10-31: Review round 1: dismissed 2 equivalent mutants (header cell plain flag; typeof ClipboardItem guard, both behave identically). Added tests for lone quote, bare CR and html header flag.
 - 2026-10-31: Review round 1 answers: Scott will do manual steps 1-3 and 5 under pnpm dev (menu, paste into Numbers/Sheets, drilldown); Excel risk accepted; menu wiring left as manual check (no component test).
+- 2026-10-31: Review round 1: Scott ran the manual checks (menu, ⌥ swap, paste, drilldown) under pnpm dev; all passed.
+- 2026-10-31: Status: done: Reviewed round 1: all criteria verified; manual checks passed; Excel risk accepted
