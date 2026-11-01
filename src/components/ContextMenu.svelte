@@ -216,6 +216,12 @@
     white-space: nowrap;
   }
 
+  .context-menu-arrow {
+    align-self: center;
+    font-size: 18px;
+    line-height: 1;
+  }
+
   .context-menu-item:hover {
     background-color: var(--color-bg-hover);
   }
