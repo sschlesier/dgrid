@@ -79,3 +79,4 @@ Out of scope:
 - 2026-10-31: Status: in-progress
 - 2026-10-31: Status: in-review
 - 2026-10-31: Review round 1: dismissed 2 equivalent mutants (header cell plain flag; typeof ClipboardItem guard, both behave identically). Added tests for lone quote, bare CR and html header flag.
+- 2026-10-31: Review round 1 answers: Scott will do manual steps 1-3 and 5 under pnpm dev (menu, paste into Numbers/Sheets, drilldown); Excel risk accepted; menu wiring left as manual check (no component test).
