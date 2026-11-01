@@ -17,6 +17,7 @@
     formatDocumentAsJSON,
     formatSubDocumentAsJSON,
     formatIdCopyValue,
+    copyRowsToClipboard,
   } from './utils';
   import type { DrilldownDocument, GridColumn } from './types';
   import GridHeader from './GridHeader.svelte';
@@ -414,6 +415,19 @@
         contextMenu = null;
         navigator.clipboard.writeText(formatDocumentAsJSON(doc));
       },
+    });
+
+    // Copy Row (⌥ alternate adds a header line)
+    const copyRow = async (includeHeaders: boolean) => {
+      contextMenu = null;
+      const ok = await copyRowsToClipboard(columns, [doc], includeHeaders);
+      if (!ok) appStore.notify('error', 'Failed to copy row to clipboard');
+    };
+    copyItems.push({
+      label: 'Copy Row',
+      onclick: () => copyRow(false),
+      altLabel: 'Copy Row with Headers',
+      altOnclick: () => copyRow(true),
     });
 
     // Copy _id (when document has _id)

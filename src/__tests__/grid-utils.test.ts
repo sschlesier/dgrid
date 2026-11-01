@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
+  formatRowsAsCsv,
+  formatRowsAsHtml,
+  copyRowsToClipboard,
   detectCellType,
   formatCellValue,
   isDrillable,
@@ -12,7 +15,7 @@ import {
   sortDocuments,
   getCellTypeClass,
 } from '../components/grid/utils';
-import type { DrilldownDocument } from '../components/grid/types';
+import type { DrilldownDocument, GridColumn } from '../components/grid/types';
 
 describe('Grid Utils', () => {
   describe('isSerializedBson', () => {
@@ -365,6 +368,121 @@ describe('Grid Utils', () => {
       ];
       const sorted = sortDocuments(docsWithNull, 'name', 'asc');
       expect(sorted[0].name).toBe(null);
+    });
+  });
+
+  describe('row copy formatters', () => {
+    const col = (key: string): GridColumn => ({ key, label: key, width: 100 });
+    const columns = ['_id', 'name', 'age', 'ok', 'when', 'note', 'meta'].map(col);
+    const row = {
+      _docId: 'x',
+      _docIndex: 0,
+      name: 'Smith, "Bob"\nJr',
+      _id: { _type: 'ObjectId', _value: 'abc123' },
+      age: 30,
+      ok: true,
+      when: { _type: 'Date', _value: '2024-01-02T03:04:05.000Z' },
+      note: null,
+      meta: { a: [1, { _type: 'Long', _value: '5' }], b: { _type: 'Binary', _value: 'AAEC' } },
+    };
+
+    it('formats CSV in column order with quoting, escaping, null and nested JSON', () => {
+      expect(formatRowsAsCsv(columns, [row], false)).toBe(
+        'abc123,"Smith, ""Bob""\nJr",30,true,2024-01-02T03:04:05.000Z,,' +
+          '"{""a"":[1,{""$numberLong"":""5""}],""b"":{""$binary"":{""base64"":""AAEC"",""subType"":""00""}}}"'
+      );
+    });
+
+    it('quotes a value containing only a double quote or only a carriage return', () => {
+      expect(formatRowsAsCsv([col('a')], [{ a: 'say "hi"' }], false)).toBe('"say ""hi"""');
+      expect(formatRowsAsCsv([col('a')], [{ a: 'a\rb' }], false)).toBe('"a\rb"');
+    });
+
+    it('adds a header line only when requested', () => {
+      const cols = ['a', 'b'].map(col);
+      expect(formatRowsAsCsv(cols, [{ a: 1 }], true)).toBe('a,b\n1,');
+      expect(formatRowsAsCsv(cols, [{ a: 1 }], false)).toBe('1,');
+    });
+
+    it('formats multiple rows, one line each', () => {
+      expect(formatRowsAsCsv([col('a')], [{ a: 'x' }, { a: 'y' }], false)).toBe('x\ny');
+    });
+
+    it('never emits internal keys', () => {
+      expect(formatRowsAsCsv([col('a')], [{ a: 1, _docId: 'z', _docIndex: 3 }], false)).toBe('1');
+    });
+
+    it('formats HTML with text hint on all but number and boolean cells', () => {
+      const html = formatRowsAsHtml(['_id', 'age', 'ok', 'name'].map(col), [row], true);
+      const hint = `style="mso-number-format:'\\@'"`;
+      expect(html).toBe(
+        '<table><tr><th>_id</th><th>age</th><th>ok</th><th>name</th></tr>' +
+          `<tr><td ${hint}>abc123</td><td>30</td><td>true</td><td ${hint}>Smith, &quot;Bob&quot;\nJr</td></tr></table>`
+      );
+    });
+
+    it('escapes HTML in values', () => {
+      expect(formatRowsAsHtml([col('a')], [{ a: '<b>&' }], false)).toContain('&lt;b&gt;&amp;');
+    });
+  });
+
+  describe('copyRowsToClipboard', () => {
+    const cols: GridColumn[] = [{ key: 'a', label: 'a', width: 100 }];
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    function stub(write: unknown, writeText: unknown, withItem = true) {
+      vi.stubGlobal('navigator', { clipboard: { write, writeText } });
+      vi.stubGlobal(
+        'ClipboardItem',
+        withItem
+          ? class {
+              constructor(public items: Record<string, Blob>) {}
+            }
+          : undefined
+      );
+    }
+
+    it('writes text/plain and text/html in one item', async () => {
+      const write = vi.fn().mockResolvedValue(undefined);
+      const writeText = vi.fn();
+      stub(write, writeText);
+      expect(await copyRowsToClipboard(cols, [{ a: 'x' }], false)).toBe(true);
+      const item = write.mock.calls[0][0][0] as { items: Record<string, Blob> };
+      expect(Object.keys(item.items).sort()).toEqual(['text/html', 'text/plain']);
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('puts the header line in both formats only when requested', async () => {
+      for (const includeHeaders of [true, false]) {
+        const write = vi.fn().mockResolvedValue(undefined);
+        stub(write, vi.fn());
+        await copyRowsToClipboard(cols, [{ a: 'x' }], includeHeaders);
+        const item = write.mock.calls[0][0][0] as { items: Record<string, Blob> };
+        expect(await item.items['text/plain'].text()).toBe(includeHeaders ? 'a\nx' : 'x');
+        expect((await item.items['text/html'].text()).includes('<th>a</th>')).toBe(includeHeaders);
+      }
+    });
+
+    it('falls back to writeText when write rejects', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      stub(vi.fn().mockRejectedValue(new Error('no')), writeText);
+      expect(await copyRowsToClipboard(cols, [{ a: 'x' }], false)).toBe(true);
+      expect(writeText).toHaveBeenCalledWith('x');
+    });
+
+    it('falls back to writeText when ClipboardItem is unavailable', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      stub(vi.fn(), writeText, false);
+      expect(await copyRowsToClipboard(cols, [{ a: 'x' }], true)).toBe(true);
+      expect(writeText).toHaveBeenCalledWith('a\nx');
+    });
+
+    it('returns false when both writes fail', async () => {
+      stub(vi.fn().mockRejectedValue(new Error('no')), vi.fn().mockRejectedValue(new Error('no')));
+      expect(await copyRowsToClipboard(cols, [{ a: 'x' }], false)).toBe(false);
     });
   });
 });

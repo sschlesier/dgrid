@@ -476,3 +476,114 @@ export function formatIdCopyValue(id: unknown): string {
   if (typeof id === 'number') return String(id);
   return JSON.stringify(id);
 }
+
+// Cell text for row copy: BSON → string value, null/missing → empty, objects/arrays → one-line Extended JSON
+function formatRowCellText(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (isSerializedBson(value)) return value._value;
+  if (typeof value === 'object') return JSON.stringify(toExtendedJSON(value));
+  return String(value);
+}
+
+interface RowCopyCell {
+  text: string;
+  // numbers and booleans skip the Excel text-format hint
+  plain: boolean;
+}
+
+interface RowCopyLine {
+  header: boolean;
+  cells: RowCopyCell[];
+}
+
+function buildRowCopyLines(
+  columns: GridColumn[],
+  rows: Record<string, unknown>[],
+  includeHeaders: boolean
+): RowCopyLine[] {
+  const lines: RowCopyLine[] = [];
+  if (includeHeaders) {
+    lines.push({ header: true, cells: columns.map((c) => ({ text: c.label, plain: true })) });
+  }
+  for (const row of rows) {
+    lines.push({
+      header: false,
+      cells: columns.map((c) => {
+        const value = row[c.key];
+        return {
+          text: formatRowCellText(value),
+          plain: typeof value === 'number' || typeof value === 'boolean',
+        };
+      }),
+    });
+  }
+  return lines;
+}
+
+function escapeCsvField(text: string): string {
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+// Format rows as RFC 4180 CSV in column order, lines separated by \n
+export function formatRowsAsCsv(
+  columns: GridColumn[],
+  rows: Record<string, unknown>[],
+  includeHeaders: boolean
+): string {
+  return buildRowCopyLines(columns, rows, includeHeaders)
+    .map((line) => line.cells.map((c) => escapeCsvField(c.text)).join(','))
+    .join('\n');
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Format rows as an HTML table; value cells other than numbers/booleans carry an Excel text-format hint
+export function formatRowsAsHtml(
+  columns: GridColumn[],
+  rows: Record<string, unknown>[],
+  includeHeaders: boolean
+): string {
+  const trs = buildRowCopyLines(columns, rows, includeHeaders).map((line) => {
+    const cells = line.cells.map((c) => {
+      const text = escapeHtml(c.text);
+      if (line.header) return `<th>${text}</th>`;
+      return c.plain ? `<td>${text}</td>` : `<td style="mso-number-format:'\\@'">${text}</td>`;
+    });
+    return `<tr>${cells.join('')}</tr>`;
+  });
+  return `<table>${trs.join('')}</table>`;
+}
+
+// Copy rows as text/plain CSV plus a text/html table. If the multi-format write
+// fails, falls back to plain-text CSV. Returns false when nothing could be written.
+export async function copyRowsToClipboard(
+  columns: GridColumn[],
+  rows: Record<string, unknown>[],
+  includeHeaders: boolean
+): Promise<boolean> {
+  const csv = formatRowsAsCsv(columns, rows, includeHeaders);
+  try {
+    if (typeof ClipboardItem === 'undefined') throw new Error('ClipboardItem unavailable');
+    const html = formatRowsAsHtml(columns, rows, includeHeaders);
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/plain': new Blob([csv], { type: 'text/plain' }),
+        'text/html': new Blob([html], { type: 'text/html' }),
+      }),
+    ]);
+    return true;
+  } catch {
+    try {
+      await navigator.clipboard.writeText(csv);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
