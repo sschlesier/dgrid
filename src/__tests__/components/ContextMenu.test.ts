@@ -320,6 +320,10 @@ describe('ContextMenu', () => {
         },
       });
       expect(hintsIn('Edit Field')).toEqual(['⌘E']);
+      expect(itemButton('Edit Field').querySelector('.context-menu-hint')).toHaveAttribute(
+        'aria-hidden',
+        'true'
+      );
       expect(screen.getByText('Edit Field').textContent).toBe('Edit Field');
     });
 
