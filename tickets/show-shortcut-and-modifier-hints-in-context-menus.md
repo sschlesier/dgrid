@@ -57,3 +57,4 @@ Decisions (overrule any):
 - 2026-11-06: Approved: Scott Schlesier, 2026-11-06: Approved after refinement: grid-only shortcut hints, bare ⌥ alternate hint, hints follow custom bindings. Cold read: pass
 - 2026-11-06: Started on branch feat/context-menu-hints
 - 2026-11-06: Status: in-review: Implemented; manual pnpm dev check not done
+- 2026-11-06: Manual pnpm dev check done by Scott Schlesier: grid hints and ⌥ on Copy Row look right, no hints on sidebar menus.
