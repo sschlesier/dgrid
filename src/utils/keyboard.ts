@@ -42,6 +42,13 @@ export function isMac(): boolean {
 }
 
 /**
+ * The Alt/Option modifier as shown to the user: ⌥ on macOS, Alt elsewhere.
+ */
+export function formatAltModifier(): string {
+  return isMac() ? '⌥' : 'Alt';
+}
+
+/**
  * Check if the modifier key matches the event
  * On Mac: uses Meta (Cmd), on Windows/Linux: uses Ctrl
  */
