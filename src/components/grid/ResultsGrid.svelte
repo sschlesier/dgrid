@@ -349,6 +349,7 @@
     onclick?: () => void;
     altLabel?: string;
     altOnclick?: () => void;
+    shortcut?: string;
     submenu?: ContextMenuItem[];
     destructive?: boolean;
     separator?: boolean;
@@ -364,6 +365,7 @@
       // Edit Field
       items.push({
         label: 'Edit Field',
+        shortcut: keybindingsStore.getFormatted('edit-field'),
         onclick: () => {
           const fieldKey = ctx.fieldKey!;
           const value = ctx.value;
@@ -447,6 +449,7 @@
     // Edit Document as JSON
     items.push({
       label: 'Edit Document',
+      shortcut: keybindingsStore.getFormatted('edit-document'),
       onclick: () => {
         contextMenu = null;
         openEditDocument(doc);
@@ -457,6 +460,7 @@
     // Insert Document
     items.push({
       label: 'Insert Document',
+      shortcut: keybindingsStore.getFormatted('insert-document'),
       onclick: () => {
         contextMenu = null;
         openInsertDocument();

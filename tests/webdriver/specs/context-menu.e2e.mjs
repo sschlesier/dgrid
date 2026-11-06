@@ -49,7 +49,7 @@ describe('Grid Context Menu', () => {
   async function getMenuLabels() {
     return await browser.execute(() =>
       Array.from(document.querySelectorAll('.context-menu .context-menu-item')).map((button) =>
-        button.textContent?.trim()
+        button.querySelector('.context-menu-label')?.textContent?.trim()
       )
     );
   }
@@ -57,7 +57,11 @@ describe('Grid Context Menu', () => {
   async function getTopLevelLabels() {
     return await browser.execute(() =>
       Array.from(document.querySelectorAll('.context-menu > .context-menu-entry > button')).map(
-        (button) => button.textContent?.trim()
+        (button) => {
+          const clone = button.cloneNode(true);
+          clone.querySelector('.context-menu-hint')?.remove();
+          return clone.textContent?.replace(/\s+/g, ' ').trim();
+        }
       )
     );
   }
@@ -65,7 +69,7 @@ describe('Grid Context Menu', () => {
   async function getSubmenuLabels() {
     return await browser.execute(() =>
       Array.from(document.querySelectorAll('.context-menu-submenu .context-menu-item')).map(
-        (button) => button.textContent?.trim()
+        (button) => button.querySelector('.context-menu-label')?.textContent?.trim()
       )
     );
   }
@@ -91,6 +95,15 @@ describe('Grid Context Menu', () => {
       'Copy Row',
       'Copy _id',
     ]);
+  });
+
+  it('shows hints on Insert Document and Copy Row', async () => {
+    await setupResults([{ name: 'Alice' }]);
+
+    await dispatchContextMenu(await s.results.gridCellByField('name'));
+    await expect(s.contextMenu.hint('Insert Document')).toBeDisplayed();
+    await openContextMenuSubmenu('Copy');
+    await expect(s.contextMenu.hint('Copy Row')).toBeDisplayed();
   });
 
   it('omits Copy Sub-Document for a scalar cell', async () => {
