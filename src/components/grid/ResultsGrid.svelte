@@ -27,7 +27,7 @@
   import EditFieldDialog from '../EditFieldDialog.svelte';
   import JsonEditorDialog from '../JsonEditorDialog.svelte';
   import ConfirmDialog from '../ConfirmDialog.svelte';
-  import ContextMenu from '../ContextMenu.svelte';
+  import ContextMenu, { type MenuItem } from '../ContextMenu.svelte';
   import { deleteDocument } from '../../api/client';
   import { appStore } from '../../stores/app.svelte';
   import { keybindingsStore } from '../../stores/keybindings.svelte';
@@ -344,20 +344,9 @@
     };
   }
 
-  interface ContextMenuItem {
-    label: string;
-    onclick?: () => void;
-    altLabel?: string;
-    altOnclick?: () => void;
-    shortcut?: string;
-    submenu?: ContextMenuItem[];
-    destructive?: boolean;
-    separator?: boolean;
-  }
-
-  function buildContextMenuItems(ctx: ContextMenuState): ContextMenuItem[] {
-    const items: ContextMenuItem[] = [];
-    const copyItems: ContextMenuItem[] = [];
+  function buildContextMenuItems(ctx: ContextMenuState): MenuItem[] {
+    const items: MenuItem[] = [];
+    const copyItems: MenuItem[] = [];
     const hasCell = !!ctx.fieldKey;
     const doc = ctx.doc;
 

@@ -1,17 +1,23 @@
-<script lang="ts">
-  import { onMount } from 'svelte';
-  import { formatAltModifier } from '../utils/keyboard';
-
-  interface MenuItem {
+<script lang="ts" module>
+  interface MenuItemBase {
     label: string;
     onclick?: () => void;
-    altLabel?: string;
-    altOnclick?: () => void;
-    shortcut?: string;
     submenu?: MenuItem[];
     destructive?: boolean;
     separator?: boolean;
   }
+
+  // An item shows either a shortcut hint or an alternate's modifier hint, never both
+  export type MenuItem = MenuItemBase &
+    (
+      | { altLabel?: string; altOnclick?: () => void; shortcut?: never }
+      | { shortcut?: string; altLabel?: never; altOnclick?: never }
+    );
+</script>
+
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { formatAltModifier } from '../utils/keyboard';
 
   interface Props {
     x: number;
