@@ -302,4 +302,93 @@ describe('ContextMenu', () => {
       expect(onclick).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('hints', () => {
+    function hintsIn(label: string): string[] {
+      return Array.from(itemButton(label).querySelectorAll('.context-menu-hint')).map(
+        (el) => el.textContent ?? ''
+      );
+    }
+
+    it('shows the shortcut outside the label text', () => {
+      render(ContextMenu, {
+        props: {
+          x: 0,
+          y: 0,
+          items: [{ label: 'Edit Field', shortcut: '⌘E', onclick: vi.fn() }],
+          onclose: vi.fn(),
+        },
+      });
+      expect(hintsIn('Edit Field')).toEqual(['⌘E']);
+      expect(itemButton('Edit Field').querySelector('.context-menu-hint')).toHaveAttribute(
+        'aria-hidden',
+        'true'
+      );
+      expect(screen.getByText('Edit Field').textContent).toBe('Edit Field');
+    });
+
+    it('shows ⌥ on an alternate item with and without Alt held', async () => {
+      vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel');
+      render(ContextMenu, {
+        props: {
+          x: 0,
+          y: 0,
+          items: [
+            {
+              label: 'Copy Row',
+              onclick: vi.fn(),
+              altLabel: 'Copy Row with Headers',
+              altOnclick: vi.fn(),
+            },
+          ],
+          onclose: vi.fn(),
+        },
+      });
+      expect(hintsIn('Copy Row')).toEqual(['⌥']);
+      await fireEvent.keyDown(window, { key: 'Alt', altKey: true });
+      expect(hintsIn('Copy Row with Headers')).toEqual(['⌥']);
+    });
+
+    it('shows Alt off macOS', () => {
+      vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Win32');
+      render(ContextMenu, {
+        props: {
+          x: 0,
+          y: 0,
+          items: [{ label: 'R', onclick: vi.fn(), altLabel: 'R2', altOnclick: vi.fn() }],
+          onclose: vi.fn(),
+        },
+      });
+      expect(hintsIn('R')).toEqual(['Alt']);
+    });
+
+    it('shows no hint for a half-declared alternate or a plain item', () => {
+      render(ContextMenu, {
+        props: {
+          x: 0,
+          y: 0,
+          items: [
+            { label: 'Half', altLabel: 'Other', onclick: vi.fn() },
+            { label: 'Plain', onclick: vi.fn() },
+          ],
+          onclose: vi.fn(),
+        },
+      });
+      expect(hintsIn('Half')).toEqual([]);
+      expect(hintsIn('Plain')).toEqual([]);
+    });
+
+    it('shows only the arrow on a submenu parent', () => {
+      render(ContextMenu, {
+        props: {
+          x: 0,
+          y: 0,
+          items: [{ label: 'Copy', shortcut: '⌘C', submenu: [{ label: 'Inner' }] }],
+          onclose: vi.fn(),
+        },
+      });
+      expect(hintsIn('Copy')).toEqual([]);
+      expect(screen.getByText('▸')).toBeInTheDocument();
+    });
+  });
 });

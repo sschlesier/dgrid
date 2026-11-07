@@ -1,15 +1,23 @@
-<script lang="ts">
-  import { onMount } from 'svelte';
-
-  interface MenuItem {
+<script lang="ts" module>
+  interface MenuItemBase {
     label: string;
     onclick?: () => void;
-    altLabel?: string;
-    altOnclick?: () => void;
     submenu?: MenuItem[];
     destructive?: boolean;
     separator?: boolean;
   }
+
+  // An item shows either a shortcut hint or an alternate's modifier hint, never both
+  export type MenuItem = MenuItemBase &
+    (
+      | { altLabel?: string; altOnclick?: () => void; shortcut?: never }
+      | { shortcut?: string; altLabel?: never; altOnclick?: never }
+    );
+</script>
+
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { formatAltModifier } from '../utils/keyboard';
 
   interface Props {
     x: number;
@@ -64,6 +72,12 @@
 
   function hasAlt(item: MenuItem): boolean {
     return !!item.altLabel && !!item.altOnclick;
+  }
+
+  function hintFor(item: MenuItem): string | undefined {
+    if (item.submenu) return undefined;
+    if (hasAlt(item)) return formatAltModifier();
+    return item.shortcut || undefined;
   }
 
   function labelFor(item: MenuItem): string {
@@ -134,10 +148,13 @@
         class="context-menu-item"
         class:destructive={item.destructive}
         class:has-submenu={!!item.submenu}
+        class:has-hint={!!hintFor(item)}
         onmouseenter={() => handleItemEnter(item, depth, index)}
         onclick={(e: MouseEvent) => handleItemClick(e, item, depth, index)}
       >
         <span class="context-menu-label">{labelFor(item)}</span>
+        {#if hintFor(item)}<span class="context-menu-hint" aria-hidden="true">{hintFor(item)}</span
+          >{/if}
         {#if item.submenu}<span class="context-menu-arrow">▸</span>{/if}
       </button>
       {#if item.submenu && openPath[depth] === index}
@@ -197,7 +214,8 @@
     z-index: 1002;
   }
 
-  .context-menu-item.has-submenu {
+  .context-menu-item.has-submenu,
+  .context-menu-item.has-hint {
     display: flex;
     justify-content: space-between;
     gap: var(--space-lg);
@@ -214,6 +232,12 @@
     text-align: left;
     cursor: pointer;
     white-space: nowrap;
+  }
+
+  .context-menu-hint {
+    margin-left: auto;
+    padding-left: var(--space-lg);
+    color: var(--color-text-secondary);
   }
 
   .context-menu-arrow {

@@ -107,7 +107,11 @@ export const selectors = {
     menu: () => $('.context-menu'),
     item: (label) =>
       $(
-        `//*[contains(@class, "context-menu")]//button[contains(@class, "context-menu-item")][normalize-space(.)=${quoteXPath(label)}]`
+        `//*[contains(@class, "context-menu")]//button[contains(@class, "context-menu-item")][.//span[contains(@class, "context-menu-label")][normalize-space(.)=${quoteXPath(label)}]]`
+      ),
+    hint: (label) =>
+      $(
+        `//*[contains(@class, "context-menu")]//button[contains(@class, "context-menu-item")][.//span[contains(@class, "context-menu-label")][normalize-space(.)=${quoteXPath(label)}]]//span[contains(@class, "context-menu-hint")]`
       ),
     submenuParent: (label) =>
       $(
