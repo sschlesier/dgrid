@@ -58,3 +58,4 @@ Decisions (overrule any):
 - 2026-11-06: Started on branch feat/context-menu-hints
 - 2026-11-06: Status: in-review: Implemented; manual pnpm dev check not done
 - 2026-11-06: Manual pnpm dev check done by Scott Schlesier: grid hints and ⌥ on Copy Row look right, no hints on sidebar menus.
+- 2026-11-06: Review round 1 dismissals: mutant removing class:has-hint (right-alignment) covered by Scott's manual dev check; mutant on 'item.shortcut || undefined' is equivalent; cleared-binding risk n/a (keybindings store has no unbind).
