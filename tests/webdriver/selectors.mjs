@@ -89,6 +89,8 @@ export const selectors = {
     container: () => $('.results-container'),
     gridViewport: () => $('.grid-viewport'),
     gridRow: (index) => $(`.grid-row[data-row-index="${index}"]`),
+    gutterCell: (index) => $(`.grid-row[data-row-index="${index}"] .row-gutter`),
+    selectedRows: () => $$('.grid-row.selected'),
     gridCell: () => $$('.grid-cell'),
     gridCellWithText: (text) => $(`//*[contains(@class, "grid-cell")]//*[contains(normalize-space(.), ${quoteXPath(text)})]/ancestor::*[contains(@class, "grid-cell")]`),
     gridCellByField: (fieldKey) => $(`.grid-row[data-row-index="0"] [data-field-key="${fieldKey}"]`),
