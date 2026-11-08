@@ -59,3 +59,4 @@ Inspiration: Studio 3T Table View "Copy Selected Documents as CSV". Reuses `copy
 - 2026-11-08: Approved: Scott Schlesier, 2026-11-08: Row selection via gutter, Cmd/Ctrl+C and Copy Rows menu; current page only; refined with cold read. Cold read: pass (no blocking; 3 spec issues folded in)
 - 2026-11-08: Started on branch feat/grid-row-selection
 - 2026-11-08: Status: in-review: implementation done; verify passes; E2E passes; screenshots and manual paste check outstanding
+- 2026-11-08: Review round 1 triage: dismissed CellType reformat in types.ts (the repo's prettier/lint-staged rewrites any touched file); dismissed a11y role, gutter width duplication and sticky gutter as outside the spec; added tests for the surviving mutants on criteria 4-9
