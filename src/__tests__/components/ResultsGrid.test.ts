@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/svelte';
 import ResultsGrid from '../../components/grid/ResultsGrid.svelte';
 import { gridStore } from '../../stores/grid.svelte';
@@ -64,5 +64,147 @@ describe('ResultsGrid context menu hints', () => {
 
     expect(hintFor('Insert Document')).toBe(keybindingsStore.getFormatted('insert-document'));
     expect(hintFor('Insert Document')).not.toBe(before);
+  });
+});
+
+describe('ResultsGrid row selection', () => {
+  const multi = {
+    documents: [
+      { _id: '1', name: 'Alice', meta: { a: 1 } },
+      { _id: '2', name: 'Bob', meta: { a: 2 } },
+      { _id: '3', name: 'Cara', meta: { a: 3 } },
+    ],
+    page: 1,
+    hasMore: false,
+  } as unknown as ExecuteQueryResponse;
+
+  let write: ReturnType<typeof vi.fn>;
+  let writeText: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    gridStore.cleanupTab('t2');
+    gridStore.getState('t2');
+    write = vi.fn().mockResolvedValue(undefined);
+    writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal(
+      'ClipboardItem',
+      class {
+        constructor(public items: Record<string, Blob>) {}
+      }
+    );
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { write, writeText },
+      configurable: true,
+    });
+    render(ResultsGrid, {
+      props: { tabId: 't2', results: multi, connectionId: 'c1', database: 'db', collection: 'col' },
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const gutter = (i: number) => document.querySelectorAll('.row-gutter')[i] as HTMLElement;
+  const row = (i: number) => document.querySelector(`.grid-row[data-row-index="${i}"]`)!;
+  const container = () => document.querySelector('.results-grid') as HTMLElement;
+
+  it('shows 1-based row numbers in the gutter', () => {
+    expect(gutter(0).textContent?.trim()).toBe('1');
+    expect(gutter(2).textContent?.trim()).toBe('3');
+  });
+
+  it('selects only the clicked row on a gutter click', async () => {
+    await fireEvent.click(gutter(0));
+    await fireEvent.click(gutter(1));
+
+    expect(row(0).classList.contains('selected')).toBe(false);
+    expect(row(1).classList.contains('selected')).toBe(true);
+    expect(row(1).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('toggles a row with Cmd+click', async () => {
+    await fireEvent.click(gutter(0));
+    await fireEvent.click(gutter(2), { metaKey: true });
+
+    expect(row(0).classList.contains('selected')).toBe(true);
+    expect(row(2).classList.contains('selected')).toBe(true);
+  });
+
+  it('selects a range with Shift+click on a data cell', async () => {
+    await fireEvent.click(gutter(0));
+    await fireEvent.click(row(2).querySelector('[data-field-key="name"]')!, { shiftKey: true });
+
+    expect([0, 1, 2].every((i) => row(i).classList.contains('selected'))).toBe(true);
+  });
+
+  it('drills on a plain click of a drillable cell without selecting', async () => {
+    await fireEvent.click(row(0).querySelector('[data-field-key="meta"]')!);
+
+    expect(gridStore.getDrilldownPath('t2')).toEqual(['meta']);
+    expect(gridStore.getSelectedRows('t2')).toEqual([]);
+  });
+
+  it('does not drill on a Cmd+click of a drillable cell', async () => {
+    await fireEvent.click(row(0).querySelector('[data-field-key="meta"]')!, { metaKey: true });
+
+    expect(gridStore.getDrilldownPath('t2')).toEqual([]);
+    expect(gridStore.getSelectedRows('t2')).toEqual([0]);
+  });
+
+  it('selects every row with Cmd+A and clears with Escape', async () => {
+    await fireEvent.click(gutter(0));
+    await fireEvent.keyDown(container(), { key: 'a', metaKey: true });
+    expect(gridStore.getSelectedRows('t2')).toEqual([0, 1, 2]);
+
+    await fireEvent.keyDown(container(), { key: 'Escape' });
+    expect(gridStore.getSelectedRows('t2')).toEqual([]);
+  });
+
+  it('copies the selected rows with Cmd+C', async () => {
+    await fireEvent.click(gutter(0));
+    await fireEvent.click(gutter(2), { metaKey: true });
+    await fireEvent.keyDown(container(), { key: 'c', metaKey: true });
+
+    expect(write).toHaveBeenCalledTimes(1);
+    const item = write.mock.calls[0][0][0] as { items: Record<string, Blob> };
+    const text = await item.items['text/plain'].text();
+    expect(text).toContain('Alice');
+    expect(text).toContain('Cara');
+    expect(text).not.toContain('Bob');
+  });
+
+  it('does not touch the clipboard on Cmd+C with no selection', async () => {
+    container().focus();
+    await fireEvent.keyDown(container(), { key: 'c', metaKey: true });
+
+    expect(write).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('defers Cmd+C to the browser when text is selected', async () => {
+    await fireEvent.click(gutter(0));
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      toString: () => 'some text',
+    } as unknown as Selection);
+    await fireEvent.keyDown(container(), { key: 'c', metaKey: true });
+
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('offers Copy Rows for a multi-row selection, and Copy Row once an unselected row is right-clicked', async () => {
+    await fireEvent.click(gutter(0));
+    await fireEvent.click(gutter(1), { shiftKey: true });
+    await fireEvent.contextMenu(row(0).querySelector('[data-field-key="name"]')!);
+    await fireEvent.click(screen.getByText('Copy'));
+    expect(screen.getByText('Copy Rows')).toBeTruthy();
+
+    await fireEvent.click(document.querySelector('.context-menu-backdrop') as HTMLElement);
+    await fireEvent.contextMenu(row(2).querySelector('[data-field-key="name"]')!);
+    await fireEvent.click(screen.getByText('Copy'));
+    expect(screen.getByText('Copy Row')).toBeTruthy();
+    expect(gridStore.getSelectedRows('t2')).toEqual([2]);
   });
 });
