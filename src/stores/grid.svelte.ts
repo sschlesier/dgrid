@@ -46,6 +46,8 @@ function createInitialState(): GridState {
     },
     pageSize: 50,
     viewMode: 'table',
+    selectedRows: [],
+    selectionAnchor: null,
   };
 }
 
@@ -133,6 +135,8 @@ class GridStore {
         column: newDirection ? columnKey : null,
         direction: newDirection,
       },
+      selectedRows: [],
+      selectionAnchor: null,
     });
   }
 
@@ -164,6 +168,8 @@ class GridStore {
       },
       // Reset sort when drilling
       sort: { column: null, direction: null },
+      selectedRows: [],
+      selectionAnchor: null,
     });
   }
 
@@ -182,6 +188,8 @@ class GridStore {
         historyIndex: newIndex,
       },
       sort: { column: null, direction: null },
+      selectedRows: [],
+      selectionAnchor: null,
     });
 
     return true;
@@ -202,6 +210,8 @@ class GridStore {
         historyIndex: newIndex,
       },
       sort: { column: null, direction: null },
+      selectedRows: [],
+      selectionAnchor: null,
     });
 
     return true;
@@ -226,6 +236,8 @@ class GridStore {
         historyIndex: newHistory.length - 1,
       },
       sort: { column: null, direction: null },
+      selectedRows: [],
+      selectionAnchor: null,
     });
   }
 
@@ -251,7 +263,7 @@ class GridStore {
   }
 
   setPageSize(tabId: string, pageSize: 50 | 100 | 250 | 500): void {
-    this.updateState(tabId, { pageSize });
+    this.updateState(tabId, { pageSize, selectedRows: [], selectionAnchor: null });
   }
 
   // View mode management
@@ -261,6 +273,56 @@ class GridStore {
 
   setViewMode(tabId: string, viewMode: ViewMode): void {
     this.updateState(tabId, { viewMode });
+  }
+
+  // Row selection (indexes into the displayed rows of the current page)
+  getSelectedRows(tabId: string, resultIndex = 0): number[] {
+    return this.getState(tabId, resultIndex).selectedRows;
+  }
+
+  isRowSelected(tabId: string, index: number, resultIndex = 0): boolean {
+    return this.getState(tabId, resultIndex).selectedRows.includes(index);
+  }
+
+  // Plain click: select only this row
+  selectRow(tabId: string, index: number, resultIndex = 0): void {
+    this.updateState(tabId, { selectedRows: [index], selectionAnchor: index }, resultIndex);
+  }
+
+  // Cmd/Ctrl+click: toggle this row
+  toggleRow(tabId: string, index: number, resultIndex = 0): void {
+    const { selectedRows } = this.getState(tabId, resultIndex);
+    const next = selectedRows.includes(index)
+      ? selectedRows.filter((i) => i !== index)
+      : [...selectedRows, index].sort((a, b) => a - b);
+    this.updateState(tabId, { selectedRows: next, selectionAnchor: index }, resultIndex);
+  }
+
+  // Shift+click: select anchor..index, replacing the selection (anchor is kept)
+  selectRange(tabId: string, index: number, resultIndex = 0): void {
+    const { selectionAnchor } = this.getState(tabId, resultIndex);
+    if (selectionAnchor === null) {
+      this.selectRow(tabId, index, resultIndex);
+      return;
+    }
+    const from = Math.min(selectionAnchor, index);
+    const to = Math.max(selectionAnchor, index);
+    const selectedRows = Array.from({ length: to - from + 1 }, (_, i) => from + i);
+    this.updateState(tabId, { selectedRows }, resultIndex);
+  }
+
+  selectAllRows(tabId: string, rowCount: number, resultIndex = 0): void {
+    this.updateState(
+      tabId,
+      { selectedRows: Array.from({ length: rowCount }, (_, i) => i), selectionAnchor: null },
+      resultIndex
+    );
+  }
+
+  clearSelection(tabId: string, resultIndex = 0): void {
+    const state = this.getState(tabId, resultIndex);
+    if (state.selectedRows.length === 0 && state.selectionAnchor === null) return;
+    this.updateState(tabId, { selectedRows: [], selectionAnchor: null }, resultIndex);
   }
 
   // Reset grid state for a tab (e.g., when running a new query)
@@ -276,6 +338,8 @@ class GridStore {
           history: [[]],
           historyIndex: 0,
         },
+        selectedRows: [],
+        selectionAnchor: null,
         // Keep pageSize, columnWidths, and viewMode
         pageSize: state.pageSize,
         columnWidths: state.columnWidths,
