@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/svelte';
 import ResultsGrid from '../../components/grid/ResultsGrid.svelte';
 import { gridStore } from '../../stores/grid.svelte';
+import { appStore } from '../../stores/app.svelte';
 import { keybindingsStore } from '../../stores/keybindings.svelte';
 import type { ExecuteQueryResponse } from '../../lib/contracts';
 
@@ -96,10 +97,22 @@ describe('ResultsGrid row selection', () => {
       value: { write, writeText },
       configurable: true,
     });
-    render(ResultsGrid, {
+    ({ rerender } = render(ResultsGrid, {
       props: { tabId: 't2', results: multi, connectionId: 'c1', database: 'db', collection: 'col' },
-    });
+    }));
   });
+
+  let rerender: (_props: Record<string, unknown>) => Promise<void>;
+
+  async function writtenText(call = 0): Promise<string> {
+    const item = write.mock.calls[call][0][0] as { items: Record<string, Blob> };
+    return item.items['text/plain'].text();
+  }
+
+  async function chooseCopyItem(label: string, altKey = false) {
+    await fireEvent.click(screen.getByText('Copy'));
+    await fireEvent.click(screen.getByText(label), { altKey });
+  }
 
   afterEach(() => {
     cleanup();
@@ -206,5 +219,106 @@ describe('ResultsGrid row selection', () => {
     await fireEvent.click(screen.getByText('Copy'));
     expect(screen.getByText('Copy Row')).toBeTruthy();
     expect(gridStore.getSelectedRows('t2')).toEqual([2]);
+  });
+
+  it('toggles a row with Ctrl+click on the gutter and on a data cell', async () => {
+    await fireEvent.click(gutter(0));
+    await fireEvent.click(gutter(2), { ctrlKey: true });
+    await fireEvent.click(row(1).querySelector('[data-field-key="name"]')!, { ctrlKey: true });
+    expect(gridStore.getSelectedRows('t2')).toEqual([0, 1, 2]);
+
+    await fireEvent.click(gutter(1), { ctrlKey: true });
+    expect(gridStore.getSelectedRows('t2')).toEqual([0, 2]);
+  });
+
+  it('prevents the browser select-all on Cmd+A', async () => {
+    await fireEvent.click(gutter(0));
+    const notPrevented = await fireEvent.keyDown(container(), { key: 'a', metaKey: true });
+
+    expect(notPrevented).toBe(false);
+  });
+
+  it('copies the selected rows in order without headers on Cmd+C', async () => {
+    await fireEvent.click(gutter(2));
+    await fireEvent.click(gutter(0), { metaKey: true });
+    await fireEvent.keyDown(container(), { key: 'c', metaKey: true });
+
+    const lines = (await writtenText()).split('\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('Alice');
+    expect(lines[1]).toContain('Cara');
+  });
+
+  it('copies every selected row from the Copy Rows menu item', async () => {
+    await fireEvent.click(gutter(0));
+    await fireEvent.click(gutter(2), { shiftKey: true });
+    await fireEvent.contextMenu(row(1).querySelector('[data-field-key="name"]')!);
+    await chooseCopyItem('Copy Rows');
+
+    const lines = (await writtenText()).split('\n');
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toContain('Bob');
+  });
+
+  it('adds a header line when Copy Rows is chosen with ⌥ held', async () => {
+    await fireEvent.click(gutter(0));
+    await fireEvent.click(gutter(1), { shiftKey: true });
+    await fireEvent.contextMenu(row(0).querySelector('[data-field-key="name"]')!);
+    await chooseCopyItem('Copy Rows', true);
+
+    const lines = (await writtenText()).split('\n');
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toContain('name');
+    expect(lines[0]).not.toContain('Alice');
+  });
+
+  it('shows no notification when the copy succeeds', async () => {
+    const notify = vi.spyOn(appStore, 'notify');
+    await fireEvent.click(gutter(0));
+    await fireEvent.keyDown(container(), { key: 'c', metaKey: true });
+
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed multi-row copy as rows', async () => {
+    write.mockRejectedValue(new Error('denied'));
+    writeText.mockRejectedValue(new Error('denied'));
+    const notify = vi.spyOn(appStore, 'notify');
+    await fireEvent.click(gutter(0));
+    await fireEvent.click(gutter(1), { shiftKey: true });
+    await fireEvent.keyDown(container(), { key: 'c', metaKey: true });
+
+    await vi.waitFor(() =>
+      expect(notify).toHaveBeenCalledWith('error', 'Failed to copy rows to clipboard')
+    );
+  });
+
+  it('reports a failed single-row copy as a row', async () => {
+    write.mockRejectedValue(new Error('denied'));
+    writeText.mockRejectedValue(new Error('denied'));
+    const notify = vi.spyOn(appStore, 'notify');
+    await fireEvent.click(gutter(0));
+    await fireEvent.keyDown(container(), { key: 'c', metaKey: true });
+
+    await vi.waitFor(() =>
+      expect(notify).toHaveBeenCalledWith('error', 'Failed to copy row to clipboard')
+    );
+  });
+
+  it('clears the selection when the results change', async () => {
+    await fireEvent.click(gutter(0));
+    expect(gridStore.getSelectedRows('t2')).toEqual([0]);
+
+    await rerender({ results: { ...multi, page: 2 } });
+
+    expect(gridStore.getSelectedRows('t2')).toEqual([]);
+  });
+
+  it('keeps the selection when Escape is pressed with a context menu open', async () => {
+    await fireEvent.click(gutter(0));
+    await fireEvent.contextMenu(row(0).querySelector('[data-field-key="name"]')!);
+    await fireEvent.keyDown(container(), { key: 'Escape' });
+
+    expect(gridStore.getSelectedRows('t2')).toEqual([0]);
   });
 });
