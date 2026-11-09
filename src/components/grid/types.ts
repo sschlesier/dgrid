@@ -8,14 +8,7 @@ export type BsonType = 'ObjectId' | 'Date' | 'Binary' | 'Decimal128' | 'Long' | 
 
 // All cell types the grid can render
 export type CellType =
-  | BsonType
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'null'
-  | 'undefined'
-  | 'Array'
-  | 'Object';
+  BsonType | 'string' | 'number' | 'boolean' | 'null' | 'undefined' | 'Array' | 'Object';
 
 // Column definition
 export interface GridColumn {
@@ -49,6 +42,8 @@ export interface GridState {
   drilldown: DrilldownState;
   pageSize: 50 | 100 | 250 | 500;
   viewMode: ViewMode; // Current view mode (table, json, tree)
+  selectedRows: number[]; // Ascending indexes into the displayed (sorted, drilled) rows
+  selectionAnchor: number | null; // Last plain/toggled row, the start of a Shift range
 }
 
 // Serialized BSON value (matches backend/db/bson.ts)

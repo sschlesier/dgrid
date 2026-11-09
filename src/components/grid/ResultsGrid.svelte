@@ -122,6 +122,7 @@
   }
 
   let contextMenu = $state<ContextMenuState | null>(null);
+  let gridContainer: HTMLDivElement | undefined = $state();
   let deleteConfirmDoc = $state<Record<string, unknown> | null>(null);
 
   // Virtual scroll constants
@@ -232,7 +233,71 @@
   const visibleRows = $derived(sortedData.slice(visibleStart, visibleEnd));
 
   // Total column width for horizontal scrolling
-  const totalWidth = $derived(columns.reduce((sum: number, col: GridColumn) => sum + col.width, 0));
+  const GUTTER_WIDTH = 40;
+  const totalWidth = $derived(
+    GUTTER_WIDTH + columns.reduce((sum: number, col: GridColumn) => sum + col.width, 0)
+  );
+
+  // Row selection (indexes into sortedData)
+  const selectedRows = $derived(gridState.selectedRows);
+  const selectedSet = $derived(new Set(selectedRows));
+
+  // A new result set or page clears the selection
+  $effect(() => {
+    void results;
+    untrack(() => gridStore.clearSelection(tabId));
+  });
+
+  function handleRowSelect(index: number, event: MouseEvent) {
+    if (event.metaKey || event.ctrlKey) {
+      gridStore.toggleRow(tabId, index);
+    } else if (event.shiftKey) {
+      gridStore.selectRange(tabId, index);
+    } else {
+      gridStore.selectRow(tabId, index);
+    }
+    gridContainer?.focus();
+  }
+
+  function getSelectedDocs(): Record<string, unknown>[] {
+    return selectedRows
+      .map((i) => sortedData[i])
+      .filter((d): d is DrilldownDocument => d !== undefined);
+  }
+
+  async function copySelectedRows(docs: Record<string, unknown>[], includeHeaders: boolean) {
+    const ok = await copyRowsToClipboard(columns, docs, includeHeaders);
+    if (!ok) {
+      appStore.notify(
+        'error',
+        docs.length > 1 ? 'Failed to copy rows to clipboard' : 'Failed to copy row to clipboard'
+      );
+    }
+  }
+
+  function handleGridKeyDown(event: KeyboardEvent) {
+    if (editingField || jsonEditorState || deleteConfirmDoc) return;
+    if (!gridContainer || !gridContainer.contains(document.activeElement)) return;
+
+    const mod = event.metaKey || event.ctrlKey;
+    const key = event.key.toLowerCase();
+
+    if (mod && !event.shiftKey && !event.altKey && key === 'a') {
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+      event.preventDefault();
+      gridStore.selectAllRows(tabId, sortedData.length);
+    } else if (mod && !event.shiftKey && !event.altKey && key === 'c') {
+      if (selectedRows.length === 0) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+      if ((window.getSelection()?.toString() ?? '') !== '') return;
+      event.preventDefault();
+      void copySelectedRows(getSelectedDocs(), false);
+    } else if (event.key === 'Escape' && selectedRows.length > 0 && !contextMenu) {
+      gridStore.clearSelection(tabId);
+    }
+  }
 
   function handleScroll(event: Event) {
     const target = event.target as HTMLDivElement;
@@ -329,7 +394,8 @@
     }
   }
 
-  function handleRowContextMenu(doc: Record<string, unknown>, event: MouseEvent) {
+  function handleRowContextMenu(doc: Record<string, unknown>, index: number, event: MouseEvent) {
+    if (!selectedSet.has(index)) gridStore.selectRow(tabId, index);
     // Extract cell context from the right-clicked element
     const target = event.target as HTMLElement;
     const cell = target.closest('[data-field-key]') as HTMLElement | null;
@@ -408,17 +474,18 @@
       },
     });
 
-    // Copy Row (⌥ alternate adds a header line)
-    const copyRow = async (includeHeaders: boolean) => {
+    // Copy Row(s) (⌥ alternate adds a header line)
+    const selectedDocs = getSelectedDocs();
+    const multi = selectedDocs.length > 1;
+    const copyRows = async (includeHeaders: boolean) => {
       contextMenu = null;
-      const ok = await copyRowsToClipboard(columns, [doc], includeHeaders);
-      if (!ok) appStore.notify('error', 'Failed to copy row to clipboard');
+      await copySelectedRows(multi ? selectedDocs : [doc], includeHeaders);
     };
     copyItems.push({
-      label: 'Copy Row',
-      onclick: () => copyRow(false),
-      altLabel: 'Copy Row with Headers',
-      altOnclick: () => copyRow(true),
+      label: multi ? 'Copy Rows' : 'Copy Row',
+      onclick: () => copyRows(false),
+      altLabel: multi ? 'Copy Rows with Headers' : 'Copy Row with Headers',
+      altOnclick: () => copyRows(true),
     });
 
     // Copy _id (when document has _id)
@@ -506,7 +573,8 @@
 
 <svelte:window onkeydown={handleKeyDown} />
 
-<div class="results-grid">
+<!-- svelte-ignore a11y_no_static_element_interactions, a11y_no_noninteractive_tabindex -->
+<div class="results-grid" bind:this={gridContainer} tabindex="-1" onkeydown={handleGridKeyDown}>
   <GridBreadcrumb
     path={drilldownPath}
     canBack={gridStore.canDrillBack(tabId)}
@@ -544,10 +612,12 @@
               {columns}
               offsetY={(visibleStart + i) * ROW_HEIGHT}
               rowIndex={visibleStart + i}
+              selected={selectedSet.has(visibleStart + i)}
+              onselect={(event) => handleRowSelect(visibleStart + i, event)}
               ondrill={handleDrill}
               onedit={(fieldKey, value) => handleEdit(doc, fieldKey, value)}
               oneditdocument={(d) => openEditDocument(d)}
-              onrowcontextmenu={(event) => handleRowContextMenu(doc, event)}
+              onrowcontextmenu={(event) => handleRowContextMenu(doc, visibleStart + i, event)}
             />
           {/each}
         </div>
@@ -621,6 +691,7 @@
     flex: 1;
     overflow: hidden;
     background-color: var(--color-bg-primary);
+    outline: none;
   }
 
   .grid-viewport {

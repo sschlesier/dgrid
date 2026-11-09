@@ -1,5 +1,6 @@
 import { expect } from 'expect-webdriverio';
 import {
+  clickRowGutter,
   createConnection,
   dispatchContextMenu,
   openCollectionResults,
@@ -95,6 +96,23 @@ describe('Grid Context Menu', () => {
       'Copy Row',
       'Copy _id',
     ]);
+  });
+
+  it('copies a shift-selected range of rows from the Copy Rows menu item', async () => {
+    await setupResults([{ name: 'Alice' }, { name: 'Bob' }, { name: 'Cara' }]);
+
+    await clickRowGutter(0);
+    await clickRowGutter(1, { shift: true });
+    expect((await s.results.selectedRows()).length).toBe(2);
+
+    await openContextMenuOnRowBackground(0);
+    await openContextMenuSubmenu('Copy');
+    await expect(s.contextMenu.item('Copy Rows')).toBeDisplayed();
+    await (await s.contextMenu.item('Copy Rows')).click();
+
+    await s.contextMenu.menu().waitForDisplayed({ reverse: true, timeout: 5_000 });
+    await expect(s.notification.withText('Failed to copy')).not.toBeExisting();
+    expect((await s.results.selectedRows()).length).toBe(2);
   });
 
   it('shows hints on Insert Document and Copy Row', async () => {

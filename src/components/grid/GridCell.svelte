@@ -17,10 +17,11 @@
     ondrill?: (_field: string) => void;
     onedit?: (_fieldKey: string, _value: unknown) => void;
     oneditdocument?: () => void;
+    onselect?: (_event: MouseEvent) => void;
     fieldKey?: string;
   }
 
-  let { value, width, ondrill, onedit, oneditdocument, fieldKey }: Props = $props();
+  let { value, width, ondrill, onedit, oneditdocument, onselect, fieldKey }: Props = $props();
 
   let showCopyButton = $state(false);
   let copied = $state(false);
@@ -31,7 +32,11 @@
   const canDrill = $derived(isDrillable(value));
   const hoverTitle = $derived(getObjectIdDateTooltip(value) ?? displayValue);
 
-  function handleClick() {
+  function handleClick(event: MouseEvent) {
+    if ((event.metaKey || event.ctrlKey || event.shiftKey) && onselect) {
+      onselect(event);
+      return;
+    }
     if (canDrill && ondrill && fieldKey) {
       ondrill(fieldKey);
     }
@@ -90,6 +95,9 @@
   style="width: {width}px; min-width: {width}px; max-width: {width}px;"
   data-field-key={fieldKey}
   onclick={handleClick}
+  onmousedown={(e) => {
+    if (e.shiftKey && onselect) e.preventDefault();
+  }}
   onkeydown={handleKeydown}
   onmouseenter={() => (showCopyButton = true)}
   onmouseleave={() => (showCopyButton = false)}
