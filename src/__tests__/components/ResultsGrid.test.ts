@@ -238,6 +238,27 @@ describe('ResultsGrid row selection', () => {
     expect(notPrevented).toBe(false);
   });
 
+  it('ignores Cmd+A with extra modifiers', async () => {
+    await fireEvent.click(gutter(0));
+    await fireEvent.keyDown(container(), { key: 'a', metaKey: true, shiftKey: true });
+    await fireEvent.keyDown(container(), { key: 'a', metaKey: true, altKey: true });
+
+    expect(gridStore.getSelectedRows('t2')).toEqual([0]);
+  });
+
+  it('leaves Cmd+A and Cmd+C to a focused textarea inside the grid', async () => {
+    await fireEvent.click(gutter(0));
+    const textarea = document.createElement('textarea');
+    container().appendChild(textarea);
+    textarea.focus();
+
+    await fireEvent.keyDown(textarea, { key: 'a', metaKey: true });
+    await fireEvent.keyDown(textarea, { key: 'c', metaKey: true });
+
+    expect(gridStore.getSelectedRows('t2')).toEqual([0]);
+    expect(write).not.toHaveBeenCalled();
+  });
+
   it('copies the selected rows in order without headers on Cmd+C', async () => {
     await fireEvent.click(gutter(2));
     await fireEvent.click(gutter(0), { metaKey: true });
