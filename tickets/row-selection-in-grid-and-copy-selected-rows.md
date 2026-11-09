@@ -6,7 +6,7 @@ type: feature
 priority: 3
 depends-on: [copy-grid-row-to-clipboard-as-csv-and-spreadsheet-table]
 approved: "Scott Schlesier, 2026-11-08: Row selection via gutter, Cmd/Ctrl+C and Copy Rows menu; current page only; refined with cold read. Cold read: pass (no blocking; 3 spec issues folded in)"
-status: in-review
+status: done
 ---
 
 Users can select one or more rows on the current page of the results grid (gutter click, Shift+click, Cmd/Ctrl+click, Cmd/Ctrl+A) and copy them together as CSV plus a spreadsheet table, via Cmd/Ctrl+C or the right-click Copy submenu.
@@ -60,3 +60,5 @@ Inspiration: Studio 3T Table View "Copy Selected Documents as CSV". Reuses `copy
 - 2026-11-08: Started on branch feat/grid-row-selection
 - 2026-11-08: Status: in-review: implementation done; verify passes; E2E passes; screenshots and manual paste check outstanding
 - 2026-11-08: Review round 1 triage: dismissed CellType reformat in types.ts (the repo's prettier/lint-staged rewrites any touched file); dismissed a11y role, gutter width duplication and sticky gutter as outside the spec; added tests for the surviving mutants on criteria 4-9
+- 2026-11-09: Review round 1 decisions (Scott): keep Shift+click after Cmd/Ctrl+A selecting only the clicked row; keep Escape closing the context menu without clearing the selection; leave single-row actions in the multi-row context menu; accept the unproven risk that light/dark screenshots, the spreadsheet paste check and native Shift+click text selection in the webview were not verified
+- 2026-11-09: Status: done: Reviewed round 1: criteria verified by tests; screenshots, manual paste check and real-webview Shift+click text selection not verified, risk accepted by Scott
