@@ -7,6 +7,8 @@
     columns: GridColumn[];
     offsetY: number;
     rowIndex: number;
+    selected?: boolean;
+    onselect?: (_event: MouseEvent, _gutter: boolean) => void;
     ondrill?: (_field: string) => void;
     onedit?: (_fieldKey: string, _value: unknown) => void;
     oneditdocument?: (_doc: Record<string, unknown>) => void;
@@ -18,6 +20,8 @@
     columns,
     offsetY,
     rowIndex,
+    selected = false,
+    onselect,
     ondrill,
     onedit,
     oneditdocument,
@@ -36,16 +40,31 @@
 <div
   class="grid-row"
   class:even={rowIndex % 2 === 0}
+  class:selected
+  aria-selected={selected}
   style="transform: translateY({offsetY}px);"
   data-row-index={rowIndex}
   oncontextmenu={handleContextMenu}
 >
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <div
+    class="row-gutter"
+    data-testid="row-gutter"
+    onclick={(e) => onselect?.(e, true)}
+    onmousedown={(e) => {
+      if (e.shiftKey) e.preventDefault();
+    }}
+    role="presentation"
+  >
+    {rowIndex + 1}
+  </div>
   {#each columns as column (column.key)}
     <GridCell
       value={doc[column.key]}
       width={column.width}
       fieldKey={column.key}
       {ondrill}
+      onselect={onselect ? (e) => onselect(e, false) : undefined}
       {onedit}
       oneditdocument={oneditdocument ? () => oneditdocument(doc) : undefined}
     />
@@ -62,6 +81,21 @@
     min-width: 100%;
   }
 
+  .row-gutter {
+    flex: 0 0 var(--grid-gutter-width, 40px);
+    width: var(--grid-gutter-width, 40px);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 var(--space-sm);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs, 11px);
+    color: var(--color-text-muted);
+    border-right: 1px solid var(--color-border-light);
+    cursor: pointer;
+    user-select: none;
+  }
+
   .grid-row:hover {
     background-color: var(--color-bg-hover);
   }
@@ -72,5 +106,13 @@
 
   .grid-row.even:hover {
     background-color: var(--color-bg-hover);
+  }
+
+  .grid-row.selected,
+  .grid-row.selected:hover,
+  .grid-row.even.selected,
+  .grid-row.even.selected:hover {
+    background-color: var(--color-primary-light);
+    box-shadow: inset 3px 0 0 var(--color-primary);
   }
 </style>

@@ -240,6 +240,26 @@ export async function openContextMenuSubmenu(label) {
   });
 }
 
+// Clicks a row's gutter cell, optionally with modifier keys (dispatched as DOM events)
+export async function clickRowGutter(rowIndex, { shift = false, meta = false, ctrl = false } = {}) {
+  const gutter = await s.results.gutterCell(rowIndex);
+  await browser.execute(
+    (el, mods) => {
+      el.dispatchEvent(
+        new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          shiftKey: mods.shift,
+          metaKey: mods.meta,
+          ctrlKey: mods.ctrl,
+        })
+      );
+    },
+    gutter,
+    { shift, meta, ctrl }
+  );
+}
+
 // Dispatches contextmenu on the row element itself, so the target is not inside a cell
 export async function openContextMenuOnRowBackground(rowIndex) {
   await dispatchContextMenu(await s.results.gridRow(rowIndex));

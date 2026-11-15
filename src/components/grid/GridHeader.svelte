@@ -49,6 +49,7 @@
 </script>
 
 <div class="grid-header">
+  <div class="header-gutter" aria-hidden="true"></div>
   {#each columns as column (column.key)}
     <div
       class="header-cell"
@@ -99,6 +100,13 @@
     background-color: var(--color-bg-secondary);
     border-bottom: 2px solid var(--color-border-medium);
     min-width: fit-content;
+  }
+
+  .header-gutter {
+    flex: 0 0 var(--grid-gutter-width, 40px);
+    width: var(--grid-gutter-width, 40px);
+    height: 36px;
+    border-right: 1px solid var(--color-border-light);
   }
 
   .header-cell {
