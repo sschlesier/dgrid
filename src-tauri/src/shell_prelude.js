@@ -8,9 +8,20 @@ globalThis.__dgrid = (function () {
   const outFile = process.env.DGRID_SHELL_OUT;
   const LIMIT = 1000;
 
-  function write(index, kind, truncated, value) {
-    const line = EJSON.stringify({ index, kind, truncated, value }, { relaxed: false });
-    fs.appendFileSync(outFile, line + '\n');
+  function line(index, kind, truncated, value) {
+    return EJSON.stringify({ index, kind, truncated, value }, { relaxed: false });
+  }
+
+  // Only a value that cannot be serialized becomes a placeholder. A failure to write the
+  // result file is left to throw, so it ends the script as an error.
+  function report(index, kind, truncated, value, name) {
+    let text;
+    try {
+      text = line(index, kind, truncated, value);
+    } catch {
+      text = line(index, 'value', false, `[not displayable: ${name}]`);
+    }
+    fs.appendFileSync(outFile, text + '\n');
   }
 
   function typeName(value) {
@@ -33,7 +44,7 @@ globalThis.__dgrid = (function () {
     if (value === undefined) return;
 
     if (typeof value === 'function' || typeof value === 'symbol') {
-      write(index, 'value', false, `[not displayable: ${typeof value}]`);
+      report(index, 'value', false, `[not displayable: ${typeof value}]`, typeof value);
       return;
     }
 
@@ -47,11 +58,7 @@ globalThis.__dgrid = (function () {
         }
         documents.push(value.next());
       }
-      try {
-        write(index, 'cursor', truncated, documents);
-      } catch {
-        write(index, 'value', false, `[not displayable: ${typeName(value)}]`);
-      }
+      report(index, 'cursor', truncated, documents, typeName(value));
       return;
     }
 
@@ -62,11 +69,7 @@ globalThis.__dgrid = (function () {
       truncated = true;
     }
 
-    try {
-      write(index, 'value', truncated, reported);
-    } catch {
-      write(index, 'value', false, `[not displayable: ${typeName(value)}]`);
-    }
+    report(index, 'value', truncated, reported, typeName(value));
   }
 
   return { result };
