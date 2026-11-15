@@ -21,6 +21,7 @@ import {
   getVersion,
   checkForUpdates,
   executeQuery,
+  executeShell,
   cancelQuery,
   updateField,
   updateDocument,
@@ -492,6 +493,46 @@ describe('API client', () => {
 
       const invokeArgs = mockInvoke.mock.calls[0][1];
       expect(invokeArgs.request.tabId).toBe('tab-1');
+    });
+
+    it('executeShell invokes execute_shell with the request', async () => {
+      const shellResult = {
+        results: [{ index: 0, kind: 'value', documents: [{ value: 6 }], truncated: false }],
+        output: 'hello\n',
+        executionTimeMs: 12,
+      };
+      mockInvoke.mockResolvedValueOnce(shellResult);
+
+      const result = await executeShell('conn1', {
+        script: '__dgrid.result(0, 6)',
+        database: 'test',
+        tabId: 'tab-1',
+      });
+
+      expect(mockInvoke).toHaveBeenCalledWith('execute_shell', {
+        id: 'conn1',
+        request: { script: '__dgrid.result(0, 6)', database: 'test', tabId: 'tab-1' },
+      });
+      expect(result).toEqual(shellResult);
+    });
+
+    it('executeShell throws QueryCancelledError on cancellation', async () => {
+      mockInvoke.mockRejectedValueOnce('Query was cancelled');
+
+      await expect(
+        executeShell('conn1', { script: 'sleep(1000)', database: 'test' })
+      ).rejects.toThrow(QueryCancelledError);
+    });
+
+    it('executeShell wraps other failures as ApiError', async () => {
+      mockInvoke.mockRejectedValueOnce(
+        'mongosh was not found on PATH. Install the MongoDB Shell to use Shell mode.'
+      );
+
+      await expect(executeShell('conn1', { script: '1', database: 'test' })).rejects.toMatchObject({
+        name: 'ApiError',
+        message: expect.stringContaining('mongosh was not found on PATH'),
+      });
     });
 
     it('cancelQuery invokes cancel_query', async () => {

@@ -14,6 +14,8 @@ import type {
   CollectionSchemaResponse,
   ExecuteQueryRequest,
   ExecuteQueryResponse,
+  ExecuteShellRequest,
+  ExecuteShellResponse,
   UpdateFieldRequest,
   UpdateFieldResponse,
   UpdateDocumentRequest,
@@ -321,6 +323,23 @@ export async function executeQuery(
         pageSize: data.pageSize ?? 50,
         tabId: options?.tabId,
       },
+    });
+  } catch (error) {
+    if (typeof error === 'string' && error.includes('cancelled')) {
+      throw new QueryCancelledError();
+    }
+    throw wrapInvokeError(error);
+  }
+}
+
+export async function executeShell(
+  connectionId: string,
+  request: ExecuteShellRequest
+): Promise<ExecuteShellResponse> {
+  try {
+    return await invoke<ExecuteShellResponse>('execute_shell', {
+      id: connectionId,
+      request,
     });
   } catch (error) {
     if (typeof error === 'string' && error.includes('cancelled')) {

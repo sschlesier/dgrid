@@ -81,6 +81,37 @@ export interface ExecuteQueryResponse {
   executionTimeMs: number;
 }
 
+// Shell scripts (run through mongosh)
+export interface ExecuteShellRequest {
+  /** Already instrumented: calls `__dgrid.result(index, value)` for each value to report. */
+  script: string;
+  database: string;
+  /** For cancellation with `cancel_query`. */
+  tabId?: string;
+}
+
+export interface ShellResult {
+  /** The index passed to `__dgrid.result`. */
+  index: number;
+  kind: 'cursor' | 'value';
+  /** Tagged format, as in `ExecuteQueryResponse.documents`. */
+  documents: Record<string, unknown>[];
+  truncated: boolean;
+}
+
+export interface ShellError {
+  message: string;
+}
+
+export interface ExecuteShellResponse {
+  results: ShellResult[];
+  /** stdout and stderr, merged in arrival order. */
+  output: string;
+  /** Set when mongosh exits non-zero. */
+  error?: ShellError;
+  executionTimeMs: number;
+}
+
 // CSV Export
 export interface ExportCsvRequest {
   query: string;
