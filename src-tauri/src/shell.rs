@@ -664,4 +664,459 @@ mod tests {
 
         assert!(matches!(err, DgridError::NotFound { .. }));
     }
+
+    // --- integration ---
+    //
+    // These need a real MongoDB and `mongosh` on PATH (or DGRID_MONGOSH_PATH).
+    // Run with: MONGODB_TEST_URI=mongodb://localhost:27017 cargo test -- --ignored shell
+
+    use crate::pool::MongoConnectionOptions;
+    use mongodb::bson::{doc, oid::ObjectId, DateTime, Document};
+    use mongodb::Database;
+
+    const CONNECTION_ID: &str = "shell-test";
+
+    /// A pooled connection and a database that belongs to one test.
+    struct TestDb {
+        pool: ConnectionPool,
+        uri: String,
+        name: String,
+    }
+
+    impl TestDb {
+        async fn create(name: &str) -> Self {
+            let uri = std::env::var("MONGODB_TEST_URI").unwrap();
+            let pool = ConnectionPool::new();
+            pool.connect(
+                CONNECTION_ID,
+                MongoConnectionOptions {
+                    uri: uri.clone(),
+                    database: None,
+                },
+            )
+            .await
+            .unwrap();
+            let test_db = Self {
+                pool,
+                uri,
+                name: name.into(),
+            };
+            test_db.db().await.drop().await.unwrap();
+            test_db
+        }
+
+        async fn db(&self) -> Database {
+            self.pool
+                .get_db(CONNECTION_ID, Some(&self.name))
+                .await
+                .unwrap()
+        }
+
+        async fn seed(&self, docs: Vec<Document>) {
+            self.db()
+                .await
+                .collection::<Document>("items")
+                .insert_many(docs)
+                .await
+                .unwrap();
+        }
+
+        /// Run through the pool, as the Tauri command does.
+        async fn run(&self, script: &str) -> ExecuteShellResponse {
+            execute_shell(
+                &self.pool,
+                CONNECTION_ID,
+                request(script, &self.name),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap()
+        }
+
+        async fn cleanup(self) {
+            self.db().await.drop().await.unwrap();
+            self.pool.force_disconnect(CONNECTION_ID).await;
+        }
+    }
+
+    fn documents_json(result: &ShellResult) -> Value {
+        Value::Array(
+            result
+                .documents
+                .iter()
+                .cloned()
+                .map(Value::Object)
+                .collect(),
+        )
+    }
+
+    fn process_is_running(pid: u32) -> bool {
+        std::process::Command::new("ps")
+            .args(["-p", &pid.to_string()])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_cursor_returns_tagged_documents() {
+        let test_db = TestDb::create("dgrid_shell_cursor_test").await;
+        let seeded = doc! {
+            "_id": ObjectId::new(),
+            "at": DateTime::from_millis(1_700_000_000_000),
+            "n": 5_i64,
+            "name": "Alice",
+        };
+        test_db.seed(vec![seeded.clone()]).await;
+
+        let response = test_db.run("__dgrid.result(0, db.items.find({}))").await;
+
+        assert!(response.error.is_none(), "{:?}", response.error);
+        assert_eq!(response.results.len(), 1);
+        let result = &response.results[0];
+        assert_eq!(result.index, 0);
+        assert_eq!(result.kind, "cursor");
+        assert!(!result.truncated);
+        // serialize_document is what execute_query returns documents through.
+        assert_eq!(result.documents, vec![serialize_document(&seeded)]);
+        assert_eq!(result.documents[0]["_id"]["_type"], "ObjectId");
+        assert_eq!(result.documents[0]["at"]["_type"], "Date");
+        assert_eq!(
+            result.documents[0]["n"],
+            json!({ "_type": "Long", "_value": "5" })
+        );
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_three_results_come_back_in_index_order() {
+        let test_db = TestDb::create("dgrid_shell_order_test").await;
+
+        let response = test_db
+            .run("__dgrid.result(2, 'c'); __dgrid.result(0, 'a'); __dgrid.result(1, 'b');")
+            .await;
+
+        assert_eq!(
+            response
+                .results
+                .iter()
+                .map(|r| (r.index, documents_json(r)))
+                .collect::<Vec<_>>(),
+            vec![
+                (0, json!([{ "value": "a" }])),
+                (1, json!([{ "value": "b" }])),
+                (2, json!([{ "value": "c" }])),
+            ]
+        );
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_values_are_wrapped_by_shape() {
+        let test_db = TestDb::create("dgrid_shell_values_test").await;
+
+        let response = test_db
+            .run(
+                "__dgrid.result(0, 6);\n\
+                 __dgrid.result(1, { a: 1, b: 'x' });\n\
+                 __dgrid.result(2, [1, 'two']);\n\
+                 __dgrid.result(3, undefined);\n\
+                 __dgrid.result(4, null);\n\
+                 __dgrid.result(5, []);",
+            )
+            .await;
+
+        assert!(response.error.is_none(), "{:?}", response.error);
+        assert_eq!(
+            response
+                .results
+                .iter()
+                .map(|r| (r.index, r.kind.as_str(), documents_json(r)))
+                .collect::<Vec<_>>(),
+            vec![
+                (0, "value", json!([{ "value": 6 }])),
+                (1, "value", json!([{ "a": 1, "b": "x" }])),
+                (2, "value", json!([{ "value": 1 }, { "value": "two" }])),
+                (4, "value", json!([{ "value": null }])),
+                (5, "value", json!([])),
+            ]
+        );
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_unserializable_values_report_a_placeholder() {
+        let test_db = TestDb::create("dgrid_shell_placeholder_test").await;
+
+        let response = test_db
+            .run(
+                "__dgrid.result(0, db.items);\n\
+                 __dgrid.result(1, function () {});\n\
+                 __dgrid.result(2, 'after');",
+            )
+            .await;
+
+        assert!(response.error.is_none(), "{:?}", response.error);
+        assert_eq!(
+            response
+                .results
+                .iter()
+                .map(|r| (r.index, r.kind.as_str(), documents_json(r)))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    0,
+                    "value",
+                    json!([{ "value": "[not displayable: Collection]" }])
+                ),
+                (
+                    1,
+                    "value",
+                    json!([{ "value": "[not displayable: function]" }])
+                ),
+                (2, "value", json!([{ "value": "after" }])),
+            ]
+        );
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_truncates_cursors_and_arrays_at_1000() {
+        let test_db = TestDb::create("dgrid_shell_truncate_test").await;
+        test_db
+            .seed((0..1001).map(|i| doc! { "i": i }).collect())
+            .await;
+
+        let response = test_db
+            .run(
+                "__dgrid.result(0, db.items.find({}));\n\
+                 __dgrid.result(1, Array.from({ length: 1001 }, (_, i) => i));\n\
+                 __dgrid.result(2, db.items.find({}).limit(1000));\n\
+                 __dgrid.result(3, Array.from({ length: 1000 }, (_, i) => i));",
+            )
+            .await;
+
+        assert!(response.error.is_none(), "{:?}", response.error);
+        assert_eq!(
+            response
+                .results
+                .iter()
+                .map(|r| (r.index, r.documents.len(), r.truncated))
+                .collect::<Vec<_>>(),
+            vec![
+                (0, 1000, true),
+                (1, 1000, true),
+                (2, 1000, false),
+                (3, 1000, false),
+            ]
+        );
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_print_goes_to_output_and_db_is_the_request_database() {
+        let test_db = TestDb::create("dgrid_shell_output_test").await;
+
+        let response = test_db
+            .run("print('hello'); __dgrid.result(0, db.getName());")
+            .await;
+
+        assert!(response.error.is_none(), "{:?}", response.error);
+        assert!(response.output.contains("hello"), "{}", response.output);
+        assert_eq!(
+            documents_json(&response.results[0]),
+            json!([{ "value": "dgrid_shell_output_test" }])
+        );
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_script_error_is_data_and_temp_dir_is_removed() {
+        let test_db = TestDb::create("dgrid_shell_error_test").await;
+        let mut run_dir = None;
+
+        let response = run_script(
+            &mongosh_program(std::env::var_os(MONGOSH_PATH_ENV)),
+            &test_db.uri,
+            &request(
+                "print('before the throw');\n\
+                 __dgrid.result(0, 1);\n\
+                 throw new Error('boom from script');\n\
+                 __dgrid.result(1, 2);",
+                &test_db.name,
+            ),
+            CancellationToken::new(),
+            |_, _, dir| {
+                assert!(dir.is_dir());
+                run_dir = Some(dir.to_path_buf());
+            },
+        )
+        .await
+        .expect("a script error is a normal response");
+
+        let error = response.error.expect("error is set");
+        assert!(error.message.contains("boom from script"), "{error:?}");
+        assert!(
+            response.output.contains("before the throw"),
+            "{}",
+            response.output
+        );
+        assert_eq!(response.results.len(), 1);
+        assert_eq!(
+            documents_json(&response.results[0]),
+            json!([{ "value": 1 }])
+        );
+        assert!(!run_dir.unwrap().exists());
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_temp_dir_is_private_and_removed_after_success() {
+        let test_db = TestDb::create("dgrid_shell_tempdir_test").await;
+        let mut run_dir = None;
+
+        let response = run_script(
+            &mongosh_program(std::env::var_os(MONGOSH_PATH_ENV)),
+            &test_db.uri,
+            &request("__dgrid.result(0, 1)", &test_db.name),
+            CancellationToken::new(),
+            |_, _, dir| {
+                assert!(dir.starts_with(std::env::temp_dir()));
+                assert!(dir
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("dgrid-shell-"));
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let mode = std::fs::metadata(dir).unwrap().permissions().mode();
+                    assert_eq!(mode & 0o777, 0o700);
+                }
+                run_dir = Some(dir.to_path_buf());
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(response.error.is_none(), "{:?}", response.error);
+        assert_eq!(response.results.len(), 1);
+        assert!(!run_dir.unwrap().exists());
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_cancel_kills_mongosh_and_removes_temp_dir() {
+        let test_db = TestDb::create("dgrid_shell_cancel_test").await;
+        let token = CancellationToken::new();
+        let (spawned_tx, spawned_rx) = tokio::sync::oneshot::channel();
+
+        let run = tokio::spawn({
+            let token = token.clone();
+            let uri = test_db.uri.clone();
+            let request = request("__dgrid.result(0, 1); sleep(120000);", &test_db.name);
+            let program = mongosh_program(std::env::var_os(MONGOSH_PATH_ENV));
+            async move {
+                run_script(&program, &uri, &request, token, |pid, _, dir| {
+                    let _ = spawned_tx.send((pid.unwrap(), dir.to_path_buf()));
+                })
+                .await
+            }
+        });
+        let (pid, run_dir) = spawned_rx.await.unwrap();
+
+        // The first result on disk means the script has reached its sleep.
+        let result_file = run_dir.join(RESULT_FILE);
+        let deadline = Instant::now() + std::time::Duration::from_secs(30);
+        while std::fs::metadata(&result_file).map_or(true, |m| m.len() == 0) {
+            assert!(Instant::now() < deadline, "script never reported a result");
+            assert!(!run.is_finished(), "run ended before the sleep");
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+
+        #[cfg(unix)]
+        {
+            let ps = std::process::Command::new("ps")
+                .args(["-o", "args=", "-p", &pid.to_string()])
+                .output()
+                .unwrap();
+            let args = String::from_utf8_lossy(&ps.stdout);
+            assert!(args.contains("mongosh"), "unexpected process: {args}");
+            assert!(!args.contains(&test_db.uri), "URI in arguments: {args}");
+            assert!(!args.contains("mongodb://"), "URI in arguments: {args}");
+        }
+        for entry in std::fs::read_dir(&run_dir).unwrap() {
+            let content = std::fs::read_to_string(entry.unwrap().path()).unwrap();
+            assert!(!content.contains(&test_db.uri));
+        }
+
+        token.cancel();
+        let result = run.await.unwrap();
+
+        assert!(matches!(result, Err(DgridError::QueryCancelled)));
+        assert!(!process_is_running(pid), "mongosh {pid} is still running");
+        assert!(!run_dir.exists());
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_password_is_not_in_arguments_or_temp_files() {
+        const PASSWORD: &str = "dgrid-s3cret-pw";
+        // Nothing listens on port 1: the connection fails, which is fine here.
+        let uri =
+            format!("mongodb://dgrid_user:{PASSWORD}@127.0.0.1:1/?serverSelectionTimeoutMS=1000");
+        let mut seen_args = Vec::new();
+        let mut seen_files = Vec::new();
+        let mut run_dir = None;
+
+        let response = run_script(
+            &mongosh_program(std::env::var_os(MONGOSH_PATH_ENV)),
+            &uri,
+            &request("__dgrid.result(0, 1)", "dgrid_shell_password_test"),
+            CancellationToken::new(),
+            |_, args, dir| {
+                seen_args = args.to_vec();
+                for entry in std::fs::read_dir(dir).unwrap() {
+                    let path = entry.unwrap().path();
+                    seen_files.push((path.clone(), std::fs::read_to_string(path).unwrap()));
+                }
+                run_dir = Some(dir.to_path_buf());
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(response.error.is_some(), "the connection cannot succeed");
+        assert_eq!(seen_args.len(), 5);
+        for arg in &seen_args {
+            let arg = arg.to_string_lossy();
+            assert!(!arg.contains(PASSWORD), "password in argument: {arg}");
+            assert!(!arg.contains("mongodb://"), "URI in argument: {arg}");
+        }
+        assert_eq!(seen_files.len(), 2, "prelude and script: {seen_files:?}");
+        for (path, content) in &seen_files {
+            assert!(!content.contains(PASSWORD), "password in {path:?}");
+        }
+        assert!(!run_dir.unwrap().exists());
+    }
 }
