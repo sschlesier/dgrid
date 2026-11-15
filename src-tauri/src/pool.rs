@@ -104,6 +104,12 @@ impl ConnectionPool {
         Some(conn.client.database(&database))
     }
 
+    /// The full connection URI, credentials included, as given to `connect`.
+    pub async fn get_uri(&self, id: &str) -> Option<String> {
+        let conns = self.connections.read().await;
+        conns.get(id).map(|c| c.options.uri.clone())
+    }
+
     pub async fn is_connected(&self, id: &str) -> bool {
         let conns = self.connections.read().await;
         conns.contains_key(id)
@@ -152,6 +158,12 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn get_uri_returns_none_for_unknown() {
+        let pool = ConnectionPool::new();
+        assert!(pool.get_uri("unknown").await.is_none());
+    }
+
+    #[tokio::test]
     async fn force_disconnect_noop_for_unknown() {
         let pool = ConnectionPool::new();
         pool.force_disconnect("unknown").await; // Should not panic
@@ -194,6 +206,7 @@ mod tests {
         assert!(pool.get_client("test-conn").await.is_some());
         assert!(pool.get_db("test-conn", None).await.is_some());
         assert!(pool.get_db("test-conn", Some("other_db")).await.is_some());
+        assert_eq!(pool.get_uri("test-conn").await, Some(uri));
         assert_eq!(pool.list_connections().await, vec!["test-conn"]);
 
         pool.disconnect("test-conn").await.unwrap();

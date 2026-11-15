@@ -1,0 +1,667 @@
+//! Runs an instrumented script through `mongosh` and collects what it reported.
+//!
+//! The script calls `__dgrid.result(index, value)` (defined by `shell_prelude.js`), which
+//! appends one canonical Extended JSON line per value to a result file. After the child
+//! exits, each line is mapped to documents in the tagged format of `bson_ser`.
+
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::Mutex;
+use std::time::Instant;
+
+use mongodb::bson::Bson;
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::process::Command;
+use tokio_util::sync::CancellationToken;
+
+use crate::bson_ser::{serialize_bson_value, serialize_document};
+use crate::error::DgridError;
+use crate::pool::ConnectionPool;
+
+const PRELUDE: &str = include_str!("shell_prelude.js");
+const PRELUDE_FILE: &str = "prelude.js";
+const SCRIPT_FILE: &str = "script.js";
+const RESULT_FILE: &str = "results.jsonl";
+
+const MONGOSH_PATH_ENV: &str = "DGRID_MONGOSH_PATH";
+const MONGOSH_NOT_FOUND: &str =
+    "mongosh was not found on PATH. Install the MongoDB Shell to use Shell mode.";
+
+const OUTPUT_CAP_BYTES: usize = 1_048_576;
+const OUTPUT_TRUNCATED_LINE: &str = "… output truncated";
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecuteShellRequest {
+    /// Already instrumented by the frontend; never parsed here.
+    pub script: String,
+    pub database: String,
+    pub tab_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellResult {
+    pub index: i64,
+    pub kind: String,
+    pub documents: Vec<Map<String, Value>>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellError {
+    pub message: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecuteShellResponse {
+    pub results: Vec<ShellResult>,
+    pub output: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<ShellError>,
+    pub execution_time_ms: u64,
+}
+
+/// Run `request.script` through mongosh against the pooled connection `id`.
+///
+/// A script that fails is not an `Err`: the response carries `error` next to whatever
+/// results and output were collected before the failure.
+pub async fn execute_shell(
+    pool: &ConnectionPool,
+    id: &str,
+    request: ExecuteShellRequest,
+    token: CancellationToken,
+) -> Result<ExecuteShellResponse, DgridError> {
+    let uri = pool.get_uri(id).await.ok_or_else(|| DgridError::NotFound {
+        entity: "Connection".into(),
+        id: id.into(),
+    })?;
+
+    let program = mongosh_program(std::env::var_os(MONGOSH_PATH_ENV));
+    run_script(&program, &uri, &request, token, |_, _, _| {}).await
+}
+
+/// `DGRID_MONGOSH_PATH` when set and not empty, else the bare name for the OS to resolve
+/// through `PATH`.
+fn mongosh_program(override_path: Option<OsString>) -> OsString {
+    override_path
+        .filter(|path| !path.is_empty())
+        .unwrap_or_else(|| OsString::from("mongosh"))
+}
+
+/// The connection URI is deliberately not an argument: it reaches the child through the
+/// environment so it never shows up in the process list.
+fn mongosh_args(dir: &Path) -> Vec<OsString> {
+    vec![
+        "--nodb".into(),
+        "--quiet".into(),
+        "--norc".into(),
+        dir.join(PRELUDE_FILE).into_os_string(),
+        dir.join(SCRIPT_FILE).into_os_string(),
+    ]
+}
+
+/// The per-run temp directory, removed on drop so every exit path cleans up.
+struct RunDir {
+    path: PathBuf,
+}
+
+impl RunDir {
+    fn create() -> std::io::Result<Self> {
+        let path = std::env::temp_dir().join(format!("dgrid-shell-{}", uuid::Uuid::new_v4()));
+        let mut builder = std::fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder.create(&path)?;
+        Ok(Self { path })
+    }
+}
+
+impl Drop for RunDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
+
+/// Spawn `program` on the script and collect its results and output.
+///
+/// `on_spawn` receives the child's pid, its arguments and the run's temp directory right
+/// after the spawn; tests use it to inspect a run in progress.
+async fn run_script(
+    program: &OsStr,
+    uri: &str,
+    request: &ExecuteShellRequest,
+    token: CancellationToken,
+    on_spawn: impl FnOnce(Option<u32>, &[OsString], &Path),
+) -> Result<ExecuteShellResponse, DgridError> {
+    let start = Instant::now();
+
+    let dir = RunDir::create().map_err(io_error)?;
+    let result_path = dir.path.join(RESULT_FILE);
+    tokio::fs::write(dir.path.join(PRELUDE_FILE), PRELUDE)
+        .await
+        .map_err(io_error)?;
+    tokio::fs::write(dir.path.join(SCRIPT_FILE), &request.script)
+        .await
+        .map_err(io_error)?;
+
+    let args = mongosh_args(&dir.path);
+    let mut child = Command::new(program)
+        .args(&args)
+        .env("DGRID_SHELL_URI", uri)
+        .env("DGRID_SHELL_DB", &request.database)
+        .env("DGRID_SHELL_OUT", &result_path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                DgridError::QueryExecution(MONGOSH_NOT_FOUND.into())
+            } else {
+                io_error(e)
+            }
+        })?;
+
+    on_spawn(child.id(), &args, &dir.path);
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let collected = Mutex::new(CollectedOutput::default());
+
+    let finished = {
+        let run = async {
+            let (_, _, status) = tokio::join!(
+                drain(stdout, &collected, Stream::Stdout),
+                drain(stderr, &collected, Stream::Stderr),
+                child.wait(),
+            );
+            status
+        };
+        tokio::select! {
+            status = run => Some(status),
+            _ = token.cancelled() => None,
+        }
+    };
+
+    let Some(status) = finished else {
+        // Wait for the kill so the child is gone before its temp directory is.
+        let _ = child.kill().await;
+        return Err(DgridError::QueryCancelled);
+    };
+    let status = status.map_err(io_error)?;
+
+    let collected = collected
+        .into_inner()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    let error = if status.success() {
+        None
+    } else {
+        let stderr_text = collected.stderr.to_text();
+        let stderr_text = stderr_text.trim();
+        let message = if !stderr_text.is_empty() {
+            stderr_text.to_string()
+        } else {
+            match status.code() {
+                Some(code) => format!("mongosh exited with code {code}"),
+                None => "mongosh exited without an exit code".to_string(),
+            }
+        };
+        Some(ShellError { message })
+    };
+
+    let results = match tokio::fs::read_to_string(&result_path).await {
+        Ok(text) => parse_results(&text).map_err(DgridError::QueryExecution)?,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(e) => return Err(io_error(e)),
+    };
+
+    Ok(ExecuteShellResponse {
+        results,
+        output: collected.merged.to_text(),
+        error,
+        execution_time_ms: start.elapsed().as_millis() as u64,
+    })
+}
+
+fn io_error(e: std::io::Error) -> DgridError {
+    DgridError::QueryExecution(e.to_string())
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Stream {
+    Stdout,
+    Stderr,
+}
+
+/// Bytes kept up to `OUTPUT_CAP_BYTES`; anything past the cap is counted as truncated.
+#[derive(Default)]
+struct CappedBuffer {
+    bytes: Vec<u8>,
+    truncated: bool,
+}
+
+impl CappedBuffer {
+    fn push(&mut self, chunk: &[u8]) {
+        let room = OUTPUT_CAP_BYTES - self.bytes.len();
+        if chunk.len() > room {
+            self.truncated = true;
+        }
+        self.bytes
+            .extend_from_slice(&chunk[..chunk.len().min(room)]);
+    }
+
+    fn to_text(&self) -> String {
+        if !self.truncated {
+            return String::from_utf8_lossy(&self.bytes).into_owned();
+        }
+
+        // The cap may have split a multi-byte character; drop the partial tail.
+        let kept = match std::str::from_utf8(&self.bytes) {
+            Err(e) if e.error_len().is_none() => &self.bytes[..e.valid_up_to()],
+            _ => &self.bytes[..],
+        };
+        let mut text = String::from_utf8_lossy(kept).into_owned();
+        if !text.is_empty() && !text.ends_with('\n') {
+            text.push('\n');
+        }
+        text.push_str(OUTPUT_TRUNCATED_LINE);
+        text
+    }
+}
+
+#[derive(Default)]
+struct CollectedOutput {
+    /// stdout and stderr in arrival order.
+    merged: CappedBuffer,
+    stderr: CappedBuffer,
+}
+
+/// Read a pipe to its end. Reading continues past the output cap so the child never
+/// blocks on a full pipe.
+async fn drain(
+    pipe: Option<impl AsyncRead + Unpin>,
+    collected: &Mutex<CollectedOutput>,
+    stream: Stream,
+) {
+    let Some(mut pipe) = pipe else { return };
+    let mut chunk = [0u8; 8192];
+    loop {
+        match pipe.read(&mut chunk).await {
+            Ok(0) | Err(_) => break,
+            Ok(n) => {
+                let mut collected = collected
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                collected.merged.push(&chunk[..n]);
+                if stream == Stream::Stderr {
+                    collected.stderr.push(&chunk[..n]);
+                }
+            }
+        }
+    }
+}
+
+/// Parse the result file: one canonical Extended JSON envelope per line, returned sorted
+/// by `index`.
+fn parse_results(text: &str) -> Result<Vec<ShellResult>, String> {
+    let mut results = text
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(parse_result_line)
+        .collect::<Result<Vec<_>, _>>()?;
+    results.sort_by_key(|result| result.index);
+    Ok(results)
+}
+
+fn parse_result_line(line: &str) -> Result<ShellResult, String> {
+    let invalid = |reason: String| format!("Could not read a shell result: {reason}");
+
+    let json: Value = serde_json::from_str(line).map_err(|e| invalid(e.to_string()))?;
+    // The whole envelope is Extended JSON: `index` arrives as `{"$numberInt": "0"}`.
+    let envelope = match Bson::try_from(json).map_err(|e| invalid(e.to_string()))? {
+        Bson::Document(doc) => doc,
+        other => return Err(invalid(format!("expected an object, got {other}"))),
+    };
+
+    let index = match envelope.get("index") {
+        Some(Bson::Int32(i)) => i64::from(*i),
+        Some(Bson::Int64(i)) => *i,
+        Some(Bson::Double(f)) => *f as i64,
+        _ => return Err(invalid("missing index".into())),
+    };
+    let kind = envelope
+        .get_str("kind")
+        .map_err(|_| invalid("missing kind".into()))?
+        .to_string();
+    let truncated = envelope.get_bool("truncated").unwrap_or(false);
+    let documents = to_documents(envelope.get("value").unwrap_or(&Bson::Null));
+
+    Ok(ShellResult {
+        index,
+        kind,
+        documents,
+        truncated,
+    })
+}
+
+/// A document is one document, an array is one document per element, and anything that
+/// is not a document is wrapped as `{ "value": <it> }`.
+fn to_documents(value: &Bson) -> Vec<Map<String, Value>> {
+    match value {
+        Bson::Array(items) => items.iter().map(to_document).collect(),
+        other => vec![to_document(other)],
+    }
+}
+
+fn to_document(value: &Bson) -> Map<String, Value> {
+    match value {
+        Bson::Document(doc) => serialize_document(doc),
+        other => {
+            let mut wrapped = Map::new();
+            wrapped.insert("value".into(), serialize_bson_value(other));
+            wrapped
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn parse_one(line: &str) -> ShellResult {
+        parse_result_line(line).unwrap()
+    }
+
+    fn request(script: &str, database: &str) -> ExecuteShellRequest {
+        ExecuteShellRequest {
+            script: script.into(),
+            database: database.into(),
+            tab_id: None,
+        }
+    }
+
+    // --- mapping ---
+
+    #[test]
+    fn cursor_line_maps_to_tagged_documents() {
+        let result = parse_one(
+            r#"{"index":{"$numberInt":"0"},"kind":"cursor","truncated":false,"value":[{"_id":{"$oid":"507f1f77bcf86cd799439011"},"at":{"$date":{"$numberLong":"0"}},"n":{"$numberLong":"5"},"name":"Alice"}]}"#,
+        );
+
+        assert_eq!(result.index, 0);
+        assert_eq!(result.kind, "cursor");
+        assert!(!result.truncated);
+        assert_eq!(
+            Value::Array(result.documents.into_iter().map(Value::Object).collect()),
+            json!([{
+                "_id": { "_type": "ObjectId", "_value": "507f1f77bcf86cd799439011" },
+                "at": { "_type": "Date", "_value": "1970-01-01T00:00:00.000Z" },
+                "n": { "_type": "Long", "_value": "5" },
+                "name": "Alice"
+            }])
+        );
+    }
+
+    #[test]
+    fn other_tagged_types_map_like_query_results() {
+        let result = parse_one(
+            r#"{"index":{"$numberInt":"0"},"kind":"value","truncated":false,"value":{"dec":{"$numberDecimal":"1.5"},"u":{"$binary":{"base64":"5ccZwC/qQTyuouGpAa8ErA==","subType":"04"}},"bin":{"$binary":{"base64":"AQID","subType":"00"}},"dbl":{"$numberDouble":"6.5"},"big":{"$numberLong":"5000000000"}}}"#,
+        );
+
+        assert_eq!(
+            Value::Object(result.documents[0].clone()),
+            json!({
+                "dec": { "_type": "Decimal128", "_value": "1.5" },
+                "u": { "_type": "UUID", "_value": "e5c719c0-2fea-413c-aea2-e1a901af04ac" },
+                "bin": { "_type": "Binary", "_value": "AQID" },
+                "dbl": 6.5,
+                "big": { "_type": "Long", "_value": "5000000000" }
+            })
+        );
+    }
+
+    #[test]
+    fn scalar_is_wrapped_as_one_value_document() {
+        let result = parse_one(
+            r#"{"index":{"$numberInt":"1"},"kind":"value","truncated":false,"value":{"$numberInt":"6"}}"#,
+        );
+
+        assert_eq!(result.kind, "value");
+        assert_eq!(
+            Value::Object(result.documents[0].clone()),
+            json!({ "value": 6 })
+        );
+        assert_eq!(result.documents.len(), 1);
+    }
+
+    #[test]
+    fn plain_object_is_one_document() {
+        let result = parse_one(
+            r#"{"index":{"$numberInt":"0"},"kind":"value","truncated":false,"value":{"a":{"$numberInt":"1"},"b":"x"}}"#,
+        );
+
+        assert_eq!(result.documents.len(), 1);
+        assert_eq!(
+            Value::Object(result.documents[0].clone()),
+            json!({ "a": 1, "b": "x" })
+        );
+    }
+
+    #[test]
+    fn array_of_scalars_is_one_value_document_per_element() {
+        let result = parse_one(
+            r#"{"index":{"$numberInt":"0"},"kind":"value","truncated":false,"value":[{"$numberInt":"1"},"two",{"k":true}]}"#,
+        );
+
+        assert_eq!(
+            Value::Array(result.documents.into_iter().map(Value::Object).collect()),
+            json!([{ "value": 1 }, { "value": "two" }, { "k": true }])
+        );
+    }
+
+    #[test]
+    fn null_is_one_value_document() {
+        let result = parse_one(
+            r#"{"index":{"$numberInt":"0"},"kind":"value","truncated":false,"value":null}"#,
+        );
+
+        assert_eq!(
+            Value::Object(result.documents[0].clone()),
+            json!({ "value": null })
+        );
+        assert_eq!(result.documents.len(), 1);
+    }
+
+    #[test]
+    fn empty_array_is_a_result_with_no_documents() {
+        let result = parse_one(
+            r#"{"index":{"$numberInt":"0"},"kind":"value","truncated":false,"value":[]}"#,
+        );
+
+        assert!(result.documents.is_empty());
+    }
+
+    #[test]
+    fn truncated_flag_is_carried_over() {
+        let result = parse_one(
+            r#"{"index":{"$numberInt":"0"},"kind":"cursor","truncated":true,"value":[]}"#,
+        );
+
+        assert!(result.truncated);
+    }
+
+    #[test]
+    fn results_are_sorted_by_index() {
+        let text = [
+            r#"{"index":{"$numberInt":"2"},"kind":"value","truncated":false,"value":"c"}"#,
+            r#"{"index":{"$numberInt":"0"},"kind":"value","truncated":false,"value":"a"}"#,
+            "",
+            r#"{"index":{"$numberInt":"1"},"kind":"value","truncated":false,"value":"b"}"#,
+        ]
+        .join("\n");
+
+        let results = parse_results(&text).unwrap();
+
+        assert_eq!(
+            results.iter().map(|r| r.index).collect::<Vec<_>>(),
+            vec![0, 1, 2]
+        );
+    }
+
+    #[test]
+    fn unreadable_line_is_an_error() {
+        let err = parse_results("{not json").unwrap_err();
+
+        assert!(err.starts_with("Could not read a shell result"));
+    }
+
+    #[test]
+    fn response_omits_error_when_none_and_uses_camel_case() {
+        let response = ExecuteShellResponse {
+            results: vec![],
+            output: String::new(),
+            error: None,
+            execution_time_ms: 3,
+        };
+
+        assert_eq!(
+            serde_json::to_value(&response).unwrap(),
+            json!({ "results": [], "output": "", "executionTimeMs": 3 })
+        );
+    }
+
+    // --- output cap ---
+
+    #[test]
+    fn output_under_the_cap_is_unchanged() {
+        let mut buffer = CappedBuffer::default();
+        buffer.push(b"hello\n");
+
+        assert_eq!(buffer.to_text(), "hello\n");
+    }
+
+    #[test]
+    fn output_exactly_at_the_cap_is_not_marked_truncated() {
+        let mut buffer = CappedBuffer::default();
+        buffer.push(&vec![b'a'; OUTPUT_CAP_BYTES]);
+
+        assert_eq!(buffer.to_text().len(), OUTPUT_CAP_BYTES);
+    }
+
+    #[test]
+    fn output_over_the_cap_is_cut_with_a_final_line() {
+        let mut buffer = CappedBuffer::default();
+        buffer.push(&vec![b'a'; OUTPUT_CAP_BYTES - 10]);
+        buffer.push(&[b'b'; 100]);
+        buffer.push(b"dropped");
+
+        let text = buffer.to_text();
+
+        let (kept, last_line) = text.rsplit_once('\n').unwrap();
+        assert_eq!(kept.len(), OUTPUT_CAP_BYTES);
+        assert!(kept.ends_with("bbbbbbbbbb"));
+        assert_eq!(last_line, OUTPUT_TRUNCATED_LINE);
+    }
+
+    #[test]
+    fn output_cap_cuts_on_a_utf8_boundary() {
+        let mut buffer = CappedBuffer::default();
+        buffer.push(&vec![b'a'; OUTPUT_CAP_BYTES - 1]);
+        buffer.push("é".as_bytes());
+
+        let text = buffer.to_text();
+
+        let (kept, last_line) = text.rsplit_once('\n').unwrap();
+        assert_eq!(kept.len(), OUTPUT_CAP_BYTES - 1);
+        assert!(kept.bytes().all(|b| b == b'a'));
+        assert_eq!(last_line, OUTPUT_TRUNCATED_LINE);
+    }
+
+    // --- finding and invoking mongosh ---
+
+    #[test]
+    fn mongosh_program_defaults_to_path_lookup() {
+        assert_eq!(mongosh_program(None), OsString::from("mongosh"));
+        assert_eq!(
+            mongosh_program(Some(OsString::new())),
+            OsString::from("mongosh")
+        );
+    }
+
+    #[test]
+    fn mongosh_program_uses_the_override() {
+        assert_eq!(
+            mongosh_program(Some(OsString::from("/opt/tools/mongosh"))),
+            OsString::from("/opt/tools/mongosh")
+        );
+    }
+
+    #[test]
+    fn args_are_the_fixed_flags_and_the_two_files() {
+        let dir = Path::new("/tmp/dgrid-shell-x");
+
+        let args = mongosh_args(dir);
+
+        assert_eq!(
+            args,
+            vec![
+                OsString::from("--nodb"),
+                OsString::from("--quiet"),
+                OsString::from("--norc"),
+                dir.join("prelude.js").into_os_string(),
+                dir.join("script.js").into_os_string(),
+            ]
+        );
+        assert!(!args
+            .iter()
+            .any(|arg| arg.to_string_lossy().contains("mongodb")));
+    }
+
+    #[tokio::test]
+    async fn missing_mongosh_reports_path_message() {
+        let mut seen_dir = None;
+
+        let err = run_script(
+            OsStr::new("/nonexistent/dgrid-test/mongosh"),
+            "mongodb://localhost:27017",
+            &request("1", "test"),
+            CancellationToken::new(),
+            |_, _, dir| seen_dir = Some(dir.to_path_buf()),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(err, DgridError::QueryExecution(_)));
+        assert!(err.to_string().contains("mongosh"));
+        assert!(err.to_string().contains("PATH"));
+        assert!(seen_dir.is_none(), "nothing was spawned");
+    }
+
+    #[tokio::test]
+    async fn unknown_connection_is_not_found() {
+        let pool = ConnectionPool::new();
+
+        let err = execute_shell(
+            &pool,
+            "missing",
+            request("1", "test"),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(err, DgridError::NotFound { .. }));
+    }
+}
