@@ -31,6 +31,8 @@ const MONGOSH_PATH_ENV: &str = "DGRID_MONGOSH_PATH";
 const MONGOSH_NOT_FOUND: &str =
     "mongosh was not found on PATH. Install the MongoDB Shell to use Shell mode.";
 
+const UNREADABLE_PLACEHOLDER: &str = "[not displayable: object]";
+
 const OUTPUT_CAP_BYTES: usize = 1_048_576;
 const OUTPUT_TRUNCATED_LINE: &str = "… output truncated";
 
@@ -349,24 +351,23 @@ fn parse_result_line(line: &str) -> Result<ShellResult, String> {
     let invalid = |reason: String| format!("Could not read a shell result: {reason}");
 
     let json: Value = serde_json::from_str(line).map_err(|e| invalid(e.to_string()))?;
-    // The whole envelope is Extended JSON: `index` arrives as `{"$numberInt": "0"}`.
-    let envelope = match Bson::try_from(json).map_err(|e| invalid(e.to_string()))? {
-        Bson::Document(doc) => doc,
-        other => return Err(invalid(format!("expected an object, got {other}"))),
+    let Value::Object(mut envelope) = json else {
+        return Err(invalid("expected an object".into()));
     };
 
-    let index = match envelope.get("index") {
-        Some(Bson::Int32(i)) => i64::from(*i),
-        Some(Bson::Int64(i)) => *i,
-        Some(Bson::Double(f)) => *f as i64,
+    // The envelope is Extended JSON too: `index` arrives as `{"$numberInt": "0"}`.
+    let index = match envelope.remove("index").map(Bson::try_from) {
+        Some(Ok(Bson::Int32(i))) => i64::from(i),
+        Some(Ok(Bson::Int64(i))) => i,
+        Some(Ok(Bson::Double(f))) => f as i64,
         _ => return Err(invalid("missing index".into())),
     };
-    let kind = envelope
-        .get_str("kind")
-        .map_err(|_| invalid("missing kind".into()))?
-        .to_string();
-    let truncated = envelope.get_bool("truncated").unwrap_or(false);
-    let documents = to_documents(envelope.get("value").unwrap_or(&Bson::Null));
+    let kind = match envelope.remove("kind") {
+        Some(Value::String(kind)) => kind,
+        _ => return Err(invalid("missing kind".into())),
+    };
+    let truncated = envelope.get("truncated").and_then(Value::as_bool) == Some(true);
+    let documents = to_documents(envelope.remove("value").unwrap_or(Value::Null));
 
     Ok(ShellResult {
         index,
@@ -378,22 +379,28 @@ fn parse_result_line(line: &str) -> Result<ShellResult, String> {
 
 /// A document is one document, an array is one document per element, and anything that
 /// is not a document is wrapped as `{ "value": <it> }`.
-fn to_documents(value: &Bson) -> Vec<Map<String, Value>> {
+fn to_documents(value: Value) -> Vec<Map<String, Value>> {
     match value {
-        Bson::Array(items) => items.iter().map(to_document).collect(),
+        Value::Array(items) => items.into_iter().map(to_document).collect(),
         other => vec![to_document(other)],
     }
 }
 
-fn to_document(value: &Bson) -> Map<String, Value> {
-    match value {
-        Bson::Document(doc) => serialize_document(doc),
-        other => {
-            let mut wrapped = Map::new();
-            wrapped.insert("value".into(), serialize_bson_value(other));
-            wrapped
-        }
+/// `value` is canonical Extended JSON. mongosh can emit some that is not valid, such as
+/// an invalid Date or a user object with `$`-keys that only look like Extended JSON; that
+/// value becomes a placeholder so the rest of the run is still returned.
+fn to_document(value: Value) -> Map<String, Value> {
+    match Bson::try_from(value) {
+        Ok(Bson::Document(doc)) => serialize_document(&doc),
+        Ok(other) => wrap_value(serialize_bson_value(&other)),
+        Err(_) => wrap_value(Value::String(UNREADABLE_PLACEHOLDER.into())),
     }
+}
+
+fn wrap_value(value: Value) -> Map<String, Value> {
+    let mut wrapped = Map::new();
+    wrapped.insert("value".into(), value);
+    wrapped
 }
 
 #[cfg(test)]
@@ -494,6 +501,44 @@ mod tests {
                 "{value}"
             );
         }
+    }
+
+    #[test]
+    fn unreadable_values_become_placeholders() {
+        for value in [
+            r#"{"$date":{"$numberLong":"NaN"}}"#,
+            r#"{"$oid":{"$numberInt":"5"}}"#,
+            r#"{"when":{"$date":{"$numberLong":"NaN"}}}"#,
+        ] {
+            let result = parse_one(&format!(
+                r#"{{"index":{{"$numberInt":"3"}},"kind":"value","truncated":false,"value":{value}}}"#
+            ));
+
+            assert_eq!(result.index, 3, "{value}");
+            assert_eq!(
+                Value::Array(result.documents.into_iter().map(Value::Object).collect()),
+                json!([{ "value": "[not displayable: object]" }]),
+                "{value}"
+            );
+        }
+    }
+
+    #[test]
+    fn unreadable_element_does_not_hide_the_readable_ones() {
+        let result = parse_one(
+            r#"{"index":{"$numberInt":"0"},"kind":"cursor","truncated":true,"value":[{"a":{"$numberInt":"1"}},{"at":{"$date":{"$numberLong":"NaN"}}},{"a":{"$numberInt":"3"}}]}"#,
+        );
+
+        assert_eq!(result.kind, "cursor");
+        assert!(result.truncated);
+        assert_eq!(
+            Value::Array(result.documents.into_iter().map(Value::Object).collect()),
+            json!([
+                { "a": 1 },
+                { "value": "[not displayable: object]" },
+                { "a": 3 }
+            ])
+        );
     }
 
     #[test]
@@ -959,6 +1004,57 @@ mod tests {
                     json!([{ "value": "[not displayable: function]" }])
                 ),
                 (2, "value", json!([{ "value": "after" }])),
+            ]
+        );
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_unreadable_values_and_cursor_items_report_a_placeholder() {
+        let test_db = TestDb::create("dgrid_shell_unreadable_test").await;
+        test_db.seed(vec![doc! { "n": 1 }]).await;
+
+        let response = test_db
+            .run(
+                "__dgrid.result(0, new Date('garbage'));\n\
+                 __dgrid.result(1, { $oid: 5 });\n\
+                 __dgrid.result(2, db.items.find({}).map(() => db.items));\n\
+                 __dgrid.result(3, Symbol('s'));\n\
+                 __dgrid.result(4, 'after');",
+            )
+            .await;
+
+        assert!(response.error.is_none(), "{:?}", response.error);
+        assert_eq!(
+            response
+                .results
+                .iter()
+                .map(|r| (r.index, r.kind.as_str(), documents_json(r)))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    0,
+                    "value",
+                    json!([{ "value": "[not displayable: object]" }])
+                ),
+                (
+                    1,
+                    "value",
+                    json!([{ "value": "[not displayable: object]" }])
+                ),
+                (
+                    2,
+                    "value",
+                    json!([{ "value": "[not displayable: Cursor]" }])
+                ),
+                (
+                    3,
+                    "value",
+                    json!([{ "value": "[not displayable: symbol]" }])
+                ),
+                (4, "value", json!([{ "value": "after" }])),
             ]
         );
 

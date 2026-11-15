@@ -47,7 +47,11 @@ globalThis.__dgrid = (function () {
         }
         documents.push(value.next());
       }
-      write(index, 'cursor', truncated, documents);
+      try {
+        write(index, 'cursor', truncated, documents);
+      } catch {
+        write(index, 'value', false, `[not displayable: ${typeName(value)}]`);
+      }
       return;
     }
 
