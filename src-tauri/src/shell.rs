@@ -33,6 +33,9 @@ const MONGOSH_NOT_FOUND: &str =
 
 const UNREADABLE_PLACEHOLDER: &str = "[not displayable: object]";
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 const OUTPUT_CAP_BYTES: usize = 1_048_576;
 const OUTPUT_TRUNCATED_LINE: &str = "… output truncated";
 
@@ -157,7 +160,8 @@ async fn run_script(
         .map_err(io_error)?;
 
     let args = mongosh_args(&dir.path);
-    let mut child = Command::new(program)
+    let mut command = Command::new(program);
+    command
         .args(&args)
         .env("DGRID_SHELL_URI", uri)
         .env("DGRID_SHELL_DB", &request.database)
@@ -165,15 +169,17 @@ async fn run_script(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                DgridError::QueryExecution(MONGOSH_NOT_FOUND.into())
-            } else {
-                io_error(e)
-            }
-        })?;
+        .kill_on_drop(true);
+    // mongosh is a console program; without this, Windows opens a console window per run.
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+    let mut child = command.spawn().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            DgridError::QueryExecution(MONGOSH_NOT_FOUND.into())
+        } else {
+            io_error(e)
+        }
+    })?;
 
     on_spawn(child.id(), &args, &dir.path);
 
@@ -298,7 +304,13 @@ impl TailBuffer {
     }
 
     fn to_text(&self) -> String {
-        let bytes: Vec<u8> = self.bytes.iter().copied().collect();
+        // Dropping the front may have split a multi-byte character; skip its remainder.
+        let bytes: Vec<u8> = self
+            .bytes
+            .iter()
+            .copied()
+            .skip_while(|b| b & 0b1100_0000 == 0b1000_0000)
+            .collect();
         String::from_utf8_lossy(&bytes).into_owned()
     }
 }
@@ -603,6 +615,16 @@ mod tests {
     }
 
     #[test]
+    fn missing_value_is_one_null_value_document() {
+        let result = parse_one(r#"{"index":{"$numberInt":"0"},"kind":"value","truncated":false}"#);
+
+        assert_eq!(
+            Value::Array(result.documents.into_iter().map(Value::Object).collect()),
+            json!([{ "value": null }])
+        );
+    }
+
+    #[test]
     fn truncated_flag_is_carried_over() {
         let result = parse_one(
             r#"{"index":{"$numberInt":"0"},"kind":"cursor","truncated":true,"value":[]}"#,
@@ -682,6 +704,33 @@ mod tests {
         assert_eq!(kept.len(), OUTPUT_CAP_BYTES);
         assert!(kept.ends_with("bbbbbbbbbb"));
         assert_eq!(last_line, OUTPUT_TRUNCATED_LINE);
+    }
+
+    #[test]
+    fn output_over_the_cap_ending_in_a_newline_gets_no_blank_line() {
+        let mut buffer = CappedBuffer::default();
+        buffer.push(&vec![b'a'; OUTPUT_CAP_BYTES - 1]);
+        buffer.push(b"\nmore");
+
+        let text = buffer.to_text();
+
+        assert!(
+            text.ends_with(&format!("a\n{OUTPUT_TRUNCATED_LINE}")),
+            "{}",
+            &text[text.len() - 40..]
+        );
+    }
+
+    #[test]
+    fn stderr_tail_starts_on_a_character_boundary() {
+        let mut buffer = TailBuffer::default();
+        buffer.push("é".as_bytes());
+        buffer.push(&vec![b'a'; OUTPUT_CAP_BYTES - 1]);
+
+        let text = buffer.to_text();
+
+        assert_eq!(text.len(), OUTPUT_CAP_BYTES - 1);
+        assert!(text.bytes().all(|b| b == b'a'));
     }
 
     #[test]
@@ -981,7 +1030,9 @@ mod tests {
             .run(
                 "__dgrid.result(0, db.items);\n\
                  __dgrid.result(1, function () {});\n\
-                 __dgrid.result(2, 'after');",
+                 const bare = Object.create(null); bare.self = bare;\n\
+                 __dgrid.result(2, bare);\n\
+                 __dgrid.result(3, 'after');",
             )
             .await;
 
@@ -1003,7 +1054,12 @@ mod tests {
                     "value",
                     json!([{ "value": "[not displayable: function]" }])
                 ),
-                (2, "value", json!([{ "value": "after" }])),
+                (
+                    2,
+                    "value",
+                    json!([{ "value": "[not displayable: object]" }])
+                ),
+                (3, "value", json!([{ "value": "after" }])),
             ]
         );
 
@@ -1206,6 +1262,51 @@ mod tests {
         assert!(!run_dir.unwrap().exists());
 
         test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_dropping_the_run_kills_mongosh_and_removes_temp_dir() {
+        let uri = std::env::var("MONGODB_TEST_URI").unwrap();
+        let (spawned_tx, spawned_rx) = tokio::sync::oneshot::channel();
+        let program = mongosh_program(std::env::var_os(MONGOSH_PATH_ENV));
+        let request = request(
+            "__dgrid.result(0, 1); sleep(120000);",
+            "dgrid_shell_drop_test",
+        );
+
+        let run = tokio::spawn(async move {
+            run_script(
+                &program,
+                &uri,
+                &request,
+                CancellationToken::new(),
+                |pid, _, dir| {
+                    let _ = spawned_tx.send((pid.unwrap(), dir.to_path_buf()));
+                },
+            )
+            .await
+        });
+        let (pid, run_dir) = spawned_rx.await.unwrap();
+
+        // The first result on disk means the script has reached its sleep.
+        let result_file = run_dir.join(RESULT_FILE);
+        let deadline = Instant::now() + std::time::Duration::from_secs(30);
+        while std::fs::metadata(&result_file).map_or(true, |m| m.len() == 0) {
+            assert!(Instant::now() < deadline, "script never reported a result");
+            assert!(!run.is_finished(), "run ended before the sleep");
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+
+        run.abort();
+        let _ = run.await;
+
+        let deadline = Instant::now() + std::time::Duration::from_secs(10);
+        while process_is_running(pid) {
+            assert!(Instant::now() < deadline, "mongosh {pid} is still running");
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        assert!(!run_dir.exists());
     }
 
     #[tokio::test]
