@@ -4,6 +4,7 @@
 //! appends one canonical Extended JSON line per value to a result file. After the child
 //! exits, each line is mapped to documents in the tagged format of `bson_ser`.
 
+use std::collections::VecDeque;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -280,11 +281,31 @@ impl CappedBuffer {
     }
 }
 
+/// The last `OUTPUT_CAP_BYTES` bytes pushed. A thrown error is the last thing mongosh
+/// writes to stderr, so the error message keeps the end of the stream.
+#[derive(Default)]
+struct TailBuffer {
+    bytes: VecDeque<u8>,
+}
+
+impl TailBuffer {
+    fn push(&mut self, chunk: &[u8]) {
+        self.bytes.extend(chunk);
+        let excess = self.bytes.len().saturating_sub(OUTPUT_CAP_BYTES);
+        self.bytes.drain(..excess);
+    }
+
+    fn to_text(&self) -> String {
+        let bytes: Vec<u8> = self.bytes.iter().copied().collect();
+        String::from_utf8_lossy(&bytes).into_owned()
+    }
+}
+
 #[derive(Default)]
 struct CollectedOutput {
     /// stdout and stderr in arrival order.
     merged: CappedBuffer,
-    stderr: CappedBuffer,
+    stderr: TailBuffer,
 }
 
 /// Read a pipe to its end. Reading continues past the output cap so the child never
@@ -433,6 +454,49 @@ mod tests {
     }
 
     #[test]
+    fn less_common_types_are_readable() {
+        let cases = [
+            (r#"{"$numberDouble":"NaN"}"#, json!([{ "value": null }])),
+            (
+                r#"{"$numberDouble":"Infinity"}"#,
+                json!([{ "value": null }]),
+            ),
+            (
+                r#"{"$timestamp":{"t":1,"i":2}}"#,
+                json!([{ "value": { "t": 1, "i": 2 } }]),
+            ),
+            (
+                r#"{"$regularExpression":{"pattern":"a","options":"i"}}"#,
+                json!([{ "value": { "$regex": "a", "$options": "i" } }]),
+            ),
+            (r#"{"$minKey":1}"#, json!([{ "value": "MinKey" }])),
+            (r#"{"$maxKey":1}"#, json!([{ "value": "MaxKey" }])),
+            (r#"{"$code":"x"}"#, json!([{ "value": "x" }])),
+            (r#"{"$symbol":"s"}"#, json!([{ "value": "s" }])),
+            (
+                r#"{"$binary":{"base64":"AQID","subType":"05"}}"#,
+                json!([{ "value": { "_type": "Binary", "_value": "AQID" } }]),
+            ),
+            (
+                r#"{"a":null,"b":[null]}"#,
+                json!([{ "a": null, "b": [null] }]),
+            ),
+        ];
+
+        for (value, expected) in cases {
+            let result = parse_one(&format!(
+                r#"{{"index":{{"$numberInt":"0"}},"kind":"value","truncated":false,"value":{value}}}"#
+            ));
+
+            assert_eq!(
+                Value::Array(result.documents.into_iter().map(Value::Object).collect()),
+                expected,
+                "{value}"
+            );
+        }
+    }
+
+    #[test]
     fn scalar_is_wrapped_as_one_value_document() {
         let result = parse_one(
             r#"{"index":{"$numberInt":"1"},"kind":"value","truncated":false,"value":{"$numberInt":"6"}}"#,
@@ -573,6 +637,18 @@ mod tests {
         assert_eq!(kept.len(), OUTPUT_CAP_BYTES);
         assert!(kept.ends_with("bbbbbbbbbb"));
         assert_eq!(last_line, OUTPUT_TRUNCATED_LINE);
+    }
+
+    #[test]
+    fn stderr_tail_keeps_the_end_of_the_stream() {
+        let mut buffer = TailBuffer::default();
+        buffer.push(&vec![b'a'; OUTPUT_CAP_BYTES]);
+        buffer.push(b"Error: boom");
+
+        let text = buffer.to_text();
+
+        assert_eq!(text.len(), OUTPUT_CAP_BYTES);
+        assert!(text.ends_with("aaaError: boom"));
     }
 
     #[test]
@@ -945,6 +1021,20 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    async fn shell_script_that_reports_nothing_has_no_results() {
+        let test_db = TestDb::create("dgrid_shell_empty_test").await;
+
+        let response = test_db.run("print('nothing to report')").await;
+
+        assert!(response.error.is_none(), "{:?}", response.error);
+        assert!(response.results.is_empty());
+        assert!(response.output.contains("nothing to report"));
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
     async fn shell_script_error_is_data_and_temp_dir_is_removed() {
         let test_db = TestDb::create("dgrid_shell_error_test").await;
         let mut run_dir = None;
@@ -1087,6 +1177,7 @@ mod tests {
             format!("mongodb://dgrid_user:{PASSWORD}@127.0.0.1:1/?serverSelectionTimeoutMS=1000");
         let mut seen_args = Vec::new();
         let mut seen_files = Vec::new();
+        let mut ps_args = String::new();
         let mut run_dir = None;
 
         let response = run_script(
@@ -1094,8 +1185,16 @@ mod tests {
             &uri,
             &request("__dgrid.result(0, 1)", "dgrid_shell_password_test"),
             CancellationToken::new(),
-            |_, args, dir| {
+            |pid, args, dir| {
                 seen_args = args.to_vec();
+                #[cfg(unix)]
+                {
+                    let ps = std::process::Command::new("ps")
+                        .args(["-o", "args=", "-p", &pid.unwrap().to_string()])
+                        .output()
+                        .unwrap();
+                    ps_args = String::from_utf8_lossy(&ps.stdout).into_owned();
+                }
                 for entry in std::fs::read_dir(dir).unwrap() {
                     let path = entry.unwrap().path();
                     seen_files.push((path.clone(), std::fs::read_to_string(path).unwrap()));
@@ -1112,6 +1211,11 @@ mod tests {
             let arg = arg.to_string_lossy();
             assert!(!arg.contains(PASSWORD), "password in argument: {arg}");
             assert!(!arg.contains("mongodb://"), "URI in argument: {arg}");
+        }
+        #[cfg(unix)]
+        {
+            assert!(ps_args.contains("mongosh"), "unexpected process: {ps_args}");
+            assert!(!ps_args.contains(PASSWORD), "password in ps: {ps_args}");
         }
         assert_eq!(seen_files.len(), 2, "prelude and script: {seen_files:?}");
         for (path, content) in &seen_files {
