@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use tauri::State;
-use tokio_util::sync::CancellationToken;
 
+use crate::cancellation;
 use crate::error::DgridError;
 use crate::executor::{self, ExecuteQueryResponse, ParsedQuery, QueryOptions};
 use crate::state::AppState;
@@ -36,31 +36,18 @@ pub async fn execute_query(
         page_size: request.page_size.unwrap_or(50),
     };
 
-    // Set up cancellation token if tab_id provided
-    let token = CancellationToken::new();
-    if let Some(ref tab_id) = request.tab_id {
-        let mut tokens = state.cancellation_tokens.write().await;
-        // Cancel any existing token for this tab
-        if let Some(old) = tokens.remove(tab_id) {
-            old.cancel();
-        }
-        tokens.insert(tab_id.clone(), token.clone());
-    }
+    let tab_id = request.tab_id.as_deref();
+    let token = cancellation::register(&state.cancellation_tokens, tab_id).await;
 
     let result = tokio::select! {
-        result = executor::execute_query(&db, request.query, options) => result,
-        _ = token.cancelled() => {
-            return Err(DgridError::QueryCancelled);
+        result = executor::execute_query(&db, request.query, options) => {
+            result.map_err(DgridError::QueryExecution)
         }
+        _ = token.cancelled() => Err(DgridError::QueryCancelled),
     };
 
-    // Clean up token
-    if let Some(ref tab_id) = request.tab_id {
-        let mut tokens = state.cancellation_tokens.write().await;
-        tokens.remove(tab_id);
-    }
-
-    result.map_err(DgridError::QueryExecution)
+    cancellation::release(&state.cancellation_tokens, tab_id, &token).await;
+    result
 }
 
 #[tauri::command]
