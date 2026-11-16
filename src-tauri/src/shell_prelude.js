@@ -8,8 +8,31 @@ globalThis.__dgrid = (function () {
   const outFile = process.env.DGRID_SHELL_OUT;
   const LIMIT = 1000;
 
+  const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
+
+  function wellFormed(text) {
+    return typeof text.toWellFormed === 'function'
+      ? text.toWellFormed()
+      : text.replace(LONE_SURROGATE, '�');
+  }
+
+  // Half of a surrogate pair (such as '😀'.slice(0, 1)) is written as an escape the
+  // backend's JSON parser rejects, so it becomes U+FFFD in values and keys. The replacer
+  // sees the Extended JSON form, so the type markers it writes are plain objects here.
+  function repairStrings(key, value) {
+    if (typeof value === 'string') return wellFormed(value);
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return value;
+    const keys = Object.keys(value);
+    if (keys.every((k) => wellFormed(k) === k)) return value;
+    const repaired = {};
+    for (const k of keys) repaired[wellFormed(k)] = value[k];
+    return repaired;
+  }
+
   function line(index, kind, truncated, value) {
-    return EJSON.stringify({ index, kind, truncated, value }, { relaxed: false });
+    return EJSON.stringify({ index, kind, truncated, value }, repairStrings, undefined, {
+      relaxed: false,
+    });
   }
 
   // Only a value that cannot be serialized becomes a placeholder. A failure to write the

@@ -1148,6 +1148,42 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    async fn shell_half_surrogates_are_repaired() {
+        let test_db = TestDb::create("dgrid_shell_surrogate_test").await;
+
+        let response = test_db
+            .run(
+                "const half = '\\ud83d\\ude00'.slice(0, 1);\n\
+                 print('kept output');\n\
+                 __dgrid.result(0, 'ok');\n\
+                 __dgrid.result(1, half);\n\
+                 __dgrid.result(2, { [half + 'k']: 'v' + half, whole: '\\ud83d\\ude00', n: 5 });",
+            )
+            .await;
+
+        assert!(response.error.is_none(), "{:?}", response.error);
+        assert!(response.output.contains("kept output"));
+        assert_eq!(
+            response
+                .results
+                .iter()
+                .map(|r| (r.index, documents_json(r)))
+                .collect::<Vec<_>>(),
+            vec![
+                (0, json!([{ "value": "ok" }])),
+                (1, json!([{ "value": "\u{FFFD}" }])),
+                (
+                    2,
+                    json!([{ "\u{FFFD}k": "v\u{FFFD}", "whole": "\u{1F600}", "n": 5 }])
+                ),
+            ]
+        );
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
     async fn shell_truncates_cursors_and_arrays_at_1000() {
         let test_db = TestDb::create("dgrid_shell_truncate_test").await;
         test_db
