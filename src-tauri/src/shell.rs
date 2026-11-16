@@ -652,6 +652,35 @@ mod tests {
     }
 
     #[test]
+    fn index_may_arrive_as_any_bson_number() {
+        for (index, expected) in [
+            (r#"{"$numberLong":"7"}"#, 7),
+            (r#"{"$numberDouble":"2.0"}"#, 2),
+            ("4", 4),
+        ] {
+            let result = parse_one(&format!(
+                r#"{{"index":{index},"kind":"value","truncated":false,"value":"x"}}"#
+            ));
+
+            assert_eq!(result.index, expected, "{index}");
+        }
+    }
+
+    #[test]
+    fn envelope_without_index_or_kind_is_an_error() {
+        for line in [
+            "[]",
+            r#"{"kind":"value","truncated":false,"value":"x"}"#,
+            r#"{"index":"0","kind":"value","truncated":false,"value":"x"}"#,
+            r#"{"index":{"$numberInt":"0"},"truncated":false,"value":"x"}"#,
+        ] {
+            let err = parse_result_line(line).unwrap_err();
+
+            assert!(err.starts_with("Could not read a shell result"), "{line}");
+        }
+    }
+
+    #[test]
     fn unreadable_line_is_an_error() {
         let err = parse_results("{not json").unwrap_err();
 
@@ -1212,9 +1241,19 @@ mod tests {
 
         let error = response.error.expect("error is set");
         assert!(error.message.contains("boom from script"), "{error:?}");
+        assert_eq!(error.message, error.message.trim(), "message is trimmed");
+        assert!(
+            !error.message.contains("before the throw"),
+            "stdout stays out of the message: {error:?}"
+        );
         assert!(
             response.output.contains("before the throw"),
             "{}",
+            response.output
+        );
+        assert!(
+            response.output.contains("boom from script"),
+            "stderr is in output: {}",
             response.output
         );
         assert_eq!(response.results.len(), 1);
@@ -1223,6 +1262,61 @@ mod tests {
             json!([{ "value": 1 }])
         );
         assert!(!run_dir.unwrap().exists());
+
+        test_db.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_exit_without_stderr_reports_the_exit_code() {
+        let test_db = TestDb::create("dgrid_shell_exit_code_test").await;
+
+        let response = test_db.run("__dgrid.result(0, 1); quit(3);").await;
+
+        assert_eq!(
+            response.error,
+            Some(ShellError {
+                message: "mongosh exited with code 3".into()
+            })
+        );
+        assert_eq!(response.results.len(), 1);
+
+        test_db.cleanup().await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    #[ignore]
+    async fn shell_result_file_write_failure_ends_the_script_as_an_error() {
+        use std::os::unix::fs::PermissionsExt;
+        let test_db = TestDb::create("dgrid_shell_write_failure_test").await;
+
+        let response = run_script(
+            &mongosh_program(std::env::var_os(MONGOSH_PATH_ENV)),
+            &test_db.uri,
+            // The sleep keeps the first write after the file is made read-only below.
+            &request(
+                "sleep(500); __dgrid.result(0, 1); print('after the report');",
+                &test_db.name,
+            ),
+            CancellationToken::new(),
+            |_, _, dir| {
+                let result_file = dir.join(RESULT_FILE);
+                std::fs::write(&result_file, "").unwrap();
+                std::fs::set_permissions(&result_file, std::fs::Permissions::from_mode(0o400))
+                    .unwrap();
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(response.error.is_some(), "the failed write is an error");
+        assert!(response.results.is_empty());
+        assert!(
+            !response.output.contains("after the report"),
+            "the script stopped: {}",
+            response.output
+        );
 
         test_db.cleanup().await;
     }
