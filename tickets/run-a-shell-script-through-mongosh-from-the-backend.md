@@ -6,7 +6,7 @@ priority: 2
 depends-on: []
 parent: shell-mode-that-runs-scripts-through-mongosh
 approved: "Scott Schlesier, 2026-11-14: Approved after cold read; unserializable values report a placeholder; mongosh found on PATH only. Cold read: blocked on one question (unserializable values), answered and folded in"
-status: in-review
+status: done
 ---
 
 The frontend can call an `execute_shell` Tauri command with a script and get back every result the script reported (as documents in dgrid's tagged format), the script's console output, and any script error.
@@ -86,6 +86,7 @@ Add `executeShell(connectionId, request)` to `src/api/client.ts` next to `execut
   - a function is reported as the string `[not displayable: function]`, `kind: "value"`; a symbol as `[not displayable: symbol]` (decided 2026-11-15).
   - anything else is `kind: "value"`. If `EJSON.stringify` throws for it, the string `[not displayable: <name>]` is reported instead, where `<name>` is the value's `constructor.name`, or `object` when it has none (decided 2026-11-14: a placeholder, not a silent skip and not a script abort).
   - each call appends one line `EJSON.stringify({ index, kind, truncated, value }, { relaxed: false })` to the result file.
+  - half of a surrogate pair in a string or a key (such as `'😀'.slice(0, 1)`) is replaced with U+FFFD while stringifying, since the backend's JSON parser rejects it (decided 2026-11-16).
 - **Mapping:** parse each line as JSON, convert `value` with `Bson::try_from(serde_json::Value)` (canonical Extended JSON; bson 2.15), then to the tagged format with the existing `bson_ser` functions. A document becomes one document; an array becomes one document per element; any element or value that is not a document is wrapped as `{ "value": <it> }`.
 - **Unreadable values** (decided 2026-11-15): when `Bson::try_from` rejects a reported value (mongosh emits `{"$date":{"$numberLong":"NaN"}}` for an invalid Date, and a user object such as `{ $oid: 5 }` only looks like Extended JSON), that value becomes the document `{ "value": "[not displayable: object]" }` and the rest of the run is returned. For an array or cursor, the conversion is per element, so only the unreadable element is replaced. A line that is not JSON, or has no `index` or `kind`, still fails the run with `DgridError::QueryExecution`.
 - **No input validation** (decided 2026-11-15): an empty `database` or `script` is passed to mongosh as is; what mongosh reports comes back as data.
@@ -121,3 +122,7 @@ Add `executeShell(connectionId, request)` to `src/api/client.ts` next to `execut
 - 2026-11-15: Review round 1, second cold verify fixes: placeholder only on a serialization failure, a result-file write failure now ends the script as an error (aa83306); CREATE_NO_WINDOW on Windows (unverified, no Windows build here), stderr tail starts on a UTF-8 boundary, tests for dropping a run (kill_on_drop mutant now killed), constructor-less value, envelope without value, capped output ending in a newline (283e3f4).
 - 2026-11-15: Dismissed (second cold verify): explicit child.kill() survives alone because kill_on_drop backs it up, and both removed is killed by the cancel test. error.message holding the whole stderr tail is the Design ('sets error.message to the trimmed stderr text'). The 14 leftover dgrid-shell-* temp dirs are from the verifier's RunDir mutant, not the code; left for the person to delete.
 - 2026-11-15: Final cold verify (e82eb79): pass, 15/15 criteria. Its 4 surviving mutants (trim, stderr in output, stdout kept out of error.message, swallowed result-file write) are now killed by tests added in the next commit, checked by rerunning each mutant. 15 more dgrid-shell-* temp dirs left by its RunDir mutant (29 in all), left for the person to delete.
+- 2026-11-16: Amended: Review decision by Scott Schlesier: repair half surrogates to U+FFFD in the prelude instead of failing the run
+- 2026-11-16: Decisions (Scott Schlesier, final review questions): Error objects and Promises stay as {} (no special case); an object shaped like Extended JSON such as { $numberLong: '5' } is read as that type (accepted); a non-integer index stays truncated (frontend sends integers); CREATE_NO_WINDOW kept although not compiled here.
+- 2026-11-16: Accepted risks (Scott Schlesier, final review questions): (4) execute_query removes a tab's token unconditionally and can drop a shell run's token on the same tab; follow-up to give execute_query the release-only-your-own-token rule. (5) a launcher-style mongosh keeps its real process running after Cancel. (6) Cancel does not stop server-side work (no killOp); a separate spec for killOp on cancel, for queries and shell runs.
+- 2026-11-16: Status: done: Reviewed round 1: 15/15 criteria verified (three cold verifies, 41 mutants in the last, survivors covered by tests); review decisions folded into Design; accepted risks and follow-ups in the Log; pnpm verify and 17 ignored shell tests pass on macOS at a46492f
