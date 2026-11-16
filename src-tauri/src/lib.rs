@@ -8,6 +8,7 @@ mod executor;
 mod file_validation;
 mod keyring;
 mod pool;
+mod shell;
 mod state;
 mod storage;
 mod updater;
@@ -133,6 +134,7 @@ pub fn run() {
             commands::databases::list_indexes,
             commands::query::execute_query,
             commands::query::cancel_query,
+            commands::shell::execute_shell,
             commands::documents::update_field,
             commands::documents::update_document,
             commands::documents::insert_document,

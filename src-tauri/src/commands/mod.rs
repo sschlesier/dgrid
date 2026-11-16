@@ -4,4 +4,5 @@ pub mod documents;
 pub mod export;
 pub mod files;
 pub mod query;
+pub mod shell;
 pub mod version;
