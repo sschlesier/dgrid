@@ -6,7 +6,7 @@ priority: 2
 depends-on: []
 parent: shell-mode-that-runs-scripts-through-mongosh
 approved: "Scott Schlesier, 2026-11-14: Approved as drafted. Cold read: not run"
-status: in-review
+status: done
 ---
 
 A frontend function rewrites a user's shell script so each top-level expression reports its value through `__dgrid.result()`, which lets one script run produce one result per statement.
@@ -63,3 +63,7 @@ Part of the Shell mode epic. A mongosh script file does not return the value of 
 - 2026-11-16: Status: in-review
 - 2026-11-17: Assumption: a parenthesized assignment such as (x = 1) is wrapped, since only a bare assignment is left unchanged; open for decision in review round 1
 - 2026-11-17: Dismissed (review round 1): the ArithOp guard and empty-script early return in shellScript.ts are equivalent to the checks that follow them
+- 2026-11-17: Decision (review round 1): keep wrapping parenthesized and comma-led assignments
+- 2026-11-17: Accepted risk (review round 1): early errors Lezer does not flag (const x;, return 1;) are instrumented; mongosh rejects the file itself
+- 2026-11-17: Status: done: Reviewed round 1: all 10 criteria verified; two decisions answered
+- 2026-11-17: Status: done: Reviewed round 1: all 10 criteria verified; two decisions answered
