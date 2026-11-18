@@ -1293,21 +1293,26 @@
   .format-assist-btn {
     padding: var(--space-xxs) var(--space-sm);
     border-radius: var(--radius-sm);
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    background-color: rgba(255, 255, 255, 0.65);
-    color: inherit;
+    border: 1px solid var(--color-warning);
+    background-color: var(--color-warning-surface);
+    color: var(--color-warning-text);
     font-size: var(--font-size-sm);
     transition: background-color var(--transition-fast);
   }
 
   .format-assist-btn:hover {
-    background-color: rgba(255, 255, 255, 0.85);
+    background-color: var(--color-bg-primary);
   }
 
   .format-assist-btn.primary {
-    background-color: var(--color-warning);
-    border-color: var(--color-warning);
-    color: var(--color-warning-text);
+    background-color: var(--color-warning-text);
+    border-color: var(--color-warning-text);
+    color: var(--color-warning-light);
+  }
+
+  .format-assist-btn.primary:hover {
+    background-color: var(--color-warning-text);
+    opacity: 0.9;
   }
 
   .error-display {
@@ -1345,7 +1350,7 @@
 
   .copy-error-btn:hover {
     opacity: 1;
-    background-color: rgba(0, 0, 0, 0.1);
+    background-color: var(--color-error-surface);
   }
 
   .error-message {
@@ -1354,7 +1359,7 @@
     white-space: pre-wrap;
     margin: 0;
     padding: var(--space-sm);
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: var(--color-error-surface);
     border-radius: var(--radius-sm);
   }
 
@@ -1362,7 +1367,7 @@
     margin-top: var(--space-sm);
     padding: var(--space-sm);
     font-size: var(--font-size-sm);
-    background-color: rgba(255, 255, 255, 0.5);
+    background-color: var(--color-error-surface);
     border-radius: var(--radius-sm);
   }
 
