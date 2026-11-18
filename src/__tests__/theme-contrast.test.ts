@@ -49,7 +49,7 @@ const pairings: Array<[text: string, background: string]> = [
   ['--color-error-text', '--color-error-surface'],
   ['--color-warning-text', '--color-warning-surface'],
   ['--color-warning-light', '--color-warning-text'],
-  ['--color-warning-text', '--color-bg-primary'],
+  ['--color-warning-text', '--color-warning-surface-hover'],
 ];
 
 describe('theme status token contrast (WCAG AA)', () => {

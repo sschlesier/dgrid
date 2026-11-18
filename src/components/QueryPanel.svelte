@@ -1301,7 +1301,7 @@
   }
 
   .format-assist-btn:hover {
-    background-color: var(--color-bg-primary);
+    background-color: var(--color-warning-surface-hover);
   }
 
   .format-assist-btn.primary {
