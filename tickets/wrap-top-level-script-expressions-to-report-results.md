@@ -61,3 +61,5 @@ Part of the Shell mode epic. A mongosh script file does not return the value of 
 - 2026-11-16: Started on branch feat/wrap-shell-script-expressions
 - 2026-11-16: Status: in-progress
 - 2026-11-16: Status: in-review
+- 2026-11-17: Assumption: a parenthesized assignment such as (x = 1) is wrapped, since only a bare assignment is left unchanged; open for decision in review round 1
+- 2026-11-17: Dismissed (review round 1): the ArithOp guard and empty-script early return in shellScript.ts are equivalent to the checks that follow them
