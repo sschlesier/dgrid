@@ -33,15 +33,17 @@
 
   --color-error: #ef4444;
   --color-error-light: #fee2e2;
-  --color-error-text: #dc2626;
+  --color-error-surface: #fdd5d5;
+  --color-error-text: #b91c1c;
 
   --color-warning: #f59e0b;
   --color-warning-light: #fef3c7;
-  --color-warning-text: #d97706;
+  --color-warning-surface: #fde68a;
+  --color-warning-text: #92400e;
 
   --color-info: #3b82f6;
   --color-info-light: #dbeafe;
-  --color-info-text: #2563eb;
+  --color-info-text: #1d4ed8;
 
   /* Colors - Connection status */
   --color-connected: #22c55e;
@@ -165,10 +167,12 @@
 
   --color-error: #f87171;
   --color-error-light: #7f1d1d;
-  --color-error-text: #f87171;
+  --color-error-surface: #611616;
+  --color-error-text: #fca5a5;
 
   --color-warning: #fbbf24;
   --color-warning-light: #78350f;
+  --color-warning-surface: #5c2a0b;
   --color-warning-text: #fbbf24;
 
   --color-info: #60a5fa;
