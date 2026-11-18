@@ -82,3 +82,4 @@ Don't touch: the CodeMirror syntax-highlighting tokens (`--syntax-*`), the `.cm-
 - 2026-11-17: Started on branch fix/query-error-format-assist-contrast
 - 2026-11-17: Hex values: light error-text #b91c1c, warning-text #92400e, info-text #1d4ed8; dark error-text #fca5a5; surfaces light error #fdd5d5 / warning #fde68a, dark error #611616 / warning #5c2a0b. Primary format-assist button is an inverted fill (warning-text bg, warning-light text). Criteria 3-4 ticked on computed ratios; manual theme check and screenshots (criterion 7) not done.
 - 2026-11-17: Status: in-review
+- 2026-11-17: Review round 1 triage: dismissed a test that greps QueryPanel.svelte for rgba fills (brittle, spec asks for token ratios only). Fixed: added warning-text on bg-primary pairing (Dismiss hover) and made the dark theme require its own token definitions.
