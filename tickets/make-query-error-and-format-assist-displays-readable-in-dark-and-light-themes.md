@@ -6,7 +6,7 @@ priority: 2
 depends-on: []
 parent:
 approved: "Scott Schlesier, 2026-11-17: Token-level WCAG AA contrast fix for error/warning/info displays and format-assist in both themes, with regression test. Cold read: not run"
-status: in-review
+status: done
 ---
 
 Query error displays (syntax and execution errors) and the format-assist banner meet WCAG AA contrast (4.5:1 for text) in both the dark and light themes, using theme tokens instead of hardcoded translucent colors.
@@ -40,7 +40,7 @@ The `--color-*-light` / `--color-*-text` tokens are shared by ConnectionDialog, 
 - [x] `.format-assist` banner text, the Dismiss button and the primary suggestion button are at least 4.5:1 in both themes, and the primary button is visibly distinct from the Dismiss button.
 - [x] The error and warning state is not conveyed by color alone: the existing error type label and the left border remain.
 - [x] A Vitest test parses `src/styles/variables.css` and asserts the ratios above for both themes, so a token change that regresses contrast fails `pnpm test`.
-- [ ] Other users of the shared tokens (listed in Context) stay readable. A manual check in both themes finds no pairing below 4.5:1 and no layout change.
+- [x] Other users of the shared tokens (listed in Context) stay readable. A manual check in both themes finds no pairing below 4.5:1 and no layout change.
 
 ## Verification
 
@@ -84,3 +84,5 @@ Don't touch: the CodeMirror syntax-highlighting tokens (`--syntax-*`), the `.cm-
 - 2026-11-17: Status: in-review
 - 2026-11-17: Review round 1 triage: dismissed a test that greps QueryPanel.svelte for rgba fills (brittle, spec asks for token ratios only). Fixed: added warning-text on bg-primary pairing (Dismiss hover) and made the dark theme require its own token definitions.
 - 2026-11-17: Review round 1 pass 1b triage: dismissed primary-hover opacity 0.9 (computed 5.15 light / 4.73 dark, both >= 4.5), a redundant 3:1 icon assertion (implied by 4.5:1 on error-surface), and an equivalent mutant (dark error-surface #611616 -> #7f1d1d). Escalated to the person: brown light warning-text, Dismiss hover tint, light warning border 1.93:1, criterion 7 manual check.
+- 2026-11-17: Review round 1 answers (Scott Schlesier): brown light warning-text #92400e accepted after viewing swatches; Dismiss hover stays amber (added --color-warning-surface-hover #fcd34d light / #703610 dark); light warning border 1.93:1 accepted as a risk; criterion 7 accepted without a visual check of the six shared-token consumers.
+- 2026-11-17: Status: done: Reviewed round 1: criteria 1-6 verified by tests and computed ratios; criterion 7 accepted by the person without a visual check
