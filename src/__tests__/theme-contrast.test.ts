@@ -18,9 +18,10 @@ function blockTokens(selector: string): Record<string, string> {
 }
 
 const light = blockTokens(':root');
+const darkOwn = blockTokens("[data-theme='dark']");
 const themes: Record<string, Record<string, string>> = {
   light,
-  dark: { ...light, ...blockTokens("[data-theme='dark']") },
+  dark: { ...light, ...darkOwn },
 };
 
 function luminance(hex: string): number {
@@ -48,6 +49,7 @@ const pairings: Array<[text: string, background: string]> = [
   ['--color-error-text', '--color-error-surface'],
   ['--color-warning-text', '--color-warning-surface'],
   ['--color-warning-light', '--color-warning-text'],
+  ['--color-warning-text', '--color-bg-primary'],
 ];
 
 describe('theme status token contrast (WCAG AA)', () => {
@@ -55,6 +57,10 @@ describe('theme status token contrast (WCAG AA)', () => {
     describe(`${themeName} theme`, () => {
       for (const [text, background] of pairings) {
         it(`${text} on ${background} is at least ${AA_TEXT}:1`, () => {
+          if (themeName === 'dark') {
+            expect(darkOwn[text], `${text} is defined in the dark block`).toBeDefined();
+            expect(darkOwn[background], `${background} is defined in the dark block`).toBeDefined();
+          }
           expect(tokens[text], `${text} is defined`).toBeDefined();
           expect(tokens[background], `${background} is defined`).toBeDefined();
           expect(contrast(tokens[text], tokens[background])).toBeGreaterThanOrEqual(AA_TEXT);
