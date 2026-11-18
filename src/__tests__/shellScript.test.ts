@@ -53,6 +53,24 @@ describe('instrumentShellScript', () => {
     expect(instrumentShellScript('(async () => { await foo(); })()').statements).toHaveLength(1);
   });
 
+  it('treats await in call arguments and object properties as top-level await', () => {
+    unchanged('foo(await x)');
+    unchanged('({ a: await x })');
+  });
+
+  it('wraps expressions whose await sits inside any kind of function', () => {
+    const sources = [
+      'async () => { await x; }',
+      'async () => await x',
+      '(async function () { await x; })()',
+      '({ async m() { await x(); } }).m()',
+      'new (class { async m() { await x; } })()',
+    ];
+    for (const source of sources) {
+      expect(instrumentShellScript(source).statements).toHaveLength(1);
+    }
+  });
+
   it('handles missing semicolons, several statements per line and multi-line statements', () => {
     expect(instrumentShellScript('a()\nb()').script).toBe(
       '__dgrid.result(0, (a()));\n__dgrid.result(1, (b()));'

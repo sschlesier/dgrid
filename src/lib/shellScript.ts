@@ -35,10 +35,16 @@ function hasSyntaxError(tree: Tree): boolean {
   return found;
 }
 
+// Object-literal methods parse as a `Property` that owns a parameter list.
+function isFunctionBoundary(node: SyntaxNode): boolean {
+  if (FUNCTION_NODES.has(node.name)) return true;
+  return node.name === 'Property' && node.getChild('ParamList') !== null;
+}
+
 function containsTopLevelAwait(node: SyntaxNode): boolean {
+  if (isFunctionBoundary(node)) return false;
   if (node.name === 'AwaitExpression') return true;
   for (let child = node.firstChild; child; child = child.nextSibling) {
-    if (FUNCTION_NODES.has(child.name)) continue;
     if (containsTopLevelAwait(child)) return true;
   }
   return false;
