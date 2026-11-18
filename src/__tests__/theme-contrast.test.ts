@@ -1,8 +1,9 @@
+/// <reference types="node" />
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const css = readFileSync(resolve(__dirname, '../styles/variables.css'), 'utf8');
+const css = readFileSync(resolve(process.cwd(), 'src/styles/variables.css'), 'utf8');
 
 function blockTokens(selector: string): Record<string, string> {
   const start = css.indexOf(`${selector} {`);
