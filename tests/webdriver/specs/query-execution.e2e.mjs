@@ -64,6 +64,37 @@ describe('Query Execution', () => {
     await expect(s.results.gridViewport()).toHaveText(expect.stringContaining('Bob'));
   });
 
+  it('cancels a running query', async () => {
+    await seedDatabase(TEST_DB, TEST_COLLECTION, [{ name: 'Slow' }]);
+
+    await openCollection();
+    // About 10 s of server-side work, so the run is still going when Cancel is clicked.
+    await clearAndTypeQuery(`db.${TEST_COLLECTION}.find({ $where: "sleep(10000) || true" })`);
+    await (await s.query.executeButton()).click();
+    await expect(s.query.cancelButton()).toBeDisplayed();
+
+    await (await s.query.cancelButton()).click();
+
+    await (await s.query.cancelButton()).waitForDisplayed({
+      reverse: true,
+      timeout: 3_000,
+      timeoutMsg: 'The query was still running 3 s after Cancel',
+    });
+    await expect(s.query.executeButton()).toBeDisplayed();
+    await expect(s.query.errorDisplay()).not.toBeDisplayed();
+  });
+
+  it('shows the server error for a query the server rejects', async () => {
+    await seedDatabase(TEST_DB, TEST_COLLECTION, [{ name: 'Alice' }]);
+
+    await openCollection();
+    await clearAndTypeQuery(`db.${TEST_COLLECTION}.find({ $notAnOperator: 1 })`);
+    await (await s.query.executeButton()).click();
+
+    await s.query.errorDisplay().waitForDisplayed({ timeout: 10_000 });
+    await expect(s.query.errorDisplay()).toBeDisplayed();
+  });
+
   it('shows an error display for invalid queries', async () => {
     await seedDatabase(TEST_DB, TEST_COLLECTION, [{ name: 'Alice' }]);
 
