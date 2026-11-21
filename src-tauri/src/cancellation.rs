@@ -100,6 +100,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn release_waiting_for_the_lock_keeps_a_token_registered_meanwhile() {
+        let tokens = std::sync::Arc::new(TokenMap::default());
+        let first = register(&tokens, Some("tab-1")).await;
+        let mut guard = tokens.write().await;
+
+        let releasing = tokio::spawn({
+            let tokens = tokens.clone();
+            let first = first.clone();
+            async move { release(&tokens, Some("tab-1"), &first).await }
+        });
+        // On this single-threaded runtime, one yield runs `release` up to the held lock.
+        tokio::task::yield_now().await;
+        assert!(!releasing.is_finished(), "release is waiting for the lock");
+
+        // A newer run registers while release waits, as `register` would.
+        let second = CancellationToken::new();
+        if let Some(old) = guard.remove("tab-1") {
+            old.cancel();
+        }
+        guard.insert("tab-1".into(), second.clone());
+        drop(guard);
+        releasing.await.unwrap();
+
+        assert!(tokens.read().await.get("tab-1") == Some(&second));
+    }
+
+    #[tokio::test]
     async fn release_of_a_cancelled_run_keeps_a_token_registered_after_the_cancel() {
         let tokens = TokenMap::default();
         let first = register(&tokens, Some("tab-1")).await;
