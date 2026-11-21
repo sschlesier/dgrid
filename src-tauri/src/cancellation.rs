@@ -99,7 +99,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn release_waiting_for_the_lock_keeps_a_token_registered_meanwhile() {
         let tokens = std::sync::Arc::new(TokenMap::default());
         let first = register(&tokens, Some("tab-1")).await;
