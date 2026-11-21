@@ -6,7 +6,7 @@ priority: 3
 depends-on: [run-a-shell-script-through-mongosh-from-the-backend]
 parent:
 approved: "Scott Schlesier, 2026-11-16: Shared release-only-your-own-token helper for execute_query, export_csv and execute_shell; connection maps and the shared per-tab key out of scope. Cold read: not run"
-status: in-review
+status: done
 ---
 
 A query, export or shell run that finishes never removes another run's cancellation token, so Cancel always reaches the run that is in progress on a tab.
@@ -76,3 +76,5 @@ Found in review of the shell backend spec (PR #53) and accepted there as a follo
 - 2026-11-21: Dismissed (second cold verify): the E2E cancel test's $where sleep may outlive the test on the server; the whole spec ran in 4.5 s with no stall, and server-side JavaScript stops when its client disconnects (probe 2026-11-16). Equivalent mutants in release (is_cancelled instead of identity; release(None) on a fixed key) decide the same way within the API.
 - 2026-11-21: Final cold verify (46b9899): criteria 1-6 verified; criterion 7 E2E could not run because the macOS screen was locked (CGSSessionScreenIsLocked true; dialogs never open), same failure in the PR worktree at 20:01Z. E2E to be rerun with the screen unlocked.
 - 2026-11-21: Dismissed (final verify): identity check vs contains_key && !is_cancelled is equivalent (every path that replaces or removes an entry cancels it under the same guard); calling release on the cancel path is the Design's stated choice. Server-error E2E now asserts the error display only, not MongoDB's wording (d-commit after 46b9899).
+- 2026-11-21: Accepted risks (Scott Schlesier, review round 1): (1) export cancel has no test (needs the native save dialog); a wrong key in export_csv's register would go unnoticed. (2) a future edit that checks under a read lock and removes under a separate write lock would pass the tests; the comment at release is the guard. Spot check: clearing the test-only cancel copy was confirmed right.
+- 2026-11-21: Status: done: Reviewed round 1: 7/7 criteria verified (three cold verifies; E2E rerun at f2039b1 with the screen unlocked: query-execution 6, export 2, multi-query 8 passing; pnpm verify passed); two accepted risks in the Log
