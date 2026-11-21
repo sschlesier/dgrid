@@ -70,3 +70,5 @@ Found in review of the shell backend spec (PR #53) and accepted there as a follo
 - 2026-11-16: Assumption: execute_query now also calls release on its cancel path (it returned early before); harmless because the stored token is no longer its own, as the Design says.
 - 2026-11-21: Criterion 7: E2E query-execution (4 passing), export (2 passing), multi-query (8 passing) on macOS, 2026-11-16.
 - 2026-11-21: Status: in-review
+- 2026-11-21: Review round 1 fixes: shared test helper for the cancel commands (044ff05); lock-ordering test that kills the check-before-lock mutant (2d12666); E2E cancel journey in query-execution.e2e.mjs, which fails when execute_query registers with no tab id (checked by running the mutant).
+- 2026-11-21: Dismissed (round 1): dropping release in a command (mutants on query.rs:49, export.rs:212, shell.rs:20) is not observable to the user: the stale entry is a finished run's token, which the next register on that tab or a cancel removes and cancels harmlessly.
