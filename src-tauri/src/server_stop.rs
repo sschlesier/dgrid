@@ -57,6 +57,37 @@ pub async fn kill_sessions(client: &Client, session_ids: Vec<Document>) -> Resul
         .map_err(|e| e.to_string())
 }
 
+/// Kill the sessions of a shell run's mongosh connection, found by its `appName` among the
+/// current user's own operations. Finding none is a success. Operations without a session
+/// (mongosh's monitoring connection) are skipped.
+pub async fn stop_app_sessions(client: &Client, app_name: &str) -> Result<(), String> {
+    use futures_util::TryStreamExt;
+
+    let ops: Vec<Document> = client
+        .database("admin")
+        .aggregate(vec![
+            doc! { "$currentOp": { "allUsers": false } },
+            doc! { "$match": { "appName": app_name } },
+        ])
+        .await
+        .map_err(|e| e.to_string())?
+        .try_collect()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let mut ids: Vec<Document> = Vec::new();
+    for op in &ops {
+        let Some(id) = op.get_document("lsid").ok().and_then(|lsid| lsid.get("id")) else {
+            continue;
+        };
+        let id = doc! { "id": id.clone() };
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    kill_sessions(client, ids).await
+}
+
 /// Helpers for the ignored integration tests that cancel slow operations.
 /// Run with: MONGODB_TEST_URI=mongodb://localhost:27017 cargo test -- --ignored killop
 #[cfg(test)]

@@ -12,6 +12,7 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use mongodb::bson::Bson;
+use mongodb::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tokio::io::{AsyncRead, AsyncReadExt};
@@ -21,6 +22,7 @@ use tokio_util::sync::CancellationToken;
 use crate::bson_ser::{serialize_bson_value, serialize_document};
 use crate::error::DgridError;
 use crate::pool::ConnectionPool;
+use crate::server_stop;
 
 const PRELUDE: &str = include_str!("shell_prelude.js");
 const PRELUDE_FILE: &str = "prelude.js";
@@ -88,8 +90,41 @@ pub async fn execute_shell(
         id: id.into(),
     })?;
 
+    let client = pool
+        .get_client(id)
+        .await
+        .ok_or_else(|| DgridError::NotFound {
+            entity: "Connection".into(),
+            id: id.into(),
+        })?;
+
     let program = mongosh_program(std::env::var_os(MONGOSH_PATH_ENV));
-    run_script(&program, &uri, &request, token, |_, _, _| {}).await
+    run_script(&program, &uri, Some(&client), &request, token, |_, _, _| {}).await
+}
+
+/// `uri` with its `appName` option set to `name`, replacing any `appName` it carries (the
+/// key is matched in any letter case). The options are everything after the first `?`:
+/// a `?` inside credentials is percent-encoded. A URI with no options gets a `/` before
+/// them when none follows its host list. `name` needs no encoding.
+fn with_app_name(uri: &str, name: &str) -> String {
+    let (base, options) = match uri.split_once('?') {
+        Some((base, options)) => (base, options),
+        None => (uri, ""),
+    };
+    let mut kept: Vec<&str> = options
+        .split('&')
+        .filter(|option| !option.is_empty())
+        .filter(|option| {
+            let key = option.split_once('=').map_or(*option, |(key, _)| key);
+            !key.eq_ignore_ascii_case("appName")
+        })
+        .collect();
+    let app_name = format!("appName={name}");
+    kept.push(&app_name);
+
+    let after_scheme = base.split_once("://").map_or(base, |(_, rest)| rest);
+    let slash = if after_scheme.contains('/') { "" } else { "/" };
+    format!("{base}{slash}?{}", kept.join("&"))
 }
 
 /// `DGRID_MONGOSH_PATH` when set and not empty, else the bare name for the OS to resolve
@@ -115,11 +150,14 @@ fn mongosh_args(dir: &Path) -> Vec<OsString> {
 /// The per-run temp directory, removed on drop so every exit path cleans up.
 struct RunDir {
     path: PathBuf,
+    /// The directory's name, `dgrid-shell-<uuid>`. It is also the run's `appName` on the server.
+    name: String,
 }
 
 impl RunDir {
     fn create() -> std::io::Result<Self> {
-        let path = std::env::temp_dir().join(format!("dgrid-shell-{}", uuid::Uuid::new_v4()));
+        let name = format!("dgrid-shell-{}", uuid::Uuid::new_v4());
+        let path = std::env::temp_dir().join(&name);
         let mut builder = std::fs::DirBuilder::new();
         #[cfg(unix)]
         {
@@ -127,7 +165,7 @@ impl RunDir {
             builder.mode(0o700);
         }
         builder.create(&path)?;
-        Ok(Self { path })
+        Ok(Self { path, name })
     }
 }
 
@@ -139,11 +177,15 @@ impl Drop for RunDir {
 
 /// Spawn `program` on the script and collect its results and output.
 ///
+/// A cancelled run kills the sessions of its mongosh connection on the server through
+/// `client`. `None` skips that; only tests that never cancel pass it.
+///
 /// `on_spawn` receives the child's pid, its arguments and the run's temp directory right
 /// after the spawn; tests use it to inspect a run in progress.
 async fn run_script(
     program: &OsStr,
     uri: &str,
+    client: Option<&Client>,
     request: &ExecuteShellRequest,
     token: CancellationToken,
     on_spawn: impl FnOnce(Option<u32>, &[OsString], &Path),
@@ -163,7 +205,8 @@ async fn run_script(
     let mut command = Command::new(program);
     command
         .args(&args)
-        .env("DGRID_SHELL_URI", uri)
+        .current_dir(&dir.path)
+        .env("DGRID_SHELL_URI", with_app_name(uri, &dir.name))
         .env("DGRID_SHELL_DB", &request.database)
         .env("DGRID_SHELL_OUT", &result_path)
         .stdin(Stdio::null())
@@ -205,7 +248,12 @@ async fn run_script(
     let Some(status) = finished else {
         // Wait for the kill so the child is gone before its temp directory is.
         let _ = child.kill().await;
-        return Err(DgridError::QueryCancelled);
+        return Err(match client {
+            Some(client) => {
+                server_stop::finish_cancel(server_stop::stop_app_sessions(client, &dir.name)).await
+            }
+            None => DgridError::QueryCancelled,
+        });
     };
     let status = status.map_err(io_error)?;
 
@@ -835,6 +883,7 @@ mod tests {
         let err = run_script(
             OsStr::new("/nonexistent/dgrid-test/mongosh"),
             "mongodb://localhost:27017",
+            None,
             &request("1", "test"),
             CancellationToken::new(),
             |_, _, dir| seen_dir = Some(dir.to_path_buf()),
@@ -902,6 +951,10 @@ mod tests {
             };
             test_db.db().await.drop().await.unwrap();
             test_db
+        }
+
+        async fn client(&self) -> mongodb::Client {
+            self.pool.get_client(CONNECTION_ID).await.unwrap()
         }
 
         async fn db(&self) -> Database {
@@ -1259,6 +1312,7 @@ mod tests {
         let response = run_script(
             &mongosh_program(std::env::var_os(MONGOSH_PATH_ENV)),
             &test_db.uri,
+            None,
             &request(
                 "print('before the throw');\n\
                  __dgrid.result(0, 1);\n\
@@ -1330,6 +1384,7 @@ mod tests {
         let response = run_script(
             &mongosh_program(std::env::var_os(MONGOSH_PATH_ENV)),
             &test_db.uri,
+            None,
             // The sleep keeps the first write after the file is made read-only below.
             &request(
                 "sleep(500); __dgrid.result(0, 1); print('after the report');",
@@ -1366,6 +1421,7 @@ mod tests {
         let response = run_script(
             &mongosh_program(std::env::var_os(MONGOSH_PATH_ENV)),
             &test_db.uri,
+            None,
             &request("__dgrid.result(0, 1)", &test_db.name),
             CancellationToken::new(),
             |_, _, dir| {
@@ -1409,6 +1465,7 @@ mod tests {
             run_script(
                 &program,
                 &uri,
+                None,
                 &request,
                 CancellationToken::new(),
                 |pid, _, dir| {
@@ -1451,10 +1508,18 @@ mod tests {
             let uri = test_db.uri.clone();
             let request = request("__dgrid.result(0, 1); sleep(120000);", &test_db.name);
             let program = mongosh_program(std::env::var_os(MONGOSH_PATH_ENV));
+            let client = test_db.client().await;
             async move {
-                run_script(&program, &uri, &request, token, |pid, _, dir| {
-                    let _ = spawned_tx.send((pid.unwrap(), dir.to_path_buf()));
-                })
+                run_script(
+                    &program,
+                    &uri,
+                    Some(&client),
+                    &request,
+                    token,
+                    |pid, _, dir| {
+                        let _ = spawned_tx.send((pid.unwrap(), dir.to_path_buf()));
+                    },
+                )
                 .await
             }
         });
@@ -1510,6 +1575,7 @@ mod tests {
         let response = run_script(
             &mongosh_program(std::env::var_os(MONGOSH_PATH_ENV)),
             &uri,
+            None,
             &request("__dgrid.result(0, 1)", "dgrid_shell_password_test"),
             CancellationToken::new(),
             |pid, args, dir| {
@@ -1549,5 +1615,211 @@ mod tests {
             assert!(!content.contains(PASSWORD), "password in {path:?}");
         }
         assert!(!run_dir.unwrap().exists());
+    }
+
+    #[test]
+    fn app_name_is_added_to_a_uri_without_options() {
+        let cases = [
+            ("mongodb://h:27017", "mongodb://h:27017/?appName=N"),
+            ("mongodb://h:27017/", "mongodb://h:27017/?appName=N"),
+            ("mongodb://h:27017/db", "mongodb://h:27017/db?appName=N"),
+            ("mongodb://a:1,b:2,c:3", "mongodb://a:1,b:2,c:3/?appName=N"),
+            ("mongodb://a:1,b:2/db", "mongodb://a:1,b:2/db?appName=N"),
+            (
+                "mongodb+srv://u:p@c.example.net",
+                "mongodb+srv://u:p@c.example.net/?appName=N",
+            ),
+        ];
+        for (uri, expected) in cases {
+            assert_eq!(with_app_name(uri, "N"), expected, "{uri}");
+        }
+    }
+
+    #[test]
+    fn app_name_is_appended_to_existing_options() {
+        let cases = [
+            (
+                "mongodb://h/db?replicaSet=rs&tls=true",
+                "mongodb://h/db?replicaSet=rs&tls=true&appName=N",
+            ),
+            (
+                "mongodb+srv://u:p@c.example.net/db?retryWrites=true",
+                "mongodb+srv://u:p@c.example.net/db?retryWrites=true&appName=N",
+            ),
+            ("mongodb://h/db?", "mongodb://h/db?appName=N"),
+            ("mongodb://h/?a=1&", "mongodb://h/?a=1&appName=N"),
+        ];
+        for (uri, expected) in cases {
+            assert_eq!(with_app_name(uri, "N"), expected, "{uri}");
+        }
+    }
+
+    #[test]
+    fn app_name_replaces_the_uris_own_in_any_letter_case() {
+        let cases = [
+            ("mongodb://h/?appName=mine", "mongodb://h/?appName=N"),
+            ("mongodb://h/?APPNAME=mine", "mongodb://h/?appName=N"),
+            (
+                "mongodb://h/db?a=1&appname=mine&b=2",
+                "mongodb://h/db?a=1&b=2&appName=N",
+            ),
+            ("mongodb://h/?AppName=x&appName=y", "mongodb://h/?appName=N"),
+            // A key that merely starts with appName is a different option.
+            (
+                "mongodb://h/?appNameX=1",
+                "mongodb://h/?appNameX=1&appName=N",
+            ),
+        ];
+        for (uri, expected) in cases {
+            assert_eq!(with_app_name(uri, "N"), expected, "{uri}");
+        }
+    }
+
+    #[test]
+    fn app_name_ignores_encoded_question_marks_and_ampersands_in_credentials() {
+        let cases = [
+            (
+                "mongodb://us%3Fer:p%26ss%3Fx@h/db",
+                "mongodb://us%3Fer:p%26ss%3Fx@h/db?appName=N",
+            ),
+            (
+                "mongodb://u:p%3FappName%3Dx%26y@h:27017",
+                "mongodb://u:p%3FappName%3Dx%26y@h:27017/?appName=N",
+            ),
+            (
+                "mongodb://u:p%26z@h/?a=1",
+                "mongodb://u:p%26z@h/?a=1&appName=N",
+            ),
+        ];
+        for (uri, expected) in cases {
+            assert_eq!(with_app_name(uri, "N"), expected, "{uri}");
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_connection_reports_its_per_run_app_name_even_when_the_uri_sets_one() {
+        use crate::server_stop::test_support::{client, wait_for_op};
+        use futures_util::TryStreamExt;
+
+        let test_db = TestDb::create("dgrid_shell_appname_test").await;
+        seed_slow(&test_db).await;
+        let uri = with_app_name(&test_db.uri, "set-by-the-uri");
+        let token = CancellationToken::new();
+        let (spawned_tx, spawned_rx) = tokio::sync::oneshot::channel();
+        let pool_client = test_db.client().await;
+
+        let run = tokio::spawn({
+            let token = token.clone();
+            let request = request(&slow_write_script(), &test_db.name);
+            let program = mongosh_program(std::env::var_os(MONGOSH_PATH_ENV));
+            let pool_client = pool_client.clone();
+            async move {
+                run_script(
+                    &program,
+                    &uri,
+                    Some(&pool_client),
+                    &request,
+                    token,
+                    |_, _, dir| {
+                        let _ = spawned_tx.send(dir.to_path_buf());
+                    },
+                )
+                .await
+            }
+        });
+        let run_dir = spawned_rx.await.unwrap();
+        let expected = run_dir.file_name().unwrap().to_string_lossy().to_string();
+        assert!(expected.starts_with("dgrid-shell-"));
+
+        wait_for_op(&client().await, &format!("{}.items", test_db.name)).await;
+        let ops: Vec<Document> = pool_client
+            .database("admin")
+            .aggregate(vec![
+                doc! { "$currentOp": { "allUsers": true } },
+                doc! { "$match": { "ns": format!("{}.items", test_db.name) } },
+            ])
+            .await
+            .unwrap()
+            .try_collect()
+            .await
+            .unwrap();
+        assert!(!ops.is_empty());
+        for op in &ops {
+            assert_eq!(op.get_str("appName").unwrap(), expected);
+        }
+
+        token.cancel();
+        let _ = run.await.unwrap();
+        test_db.cleanup().await;
+    }
+
+    fn slow_write_script() -> String {
+        let filter = Bson::Document(crate::server_stop::test_support::slow_filter())
+            .into_relaxed_extjson()
+            .to_string();
+        format!("db.items.updateMany({filter}, {{ $inc: {{ n: 1 }} }})")
+    }
+
+    async fn seed_slow(test_db: &TestDb) {
+        crate::server_stop::test_support::seed(&test_db.db().await).await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn killop_cancelled_slow_shell_write_stops_on_the_server() {
+        use crate::server_stop::test_support::{client, ops_on, wait_for_op, written, SLOW_DOCS};
+
+        let test_db = TestDb::create("dgrid_killop_shell_write_test").await;
+        seed_slow(&test_db).await;
+        let namespace = format!("{}.items", test_db.name);
+        let token = CancellationToken::new();
+        let (spawned_tx, spawned_rx) = tokio::sync::oneshot::channel();
+        let pool_client = test_db.client().await;
+
+        let run = tokio::spawn({
+            let token = token.clone();
+            let uri = test_db.uri.clone();
+            let request = request(&slow_write_script(), &test_db.name);
+            let program = mongosh_program(std::env::var_os(MONGOSH_PATH_ENV));
+            async move {
+                run_script(
+                    &program,
+                    &uri,
+                    Some(&pool_client),
+                    &request,
+                    token,
+                    |pid, _, _| {
+                        let _ = spawned_tx.send(pid.unwrap());
+                    },
+                )
+                .await
+            }
+        });
+        let pid = spawned_rx.await.unwrap();
+
+        let client = client().await;
+        wait_for_op(&client, &namespace).await;
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        token.cancel();
+        let result = run.await.unwrap();
+
+        assert!(
+            matches!(result, Err(DgridError::QueryCancelled)),
+            "{result:?}"
+        );
+        assert!(!process_is_running(pid), "mongosh {pid} is still running");
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        let after_one_second = written(&test_db.db().await).await;
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        assert_eq!(
+            written(&test_db.db().await).await,
+            after_one_second,
+            "the write kept going"
+        );
+        assert!(after_one_second < SLOW_DOCS as u64);
+        assert_eq!(ops_on(&client, &namespace).await, 0);
+
+        test_db.cleanup().await;
     }
 }
