@@ -84,6 +84,19 @@ describe('Query Execution', () => {
     await expect(s.query.errorDisplay()).not.toBeDisplayed();
   });
 
+  it('shows the server error for a query the server rejects', async () => {
+    await seedDatabase(TEST_DB, TEST_COLLECTION, [{ name: 'Alice' }]);
+
+    await openCollection();
+    await clearAndTypeQuery(`db.${TEST_COLLECTION}.find({ $notAnOperator: 1 })`);
+    await (await s.query.executeButton()).click();
+
+    await s.query.errorDisplay().waitForDisplayed({ timeout: 10_000 });
+    await expect(s.query.errorDisplay()).toHaveText(
+      expect.stringContaining('unknown top level operator')
+    );
+  });
+
   it('shows an error display for invalid queries', async () => {
     await seedDatabase(TEST_DB, TEST_COLLECTION, [{ name: 'Alice' }]);
 
