@@ -8,7 +8,7 @@ use std::future::Future;
 use std::time::Duration;
 
 use mongodb::bson::{doc, Bson, Document};
-use mongodb::Client;
+use mongodb::{Client, ClientSession, Database};
 
 use crate::error::DgridError;
 
@@ -30,6 +30,16 @@ where
             STOP_TIMEOUT.as_secs()
         )),
     }
+}
+
+/// Start the driver session a run executes in. Causal consistency is off, so reads behave
+/// as they do with the driver's implicit sessions.
+pub async fn start_session(db: &Database) -> Result<ClientSession, DgridError> {
+    db.client()
+        .start_session()
+        .causal_consistency(false)
+        .await
+        .map_err(|e| DgridError::QueryExecution(e.to_string()))
 }
 
 /// Kill the given server sessions. Each item is a session id document (`{ id: <UUID> }`).

@@ -56,13 +56,7 @@ pub async fn run_query(
     options: QueryOptions,
     token: &CancellationToken,
 ) -> Result<ExecuteQueryResponse, DgridError> {
-    // Causal consistency off, so reads behave as they do with the driver's implicit sessions.
-    let mut session = db
-        .client()
-        .start_session()
-        .causal_consistency(false)
-        .await
-        .map_err(|e| DgridError::QueryExecution(e.to_string()))?;
+    let mut session = server_stop::start_session(db).await?;
     let session_id = session.id().clone();
 
     let finished = tokio::select! {
