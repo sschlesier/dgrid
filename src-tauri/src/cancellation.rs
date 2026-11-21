@@ -38,16 +38,19 @@ pub async fn release(tokens: &TokenMap, key: Option<&str>, token: &CancellationT
     }
 }
 
+/// What the `cancel_query` and `cancel_export` commands do with the token map.
+#[cfg(test)]
+pub(crate) async fn cancel_for_test(tokens: &TokenMap, key: &str) {
+    if let Some(token) = tokens.write().await.remove(key) {
+        token.cancel();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// What the `cancel_query` and `cancel_export` commands do with the token map.
-    async fn cancel(tokens: &TokenMap, key: &str) {
-        if let Some(token) = tokens.write().await.remove(key) {
-            token.cancel();
-        }
-    }
+    use cancel_for_test as cancel;
 
     #[tokio::test]
     async fn register_stores_a_token_under_the_key() {

@@ -24,15 +24,8 @@ pub async fn execute_shell(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cancellation::TokenMap;
+    use crate::cancellation::{cancel_for_test as cancel_query, TokenMap};
     use crate::pool::{ConnectionPool, MongoConnectionOptions};
-
-    /// What the `cancel_query` command does with the token map.
-    async fn cancel_query(tokens: &TokenMap, tab_id: &str) {
-        if let Some(token) = tokens.write().await.remove(tab_id) {
-            token.cancel();
-        }
-    }
 
     // Needs a real MongoDB and `mongosh` on PATH.
     // Run with: MONGODB_TEST_URI=mongodb://localhost:27017 cargo test -- --ignored shell
