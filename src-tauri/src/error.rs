@@ -27,6 +27,10 @@ pub enum DgridError {
     #[error("Query was cancelled")]
     QueryCancelled,
 
+    /// The run was cancelled, but telling the server to stop its operation failed.
+    #[error("Cancelled, but the server operation may still be running: {0}")]
+    CancelledServerStillRunning(String),
+
     #[error("Connection was cancelled")]
     ConnectionCancelled,
 
@@ -124,6 +128,15 @@ mod tests {
         let json_err = serde_json::from_str::<String>("invalid").unwrap_err();
         let err: DgridError = json_err.into();
         assert!(matches!(err, DgridError::Storage(_)));
+    }
+
+    #[test]
+    fn cancelled_server_still_running_display() {
+        let err = DgridError::CancelledServerStillRunning("no answer within 5 s".into());
+        assert_eq!(
+            err.to_string(),
+            "Cancelled, but the server operation may still be running: no answer within 5 s"
+        );
     }
 
     #[test]
