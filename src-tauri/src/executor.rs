@@ -4,7 +4,7 @@
 
 use mongodb::bson::{doc, Bson, Document};
 use mongodb::options::FindOptions;
-use mongodb::Database;
+use mongodb::{ClientSession, Database};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -103,14 +103,18 @@ impl Default for QueryOptions {
 }
 
 /// Execute a parsed query against a database.
+///
+/// Every operation runs in `session`, so a cancelled run can be stopped on the server by
+/// killing that session.
 pub async fn execute_query(
     db: &Database,
+    session: &mut ClientSession,
     query: ParsedQuery,
     options: QueryOptions,
 ) -> Result<ExecuteQueryResponse, String> {
     match query {
-        ParsedQuery::Collection(q) => execute_collection_query(db, *q, options).await,
-        ParsedQuery::DbCommand(cmd) => execute_db_command(db, cmd, options).await,
+        ParsedQuery::Collection(q) => execute_collection_query(db, session, *q, options).await,
+        ParsedQuery::DbCommand(cmd) => execute_db_command(db, session, cmd, options).await,
     }
 }
 
@@ -118,6 +122,7 @@ pub async fn execute_query(
 
 async fn execute_collection_query(
     db: &Database,
+    session: &mut ClientSession,
     query: ParsedCollectionQuery,
     options: QueryOptions,
 ) -> Result<ExecuteQueryResponse, String> {
@@ -173,8 +178,10 @@ async fn execute_collection_query(
             let mut docs: Vec<Document> = collection
                 .find(filter)
                 .with_options(find_opts)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?
+                .stream(&mut *session)
                 .try_collect()
                 .await
                 .map_err(|e| e.to_string())?;
@@ -209,8 +216,10 @@ async fn execute_collection_query(
             use futures_util::TryStreamExt;
             let mut docs: Vec<Document> = collection
                 .aggregate(pipeline.clone())
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?
+                .stream(&mut *session)
                 .try_collect()
                 .await
                 .map_err(|e| e.to_string())?;
@@ -233,6 +242,7 @@ async fn execute_collection_query(
             let filter = value_to_doc(&query.filter)?;
             let count = collection
                 .count_documents(filter)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())? as i64;
 
@@ -257,6 +267,7 @@ async fn execute_collection_query(
 
             let values = collection
                 .distinct(field, filter)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -288,6 +299,7 @@ async fn execute_collection_query(
             let doc = collection
                 .find_one(filter)
                 .with_options(opts)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -309,6 +321,7 @@ async fn execute_collection_query(
             let document = value_to_doc(&query.document)?;
             let result = collection
                 .insert_one(document)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -339,6 +352,7 @@ async fn execute_collection_query(
 
             let result = collection
                 .insert_many(docs)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -373,12 +387,14 @@ async fn execute_collection_query(
                 collection
                     .update_one(filter, update)
                     .with_options(opts)
+                    .session(&mut *session)
                     .await
                     .map_err(|e| e.to_string())?
             } else {
                 collection
                     .update_many(filter, update)
                     .with_options(opts)
+                    .session(&mut *session)
                     .await
                     .map_err(|e| e.to_string())?
             };
@@ -436,6 +452,7 @@ async fn execute_collection_query(
             let result = collection
                 .replace_one(filter, replacement)
                 .with_options(opts)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -481,11 +498,13 @@ async fn execute_collection_query(
             let result = if query.operation == CollectionOperation::DeleteOne {
                 collection
                     .delete_one(filter)
+                    .session(&mut *session)
                     .await
                     .map_err(|e| e.to_string())?
             } else {
                 collection
                     .delete_many(filter)
+                    .session(&mut *session)
                     .await
                     .map_err(|e| e.to_string())?
             };
@@ -523,6 +542,7 @@ async fn execute_collection_query(
             let result = collection
                 .find_one_and_update(filter, update)
                 .with_options(opts)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -561,6 +581,7 @@ async fn execute_collection_query(
             let result = collection
                 .find_one_and_replace(filter, replacement)
                 .with_options(opts)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -587,6 +608,7 @@ async fn execute_collection_query(
 
             let result = collection
                 .find_one_and_delete(filter)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -619,6 +641,7 @@ async fn execute_collection_query(
 
             let result = collection
                 .create_index(model)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -638,6 +661,7 @@ async fn execute_collection_query(
             let index_name = query.index_name.as_deref().unwrap_or("");
             collection
                 .drop_index(index_name)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -661,8 +685,10 @@ async fn execute_collection_query(
             use futures_util::TryStreamExt;
             let indexes: Vec<mongodb::IndexModel> = collection
                 .list_indexes()
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?
+                .stream(&mut *session)
                 .try_collect()
                 .await
                 .map_err(|e| e.to_string())?;
@@ -716,6 +742,7 @@ async fn execute_collection_query(
 
             let result = db
                 .run_command(doc! { "explain": find_cmd, "verbosity": verbosity })
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -747,6 +774,7 @@ async fn execute_collection_query(
                     let document = insert.get_document("document").unwrap_or(insert).clone();
                     collection
                         .insert_one(document)
+                        .session(&mut *session)
                         .await
                         .map_err(|e| e.to_string())?;
                     inserted_count += 1;
@@ -754,6 +782,7 @@ async fn execute_collection_query(
                     let filter = delete.get_document("filter").cloned().unwrap_or_default();
                     let r = collection
                         .delete_one(filter)
+                        .session(&mut *session)
                         .await
                         .map_err(|e| e.to_string())?;
                     deleted_count += r.deleted_count;
@@ -761,6 +790,7 @@ async fn execute_collection_query(
                     let filter = delete.get_document("filter").cloned().unwrap_or_default();
                     let r = collection
                         .delete_many(filter)
+                        .session(&mut *session)
                         .await
                         .map_err(|e| e.to_string())?;
                     deleted_count += r.deleted_count;
@@ -769,6 +799,7 @@ async fn execute_collection_query(
                     let update_doc = update.get_document("update").cloned().unwrap_or_default();
                     let r = collection
                         .update_one(filter, update_doc)
+                        .session(&mut *session)
                         .await
                         .map_err(|e| e.to_string())?;
                     matched_count += r.matched_count;
@@ -781,6 +812,7 @@ async fn execute_collection_query(
                     let update_doc = update.get_document("update").cloned().unwrap_or_default();
                     let r = collection
                         .update_many(filter, update_doc)
+                        .session(&mut *session)
                         .await
                         .map_err(|e| e.to_string())?;
                     matched_count += r.matched_count;
@@ -796,6 +828,7 @@ async fn execute_collection_query(
                         .unwrap_or_default();
                     let r = collection
                         .replace_one(filter, replacement)
+                        .session(&mut *session)
                         .await
                         .map_err(|e| e.to_string())?;
                     matched_count += r.matched_count;
@@ -828,6 +861,7 @@ async fn execute_collection_query(
 
 async fn execute_db_command(
     db: &Database,
+    session: &mut ClientSession,
     command: ParsedDbCommand,
     options: QueryOptions,
 ) -> Result<ExecuteQueryResponse, String> {
@@ -863,8 +897,10 @@ async fn execute_db_command(
             use futures_util::TryStreamExt;
             let mut docs: Vec<Document> = target_db
                 .aggregate(pipeline)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?
+                .stream(&mut *session)
                 .try_collect()
                 .await
                 .map_err(|e| e.to_string())?;
@@ -881,8 +917,10 @@ async fn execute_db_command(
             use futures_util::TryStreamExt;
             let collections: Vec<mongodb::results::CollectionSpecification> = db
                 .list_collections()
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?
+                .stream(&mut *session)
                 .try_collect()
                 .await
                 .map_err(|e| e.to_string())?;
@@ -911,7 +949,11 @@ async fn execute_db_command(
             if !filter.is_empty() {
                 cmd.insert("filter", filter);
             }
-            let result = db.run_command(cmd).await.map_err(|e| e.to_string())?;
+            let result = db
+                .run_command(cmd)
+                .session(&mut *session)
+                .await
+                .map_err(|e| e.to_string())?;
 
             // Extract cursor.firstBatch
             let batch = result
@@ -938,6 +980,7 @@ async fn execute_db_command(
 
             let result = db
                 .run_command(doc! { "dbStats": 1, "scale": scale as i32 })
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -947,6 +990,7 @@ async fn execute_db_command(
         "serverStatus" => {
             let result = db
                 .run_command(doc! { "serverStatus": 1 })
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -958,6 +1002,7 @@ async fn execute_db_command(
                 .client()
                 .database("admin")
                 .run_command(doc! { "hostInfo": 1 })
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -969,6 +1014,7 @@ async fn execute_db_command(
                 .client()
                 .database("admin")
                 .run_command(doc! { "buildInfo": 1 })
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -986,6 +1032,7 @@ async fn execute_db_command(
                 .ok_or("createCollection requires a collection name")?;
 
             db.create_collection(name)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -1007,6 +1054,7 @@ async fn execute_db_command(
 
             db.collection::<Document>(name)
                 .drop()
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -1034,6 +1082,7 @@ async fn execute_db_command(
             let target = format!("{}.{}", db.name(), to);
             admin
                 .run_command(doc! { "renameCollection": namespace, "to": target })
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -1057,7 +1106,11 @@ async fn execute_db_command(
             if !filter.is_empty() {
                 cmd.insert("filter", filter);
             }
-            let result = db.run_command(cmd).await.map_err(|e| e.to_string())?;
+            let result = db
+                .run_command(cmd)
+                .session(&mut *session)
+                .await
+                .map_err(|e| e.to_string())?;
 
             let batch = result
                 .get_document("cursor")
@@ -1089,6 +1142,7 @@ async fn execute_db_command(
                 .client()
                 .database("admin")
                 .run_command(cmd)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -1103,6 +1157,7 @@ async fn execute_db_command(
                 .client()
                 .database("admin")
                 .run_command(doc! { "killOp": 1, "op": bson_id })
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -1116,7 +1171,11 @@ async fn execute_db_command(
                 return Err("runCommand requires a command document".into());
             };
 
-            let result = db.run_command(cmd).await.map_err(|e| e.to_string())?;
+            let result = db
+                .run_command(cmd)
+                .session(&mut *session)
+                .await
+                .map_err(|e| e.to_string())?;
             vec![bson_ser::serialize_document(&result)]
         }
 
@@ -1131,6 +1190,7 @@ async fn execute_db_command(
                 .client()
                 .database("admin")
                 .run_command(cmd)
+                .session(&mut *session)
                 .await
                 .map_err(|e| e.to_string())?;
 

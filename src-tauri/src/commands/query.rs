@@ -39,8 +39,16 @@ pub async fn execute_query(
     let tab_id = request.tab_id.as_deref();
     let token = cancellation::register(&state.cancellation_tokens, tab_id).await;
 
+    // Causal consistency off, so reads behave as they do with the driver's implicit sessions.
+    let mut session = db
+        .client()
+        .start_session()
+        .causal_consistency(false)
+        .await
+        .map_err(|e| DgridError::QueryExecution(e.to_string()))?;
+
     let result = tokio::select! {
-        result = executor::execute_query(&db, request.query, options) => {
+        result = executor::execute_query(&db, &mut session, request.query, options) => {
             result.map_err(DgridError::QueryExecution)
         }
         _ = token.cancelled() => Err(DgridError::QueryCancelled),
