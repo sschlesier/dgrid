@@ -26,6 +26,7 @@ vi.mock('../lib/queries.js', () => ({
 }));
 
 import { invoke } from '@tauri-apps/api/core';
+import { save } from '@tauri-apps/plugin-dialog';
 import { appStore } from '../stores/app.svelte';
 import { exportStore } from '../stores/export.svelte';
 import { parseQuery } from '../lib/queries.js';
@@ -133,5 +134,41 @@ describe('ExportStore — exportToClipboard', () => {
       'error',
       expect.stringContaining('Invalid query syntax')
     );
+  });
+});
+
+describe('ExportStore — cancelled export', () => {
+  const warning = 'Cancelled, but the server operation may still be running: no answer within 5 s';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedParseQuery.mockReturnValue({
+      ok: true,
+      value: { type: 'collection', collection: 'users', operation: 'find' },
+    });
+    (save as ReturnType<typeof vi.fn>).mockResolvedValue('/tmp/out.csv');
+  });
+
+  async function exportCancelledWith(message: string): Promise<void> {
+    mockedInvoke.mockImplementation(async (command: string) => {
+      if (command === 'export_csv') throw message;
+    });
+    await exportStore.startExport('tab-1', 'conn-1', 'testdb', 'db.users.find({})', 'users.csv');
+  }
+
+  it('resets the export state and warns when the server stop failed', async () => {
+    await exportCancelledWith(warning);
+
+    expect(exportStore.getState('tab-1').isExporting).toBe(false);
+    expect(exportStore.getState('tab-1').error).toBeNull();
+    expect(mockedNotify).toHaveBeenCalledWith('warning', warning);
+  });
+
+  it('resets the export state without a notification after a normal cancel', async () => {
+    await exportCancelledWith('Query was cancelled');
+
+    expect(exportStore.getState('tab-1').isExporting).toBe(false);
+    expect(exportStore.getState('tab-1').error).toBeNull();
+    expect(mockedNotify).not.toHaveBeenCalled();
   });
 });

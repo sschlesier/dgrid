@@ -93,6 +93,16 @@ function saveHistory(history: QueryHistoryItem[]): QueryHistoryItem[] {
   }
 }
 
+/** Warn when a cancelled run may still be running on the server. Goes through a window
+ * event, like `dgrid:connection-lost`, to avoid a circular import with the app store. */
+function warnIfServerStillRunning(error: QueryCancelledError): void {
+  if (error.serverWarning) {
+    window.dispatchEvent(
+      new CustomEvent('dgrid:notify', { detail: { type: 'warning', message: error.serverWarning } })
+    );
+  }
+}
+
 class QueryStore {
   // Per-tab state using Maps
   queryTexts = $state<Map<string, string>>(new Map());
@@ -238,6 +248,7 @@ class QueryStore {
     } catch (error) {
       // Don't store error for cancelled queries
       if (error instanceof QueryCancelledError) {
+        warnIfServerStillRunning(error);
         return null;
       }
 
@@ -357,6 +368,7 @@ class QueryStore {
           });
         } catch (error) {
           if (error instanceof QueryCancelledError) {
+            warnIfServerStillRunning(error);
             // Mark this and all remaining as not executing
             this.updateSubResult(tabId, i, { isExecuting: false });
             cancelled = true;
@@ -439,6 +451,7 @@ class QueryStore {
             isExecuting: false,
           });
         } else {
+          warnIfServerStillRunning(error);
           this.updateSubResult(tabId, resultIndex, { isExecuting: false });
         }
         return null;
