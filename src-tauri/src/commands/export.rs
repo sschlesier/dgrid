@@ -6,6 +6,7 @@ use tauri::{AppHandle, Emitter, State};
 use tokio_util::sync::CancellationToken;
 
 use crate::bson_ser;
+use crate::cancellation;
 use crate::csv;
 use crate::error::DgridError;
 use crate::executor::{CollectionOperation, ParsedCollectionQuery, ParsedQuery};
@@ -196,15 +197,7 @@ pub async fn export_csv(
             id: id.clone(),
         })?;
 
-    // Set up cancellation token
-    let token = CancellationToken::new();
-    {
-        let mut tokens = state.cancellation_tokens.write().await;
-        if let Some(old) = tokens.remove(&request.tab_id) {
-            old.cancel();
-        }
-        tokens.insert(request.tab_id.clone(), token.clone());
-    }
+    let token = cancellation::register(&state.cancellation_tokens, Some(&request.tab_id)).await;
 
     let result = export_csv_inner(
         &app,
@@ -216,11 +209,7 @@ pub async fn export_csv(
     )
     .await;
 
-    // Clean up token
-    {
-        let mut tokens = state.cancellation_tokens.write().await;
-        tokens.remove(&request.tab_id);
-    }
+    cancellation::release(&state.cancellation_tokens, Some(&request.tab_id), &token).await;
 
     match result {
         Ok(count) => Ok(ExportCsvResponse {

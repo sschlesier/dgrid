@@ -50,6 +50,7 @@ export const selectors = {
     editorContainer: () => $('.editor-container'),
     editorContent: () => $('.cm-content'),
     executeButton: () => $('.execute-btn.split-main'),
+    cancelButton: () => $('.query-panel .toolbar .cancel-btn'),
     executeDropdownToggle: () => $('.execute-btn.split-dropdown'),
     executeDropdown: () => $('.execute-dropdown'),
     executeDropdownItem: (label) =>

@@ -1,4 +1,5 @@
 mod bson_ser;
+mod cancellation;
 mod commands;
 mod config;
 mod credentials;
