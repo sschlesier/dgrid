@@ -64,6 +64,17 @@ describe('ServerInfoDialog', () => {
     expect(screen.queryByRole('heading', { name: 'Build' })).not.toBeInTheDocument();
   });
 
+  it('lists each distinct error once when sections fail differently', async () => {
+    getServerInfo.mockResolvedValue({
+      build: { error: 'a' },
+      runtime: { error: 'b' },
+      topology: { error: 'a' },
+    });
+    renderDialog();
+    expect(await screen.findByText('a')).toBeInTheDocument();
+    expect(screen.getByText('b')).toBeInTheDocument();
+  });
+
   it('shows the error when the command itself fails', async () => {
     getServerInfo.mockRejectedValue(new Error('Connection not found'));
     renderDialog();

@@ -31,12 +31,14 @@
     };
   });
 
-  const failureMessage = $derived(
-    loadError ??
-      (info && allSectionsFailed(info)
-        ? (info.build.error ?? info.runtime.error ?? info.topology.error ?? 'Unknown error')
-        : null)
-  );
+  const failureMessages = $derived.by((): string[] => {
+    if (loadError) return [loadError];
+    if (info && allSectionsFailed(info)) {
+      const messages = [info.build.error, info.runtime.error, info.topology.error];
+      return [...new Set(messages.filter((m): m is string => !!m))];
+    }
+    return [];
+  });
   const version = $derived(info ? serverVersion(info) : undefined);
 
   const sections = $derived<{ title: string; section: ServerInfoSection }[]>(
@@ -76,8 +78,10 @@
     </div>
 
     <div class="dialog-content">
-      {#if failureMessage}
-        <p class="server-info-error" data-testid="server-info-error">{failureMessage}</p>
+      {#if failureMessages.length > 0}
+        {#each failureMessages as message (message)}
+          <p class="server-info-error" data-testid="server-info-error">{message}</p>
+        {/each}
       {:else if !info}
         <p class="server-info-loading">Loading…</p>
       {:else}
