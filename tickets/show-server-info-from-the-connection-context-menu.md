@@ -59,3 +59,5 @@ The sidebar context menu for a connection node (`getContextMenuItems`, `src/comp
 - 2026-11-21: Started on branch feat/show-server-info-from-the-connection-context-menu
 - 2026-11-21: Implemented; pnpm verify, cargo test and the sidebar-context-menu E2E spec pass. Not covered by an automated UI test: partial-section 'Unavailable', all-failed state, Escape/overlay close, manual db.version() comparison.
 - 2026-11-21: Status: in-review
+- 2026-11-21: Review round 1: added component tests (loading, Unavailable, all-failed, Escape/overlay/Close) and formatter tests; E2E now asserts no Unavailable section against the test server.
+- 2026-11-21: Review round 1: dismissed missing get_server_info NotFound/integration test (same pattern as get_databases, no test there either); dismissed Escape reaching other window handlers (same pattern as ConfirmDialog).
