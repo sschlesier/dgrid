@@ -216,4 +216,28 @@ mod tests {
         );
         assert_eq!(start.elapsed(), STOP_TIMEOUT);
     }
+
+    /// Stopping an `appName` that has no operations succeeds and must not touch anyone
+    /// else's session: an empty `killSessions` would otherwise reach the user's other runs.
+    #[tokio::test]
+    #[ignore]
+    async fn killop_stopping_an_app_name_with_no_operations_leaves_other_sessions_alone() {
+        use super::test_support::{client, seed, slow_never_filter, wait_for_op};
+
+        let client = client().await;
+        let db = client.database("dgrid_killop_no_ops_test");
+        seed(&db).await;
+
+        let bystander = tokio::spawn({
+            let collection = db.collection::<Document>("items");
+            async move { collection.count_documents(slow_never_filter()).await }
+        });
+        wait_for_op(&client, "dgrid_killop_no_ops_test.items").await;
+
+        let stopped = stop_app_sessions(&client, "dgrid-shell-no-such-run").await;
+
+        assert_eq!(stopped, Ok(()));
+        assert_eq!(bystander.await.unwrap().unwrap(), 0);
+        db.drop().await.unwrap();
+    }
 }

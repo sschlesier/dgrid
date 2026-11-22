@@ -1822,4 +1822,29 @@ mod tests {
 
         test_db.cleanup().await;
     }
+
+    #[tokio::test]
+    #[ignore]
+    async fn shell_runs_with_the_run_temp_dir_as_its_working_directory() {
+        let test_db = TestDb::create("dgrid_shell_cwd_test").await;
+        let mut run_dir = None;
+
+        let response = run_script(
+            &mongosh_program(std::env::var_os(MONGOSH_PATH_ENV)),
+            &test_db.uri,
+            None,
+            &request("print(process.cwd())", &test_db.name),
+            CancellationToken::new(),
+            |_, _, dir| run_dir = Some(dir.canonicalize().unwrap()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            PathBuf::from(response.output.trim()),
+            run_dir.unwrap(),
+            "{response:?}"
+        );
+        test_db.cleanup().await;
+    }
 }
