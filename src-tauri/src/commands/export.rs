@@ -267,13 +267,14 @@ pub async fn run_export(
         _ = token.cancelled() => None,
     };
 
+    // The inner function also checks the token between documents, so a cancel can end it
+    // before the select above notices: that is still a cancel and needs the kill.
     match finished {
-        Some(result) => result,
-        None => Err(server_stop::finish_cancel(server_stop::kill_sessions(
-            db.client(),
-            vec![session_id],
-        ))
+        Some(Err(DgridError::QueryCancelled)) | None => Err(server_stop::finish_cancel(
+            server_stop::kill_sessions(db.client(), vec![session_id]),
+        )
         .await),
+        Some(result) => result,
     }
 }
 
