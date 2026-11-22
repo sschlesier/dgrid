@@ -221,6 +221,26 @@ describe('queryStore', () => {
       expect(notified).toEqual([{ type: 'warning', message: warning }]);
     });
 
+    it('warns after paging one Run All result is cancelled with a server warning', async () => {
+      const slices = [
+        { text: 'db.a.find()', startLine: 0, endLine: 0, startOffset: 0, endOffset: 11 },
+        { text: 'db.b.find()', startLine: 1, endLine: 1, startOffset: 12, endOffset: 23 },
+      ];
+      mockedApi.executeQuery.mockResolvedValue({
+        documents: [],
+        page: 1,
+        pageSize: 50,
+        hasMore: false,
+        executionTimeMs: 1,
+      });
+      await queryStore.executeQueries('tab-sub', 'conn1', 'testdb', slices);
+      mockedApi.executeQuery.mockRejectedValue(new api.QueryCancelledError(warning));
+
+      await queryStore.loadPage('tab-sub', 'conn1', 'testdb', 'db.a.find()', 2, 50, false, 0);
+
+      expect(notified).toEqual([{ type: 'warning', message: warning }]);
+    });
+
     it('shows nothing after Run All is cancelled normally', async () => {
       mockedApi.executeQuery.mockRejectedValue(new api.QueryCancelledError());
 
