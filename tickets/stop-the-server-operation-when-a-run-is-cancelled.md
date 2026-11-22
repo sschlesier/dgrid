@@ -6,7 +6,7 @@ priority: 3
 depends-on: [run-a-shell-script-through-mongosh-from-the-backend]
 parent:
 approved: "Scott Schlesier, 2026-11-16: Kill server work on cancel for queries, exports and shell runs; wait up to 5 s; warn the user if the stop fails; backend sets the shell appName. Cold read: blocked on one question (shell appName: mongosh's URI parser only loads inside the repo), answered and folded in"
-status: in-review
+status: done
 ---
 
 When a user cancels a query, a CSV export or a shell run, dgrid also stops the operation still running on the MongoDB server. If it can't stop it, dgrid warns the user that the operation may still be running.
@@ -34,16 +34,16 @@ Found in review of the shell backend spec (PR #53), where the person asked for a
 
 ## Acceptance criteria
 
-- [ ] Cancelling, by tab id, an `execute_query` running a slow non-JavaScript write (see Verification) makes it fail with `DgridError::QueryCancelled`. Within 2 s after it returns, the written document count stops changing, stays below the total, and `$currentOp` shows no operation on that namespace.
+- [x] Cancelling, by tab id, an `execute_query` running a slow non-JavaScript write (see Verification) makes it fail with `DgridError::QueryCancelled`. Within 2 s after it returns, the written document count stops changing, stays below the total, and `$currentOp` shows no operation on that namespace.
 - [ ] The same holds for a slow aggregation run through `execute_query`: after cancel, `$currentOp` shows no operation on that namespace.
-- [ ] Cancelling an `export_csv` whose query is slow per batch makes it fail with `QueryCancelled` within 1 s of the cancel, even while it waits for a batch. Afterwards `$currentOp` shows no operation on that namespace.
-- [ ] Cancelling an `execute_shell` run whose script runs the same slow write gives the same result as for queries: `QueryCancelled`, the count stops below the total, no operation left. The existing criterion still holds: no mongosh child of the app is left running.
-- [ ] While a shell run is in progress, the server reports its connection's `appName` as `dgrid-shell-<uuid>`, unique per run, even when the connection URI sets its own `appName`. mongosh runs with the run's temp directory as its working directory.
-- [ ] If stopping the server operation fails or gets no answer within 5 s, the cancelled query, export or shell run fails with `DgridError::CancelledServerStillRunning`, no later than 5 s after the cancel. Its message is `Cancelled, but the server operation may still be running: <reason>`.
-- [ ] For that error, `executeQuery` and `executeShell` in `src/api/client.ts` throw a `QueryCancelledError` whose `serverWarning` is the message. For a normal cancel, `serverWarning` is `null`.
-- [ ] A query run or Run All cancelled with a `serverWarning` shows a warning notification with that text. A run cancelled without one shows nothing, as today.
-- [ ] An export cancelled with that error resets the export state like a normal cancel and shows a warning notification with the message.
-- [ ] Runs that are not cancelled behave as before: the existing Rust and Vitest tests, and the E2E specs for query execution, multi-query, results views, field editing and export, pass.
+- [x] Cancelling an `export_csv` whose query is slow per batch makes it fail with `QueryCancelled` within 1 s of the cancel, even while it waits for a batch. Afterwards `$currentOp` shows no operation on that namespace.
+- [x] Cancelling an `execute_shell` run whose script runs the same slow write gives the same result as for queries: `QueryCancelled`, the count stops below the total, no operation left. The existing criterion still holds: no mongosh child of the app is left running.
+- [x] While a shell run is in progress, the server reports its connection's `appName` as `dgrid-shell-<uuid>`, unique per run, even when the connection URI sets its own `appName`. mongosh runs with the run's temp directory as its working directory.
+- [x] If stopping the server operation fails or gets no answer within 5 s, the cancelled query, export or shell run fails with `DgridError::CancelledServerStillRunning`, no later than 5 s after the cancel. Its message is `Cancelled, but the server operation may still be running: <reason>`.
+- [x] For that error, `executeQuery` and `executeShell` in `src/api/client.ts` throw a `QueryCancelledError` whose `serverWarning` is the message. For a normal cancel, `serverWarning` is `null`.
+- [x] A query run or Run All cancelled with a `serverWarning` shows a warning notification with that text. A run cancelled without one shows nothing, as today.
+- [x] An export cancelled with that error resets the export state like a normal cancel and shows a warning notification with the message.
+- [x] Runs that are not cancelled behave as before: the existing Rust and Vitest tests, and the E2E specs for query execution, multi-query, results views, field editing and export, pass.
 
 ## Verification
 
@@ -114,3 +114,4 @@ Found in review of the shell backend spec (PR #53), where the person asked for a
 - 2026-11-21: Review round 1 decisions (Scott, 2026-11-21): accepted the shell 5 s bound starting after the mongosh child is killed (Design order kept); accepted the export inner-cancel kill (84e7137) without a test. Asked again: sessions-unsupported servers and the failed-kill session (mark_dirty is crate-private in the driver).
 - 2026-11-21: Review round 1 decision (Scott, 2026-11-21): servers without session support keep failing, with a clear message ('This server does not support sessions, which dgrid needs to cancel queries.'); no session-less fallback (the driver's .session() takes only a real session, so a fallback would duplicate about 35 call sites). Design unchanged.
 - 2026-11-21: Review round 1 decision (Scott, 2026-11-21): a cancelled run whose kill failed or timed out keeps its session out of the driver's pool: a background task holds it and retries killSessions every 2 s for up to 30 s, then drops it. (mark_dirty is crate-private; mem::forget would keep the connection's Client alive after disconnect.)
+- 2026-11-21: Status: done: Reviewed round 1: accepted with concerns. Criterion 2 (and the 'no operation left' half of 3) cannot prove the kill for reads on mongod 9.0.4, per the 2026-11-21 decision; kills under access control and through mongos unverified; shell 5 s bound starts after mongosh is killed (accepted); export inner-cancel kill (84e7137) untested (accepted); commits 1c53b62 and 968f7cc not cold-verified.
