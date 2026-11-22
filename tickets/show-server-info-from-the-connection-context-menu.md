@@ -29,7 +29,7 @@ The sidebar context menu for a connection node (`getContextMenuItems`, `src/comp
 - [x] If every command fails, the dialog shows the error and no empty sections.
 - [x] The dialog closes on Escape, on overlay click and on its Close button.
 - [x] A Rust unit test covers building the response from sample `buildInfo`/`serverStatus`/`hello` documents, including a missing field and a failed section.
-- [ ] An E2E test connects to the test MongoDB, opens Server Info from the context menu and sees the server's version.
+- [x] An E2E test connects to the test MongoDB, opens Server Info from the context menu and sees the server's version.
 
 ## Verification
 
