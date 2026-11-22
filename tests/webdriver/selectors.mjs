@@ -123,6 +123,12 @@ export const selectors = {
     separator: () => $('.context-menu-separator'),
   },
 
+  serverInfoDialog: {
+    dialog: () => $('.server-info-dialog'),
+    version: () => $('[data-testid="server-info-version"]'),
+    closeButton: () => $('[data-testid="server-info-close"]'),
+  },
+
   confirmDialog: {
     overlay: () => $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Delete Document']]`),
     confirmButton: () => $(`//div[contains(@class, "dialog-overlay")][.//h2[normalize-space(.)='Delete Document']]//button[normalize-space(.)='Delete']`),

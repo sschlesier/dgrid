@@ -6,7 +6,7 @@ import {
   resetApp,
   s,
 } from '../helpers.mjs';
-import { cleanupDatabase, readRuntimeInfo, seedDatabase } from '../runtime.mjs';
+import { cleanupDatabase, getServerVersion, readRuntimeInfo, seedDatabase } from '../runtime.mjs';
 
 const TEST_DB = 'e2e_ctx_menu_test';
 const TEST_COLLECTION = 'users';
@@ -117,6 +117,29 @@ describe('Sidebar Context Menu', () => {
     expect(labels).toContain('Disconnect');
     expect(labels).toContain('Delete Connection');
     await expect(s.contextMenu.separator()).toBeDisplayed();
+  });
+
+  it('does not offer Server Info for a disconnected connection', async () => {
+    const connectionName = await createSidebarConnection();
+
+    await openContextMenuOnElement(await s.sidebar.treeItem(connectionName));
+
+    expect(await getMenuLabels()).not.toContain('Server Info');
+  });
+
+  it('shows the server version from the Server Info dialog', async () => {
+    const connectionName = await createConnectedSidebarConnection();
+    const expectedVersion = await getServerVersion();
+
+    await openContextMenuOnElement(await s.sidebar.treeItem(connectionName));
+    await (await s.contextMenu.item('Server Info')).click();
+
+    await expect(s.serverInfoDialog.dialog()).toBeDisplayed();
+    await expect(s.serverInfoDialog.version()).toHaveText(expectedVersion);
+    await expect(s.serverInfoDialog.dialog()).not.toHaveText(expect.stringContaining('Unavailable'));
+
+    await (await s.serverInfoDialog.closeButton()).click();
+    await expect(s.serverInfoDialog.dialog()).not.toExist();
   });
 
   it('disconnects from the server via the context menu', async () => {

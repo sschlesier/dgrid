@@ -48,6 +48,17 @@ export interface DatabaseInfo {
   empty: boolean;
 }
 
+export interface ServerInfoSection {
+  data?: Record<string, unknown>;
+  error?: string;
+}
+
+export interface ServerInfoResponse {
+  build: ServerInfoSection;
+  runtime: ServerInfoSection;
+  topology: ServerInfoSection;
+}
+
 export interface CollectionInfo {
   name: string;
   type: 'collection' | 'view';
