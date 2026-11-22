@@ -57,7 +57,6 @@ pub async fn run_query(
     token: &CancellationToken,
 ) -> Result<ExecuteQueryResponse, DgridError> {
     let mut session = server_stop::start_session(db).await?;
-    let session_id = session.id().clone();
 
     let finished = tokio::select! {
         result = executor::execute_query(db, &mut session, query, options) => Some(result),
@@ -66,13 +65,7 @@ pub async fn run_query(
 
     match finished {
         Some(result) => result.map_err(DgridError::QueryExecution),
-        None => {
-            let client = db.client();
-            Err(
-                server_stop::finish_cancel(server_stop::kill_sessions(client, vec![session_id]))
-                    .await,
-            )
-        }
+        None => Err(server_stop::cancel_session(db.client(), session).await),
     }
 }
 

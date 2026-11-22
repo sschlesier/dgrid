@@ -32,6 +32,50 @@ where
     }
 }
 
+/// How long a session whose kill failed is kept out of the driver's pool while the kill is
+/// retried, and how long to wait between tries.
+const HOLD_FAILED_KILL: Duration = Duration::from_secs(30);
+const RETRY_FAILED_KILL_EVERY: Duration = Duration::from_secs(2);
+
+/// Stop a cancelled run's session on the server and return the error the run ends with. When
+/// the stop failed, the session is held and its kill retried in the background for a while:
+/// dropping it at once would put its id back in the driver's pool while the operation may
+/// still be running under it, for the next run to reuse.
+pub async fn cancel_session(client: &Client, session: ClientSession) -> DgridError {
+    let session_id = session.id().clone();
+    let error = finish_cancel(kill_sessions(client, vec![session_id.clone()])).await;
+    if matches!(error, DgridError::CancelledServerStillRunning(_)) {
+        let client = client.clone();
+        tokio::spawn(hold_until_killed(
+            session,
+            move || {
+                let client = client.clone();
+                let session_id = session_id.clone();
+                async move { kill_sessions(&client, vec![session_id]).await }
+            },
+            HOLD_FAILED_KILL,
+            RETRY_FAILED_KILL_EVERY,
+        ));
+    }
+    error
+}
+
+/// Keep `session` until `kill` succeeds or `hold` has passed, trying every `every`; then
+/// drop it.
+async fn hold_until_killed<S, F, Fut>(session: S, mut kill: F, hold: Duration, every: Duration)
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<(), String>>,
+{
+    let retry = async {
+        while kill().await.is_err() {
+            tokio::time::sleep(every).await;
+        }
+    };
+    let _ = tokio::time::timeout(hold, retry).await;
+    drop(session);
+}
+
 /// Start the driver session a run executes in. Causal consistency is off, so reads behave
 /// as they do with the driver's implicit sessions.
 pub async fn start_session(db: &Database) -> Result<ClientSession, DgridError> {
@@ -213,6 +257,63 @@ mod tests {
         let err = session_start_error(driver_error);
 
         assert_eq!(err.to_string(), expected);
+    }
+
+    /// Flags when it is dropped, standing in for a session.
+    struct Held(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+    impl Drop for Held {
+        fn drop(&mut self) {
+            self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_session_is_held_while_its_kill_keeps_failing_and_dropped_at_the_limit() {
+        let dropped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let task = tokio::spawn(hold_until_killed(
+            Held(dropped.clone()),
+            || async { Err("unreachable".to_string()) },
+            Duration::from_secs(30),
+            Duration::from_secs(2),
+        ));
+
+        tokio::time::sleep(Duration::from_secs(29)).await;
+        assert!(!dropped.load(std::sync::atomic::Ordering::SeqCst));
+
+        task.await.unwrap();
+        assert!(dropped.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_session_is_dropped_once_a_retry_of_its_kill_succeeds() {
+        let dropped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let attempts = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let start = tokio::time::Instant::now();
+
+        hold_until_killed(
+            Held(dropped.clone()),
+            {
+                let attempts = attempts.clone();
+                move || {
+                    let n = attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    async move {
+                        if n < 2 {
+                            Err("not yet".to_string())
+                        } else {
+                            Ok(())
+                        }
+                    }
+                }
+            },
+            Duration::from_secs(30),
+            Duration::from_secs(2),
+        )
+        .await;
+
+        assert!(dropped.load(std::sync::atomic::Ordering::SeqCst));
+        assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 3);
+        assert_eq!(start.elapsed(), Duration::from_secs(4));
     }
 
     #[tokio::test]

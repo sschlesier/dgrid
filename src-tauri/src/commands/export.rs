@@ -260,7 +260,6 @@ pub async fn run_export(
     progress: impl FnMut(ExportProgress),
 ) -> Result<u64, DgridError> {
     let mut session = server_stop::start_session(db).await?;
-    let session_id = session.id().clone();
 
     let finished = tokio::select! {
         result = export_csv_inner(db, &mut session, query, file_path, tab_id, token, progress) => Some(result),
@@ -270,10 +269,9 @@ pub async fn run_export(
     // The inner function also checks the token between documents, so a cancel can end it
     // before the select above notices: that is still a cancel and needs the kill.
     match finished {
-        Some(Err(DgridError::QueryCancelled)) | None => Err(server_stop::finish_cancel(
-            server_stop::kill_sessions(db.client(), vec![session_id]),
-        )
-        .await),
+        Some(Err(DgridError::QueryCancelled)) | None => {
+            Err(server_stop::cancel_session(db.client(), session).await)
+        }
         Some(result) => result,
     }
 }
