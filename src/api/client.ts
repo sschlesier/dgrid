@@ -9,6 +9,7 @@ import type {
   TestConnectionResponse,
   ConnectRequest,
   DatabaseInfo,
+  ServerInfoResponse,
   CollectionInfo,
   IndexInfo,
   CollectionSchemaResponse,
@@ -221,6 +222,14 @@ export async function disconnectFromConnection(id: string): Promise<ConnectionRe
 export async function getDatabases(connectionId: string): Promise<DatabaseInfo[]> {
   try {
     return await invoke<DatabaseInfo[]>('get_databases', { id: connectionId });
+  } catch (e) {
+    throw wrapInvokeError(e);
+  }
+}
+
+export async function getServerInfo(connectionId: string): Promise<ServerInfoResponse> {
+  try {
+    return await invoke<ServerInfoResponse>('get_server_info', { id: connectionId });
   } catch (e) {
     throw wrapInvokeError(e);
   }

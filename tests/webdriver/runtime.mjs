@@ -34,6 +34,12 @@ export async function seedDatabase(database, collection, documents) {
   await client.db(database).collection(collection).insertMany(documents);
 }
 
+export async function getServerVersion() {
+  const client = await getMongoClient();
+  const info = await client.db('admin').command({ buildInfo: 1 });
+  return info.version;
+}
+
 export async function cleanupDatabase(database) {
   const client = await getMongoClient();
   try {

@@ -4,6 +4,7 @@
   import { appStore } from '../stores/app.svelte';
   import TreeNode from './TreeNode.svelte';
   import ContextMenu from './ContextMenu.svelte';
+  import ServerInfoDialog from './ServerInfoDialog.svelte';
   import CollectionTooltip from './CollectionTooltip.svelte';
   import IndexTooltip from './IndexTooltip.svelte';
   import type { TreeNodeData } from '../types';
@@ -261,6 +262,7 @@
   }
 
   let contextMenu = $state<ContextMenuState | null>(null);
+  let serverInfoTarget = $state<{ id: string; name: string } | null>(null);
 
   function handleNodeContextMenu(node: TreeNodeData, event: MouseEvent) {
     tooltip = null;
@@ -288,6 +290,13 @@
             onclick: () => {
               contextMenu = null;
               appStore.refreshDatabases(node.connectionId!);
+            },
+          });
+          items.push({
+            label: 'Server Info',
+            onclick: () => {
+              contextMenu = null;
+              serverInfoTarget = { id: node.connectionId!, name: connection.name };
             },
           });
           items.push({
@@ -553,6 +562,14 @@
     y={contextMenu.y}
     items={contextMenuItems}
     onclose={() => (contextMenu = null)}
+  />
+{/if}
+
+{#if serverInfoTarget}
+  <ServerInfoDialog
+    connectionId={serverInfoTarget.id}
+    connectionName={serverInfoTarget.name}
+    onclose={() => (serverInfoTarget = null)}
   />
 {/if}
 
