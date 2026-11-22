@@ -6,7 +6,7 @@ priority: P2
 depends-on: []
 parent:
 approved: "Scott Schlesier, 2026-11-16: Server Info dialog from the connection context menu: version first, then build, runtime and topology sections. Cold read: pass: no blocking gaps"
-status: in-review
+status: done
 ---
 
 Right-clicking a connected server in the sidebar offers "Server Info", which opens a dialog showing the MongoDB version prominently and the other standard server details MongoDB reports.
@@ -61,3 +61,5 @@ The sidebar context menu for a connection node (`getContextMenuItems`, `src/comp
 - 2026-11-21: Status: in-review
 - 2026-11-21: Review round 1: added component tests (loading, Unavailable, all-failed, Escape/overlay/Close) and formatter tests; E2E now asserts no Unavailable section against the test server.
 - 2026-11-21: Review round 1: dismissed missing get_server_info NotFound/integration test (same pattern as get_databases, no test there either); dismissed Escape reaching other window handlers (same pattern as ConfirmDialog).
+- 2026-11-21: Review round 1 decisions (Scott): keep blank rows for empty values; buildEnvironment shows target_os and target_arch only; all-failed shows every distinct error; no timeout on the commands (accepted risk); version not repeated in Build. Note: first E2E test of a cold run can flake on the New Connection dialog (existing createConnection helper, not this change).
+- 2026-11-21: Status: done: Reviewed round 1: criteria verified by Rust, Vitest component and E2E tests; open decisions answered; manual db.version() check not run
