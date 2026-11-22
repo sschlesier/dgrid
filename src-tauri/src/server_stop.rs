@@ -39,7 +39,19 @@ pub async fn start_session(db: &Database) -> Result<ClientSession, DgridError> {
         .start_session()
         .causal_consistency(false)
         .await
-        .map_err(|e| DgridError::QueryExecution(e.to_string()))
+        .map_err(session_start_error)
+}
+
+/// A server that can't give out sessions can't run cancellable queries; say so instead of
+/// showing the driver's wording.
+fn session_start_error(error: mongodb::error::Error) -> DgridError {
+    if matches!(*error.kind, mongodb::error::ErrorKind::SessionsNotSupported) {
+        return DgridError::QueryExecution(
+            "This server does not support sessions, which dgrid needs to cancel queries."
+                .to_string(),
+        );
+    }
+    DgridError::QueryExecution(error.to_string())
 }
 
 /// Kill the given server sessions. Each item is a session id document (`{ id: <UUID> }`).
@@ -182,6 +194,26 @@ pub mod test_support {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_server_without_sessions_gets_a_clear_error() {
+        let err = session_start_error(mongodb::error::ErrorKind::SessionsNotSupported.into());
+
+        assert_eq!(
+            err.to_string(),
+            "This server does not support sessions, which dgrid needs to cancel queries."
+        );
+    }
+
+    #[test]
+    fn another_session_error_keeps_the_drivers_message() {
+        let driver_error: mongodb::error::Error = mongodb::error::ErrorKind::Shutdown.into();
+        let expected = driver_error.to_string();
+
+        let err = session_start_error(driver_error);
+
+        assert_eq!(err.to_string(), expected);
+    }
 
     #[tokio::test]
     async fn a_stop_that_succeeds_ends_the_run_as_cancelled() {
