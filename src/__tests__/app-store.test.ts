@@ -725,3 +725,17 @@ describe('appStore', () => {
     });
   });
 });
+
+describe('appStore — dgrid:notify events', () => {
+  beforeEach(() => {
+    appStore.notifications = [];
+  });
+
+  it('shows the notification a store asks for through a window event', () => {
+    window.dispatchEvent(
+      new CustomEvent('dgrid:notify', { detail: { type: 'warning', message: 'Look here' } })
+    );
+
+    expect(appStore.notifications).toMatchObject([{ type: 'warning', message: 'Look here' }]);
+  });
+});

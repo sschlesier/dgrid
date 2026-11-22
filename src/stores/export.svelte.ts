@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { save } from '@tauri-apps/plugin-dialog';
 import { parseQuery } from '../lib/queries.js';
-import { ApiError } from '../api/client';
+import { ApiError, SERVER_STILL_RUNNING_PREFIX, isRunCancelled } from '../api/client';
 import { appStore } from './app.svelte';
 import type { ExportCsvStringResponse } from '../lib/contracts';
 
@@ -139,8 +139,11 @@ class ExportStore {
       });
     } catch (err) {
       // Check if this was a cancellation
-      if (typeof err === 'string' && err.includes('cancelled')) {
+      if (isRunCancelled(err)) {
         this.setState(tabId, { ...DEFAULT_STATE });
+        if (err.startsWith(SERVER_STILL_RUNNING_PREFIX)) {
+          appStore.notify('warning', err);
+        }
         return;
       }
 
