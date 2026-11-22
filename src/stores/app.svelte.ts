@@ -114,6 +114,13 @@ class AppStore {
         this.notify('warning', 'Connection lost — the server may be unreachable');
       }
     }) as EventListener);
+
+    // Notifications requested by stores that can't import this one (avoids circular import)
+    window.addEventListener('dgrid:notify', ((
+      e: CustomEvent<{ type: 'warning'; message: string }>
+    ) => {
+      this.notify(e.detail.type, e.detail.message);
+    }) as EventListener);
   }
 
   // Derived state
@@ -803,16 +810,14 @@ class AppStore {
                                 connectionId: connection.id,
                                 databaseName: db.name,
                                 collectionName: coll.name,
-                                children: collIndexes.map(
-                                  (idx): TreeNodeData => ({
-                                    id: `idx:${connection.id}:${db.name}:${coll.name}:${idx.name}`,
-                                    type: 'index',
-                                    label: idx.name,
-                                    connectionId: connection.id,
-                                    databaseName: db.name,
-                                    collectionName: coll.name,
-                                  })
-                                ),
+                                children: collIndexes.map((idx): TreeNodeData => ({
+                                  id: `idx:${connection.id}:${db.name}:${coll.name}:${idx.name}`,
+                                  type: 'index',
+                                  label: idx.name,
+                                  connectionId: connection.id,
+                                  databaseName: db.name,
+                                  collectionName: coll.name,
+                                })),
                               },
                             ]
                           : undefined,
@@ -826,16 +831,14 @@ class AppStore {
                     count: views.length,
                     connectionId: connection.id,
                     databaseName: db.name,
-                    children: views.map(
-                      (view): TreeNodeData => ({
-                        id: `view:${connection.id}:${db.name}:${view.name}`,
-                        type: 'view',
-                        label: view.name,
-                        connectionId: connection.id,
-                        databaseName: db.name,
-                        collectionName: view.name,
-                      })
-                    ),
+                    children: views.map((view): TreeNodeData => ({
+                      id: `view:${connection.id}:${db.name}:${view.name}`,
+                      type: 'view',
+                      label: view.name,
+                      connectionId: connection.id,
+                      databaseName: db.name,
+                      collectionName: view.name,
+                    })),
                   },
                 ],
               };

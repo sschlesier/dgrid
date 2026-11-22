@@ -62,10 +62,30 @@ function wrapInvokeError(error: unknown): ApiError {
  * Cancellable query error
  */
 export class QueryCancelledError extends Error {
-  constructor() {
+  /** Set when the server operation may still be running after the cancel; else null. */
+  readonly serverWarning: string | null;
+
+  constructor(serverWarning: string | null = null) {
     super('Query was cancelled');
     this.name = 'QueryCancelledError';
+    this.serverWarning = serverWarning;
   }
+}
+
+/** Start of the backend's message when a cancelled run could not be stopped on the server. */
+export const SERVER_STILL_RUNNING_PREFIX =
+  'Cancelled, but the server operation may still be running';
+
+/** True for the backend's cancel messages: a plain cancel, or one whose server stop failed. */
+export function isRunCancelled(error: unknown): error is string {
+  return (
+    typeof error === 'string' &&
+    (error.includes('cancelled') || error.startsWith(SERVER_STILL_RUNNING_PREFIX))
+  );
+}
+
+function toQueryCancelledError(message: string): QueryCancelledError {
+  return new QueryCancelledError(message.startsWith(SERVER_STILL_RUNNING_PREFIX) ? message : null);
 }
 
 export class ConnectCancelledError extends Error {
@@ -334,8 +354,8 @@ export async function executeQuery(
       },
     });
   } catch (error) {
-    if (typeof error === 'string' && error.includes('cancelled')) {
-      throw new QueryCancelledError();
+    if (isRunCancelled(error)) {
+      throw toQueryCancelledError(error);
     }
     throw wrapInvokeError(error);
   }
@@ -351,8 +371,8 @@ export async function executeShell(
       request,
     });
   } catch (error) {
-    if (typeof error === 'string' && error.includes('cancelled')) {
-      throw new QueryCancelledError();
+    if (isRunCancelled(error)) {
+      throw toQueryCancelledError(error);
     }
     throw wrapInvokeError(error);
   }

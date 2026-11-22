@@ -475,6 +475,33 @@ describe('API client', () => {
       ).rejects.toThrow(QueryCancelledError);
     });
 
+    it('executeQuery carries the server warning when the stop failed', async () => {
+      mockInvoke.mockRejectedValueOnce(
+        'Cancelled, but the server operation may still be running: no answer within 5 s'
+      );
+
+      const error = await executeQuery('conn1', {
+        query: 'db.users.find({})',
+        database: 'test',
+      }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(QueryCancelledError);
+      expect((error as QueryCancelledError).serverWarning).toBe(
+        'Cancelled, but the server operation may still be running: no answer within 5 s'
+      );
+    });
+
+    it('executeQuery has no server warning for a normal cancel', async () => {
+      mockInvoke.mockRejectedValueOnce('Query was cancelled');
+
+      const error = await executeQuery('conn1', {
+        query: 'db.users.find({})',
+        database: 'test',
+      }).catch((e: unknown) => e);
+
+      expect((error as QueryCancelledError).serverWarning).toBeNull();
+    });
+
     it('executeQuery passes tabId in request', async () => {
       const queryResult = {
         documents: [],
@@ -522,6 +549,31 @@ describe('API client', () => {
       await expect(
         executeShell('conn1', { script: 'sleep(1000)', database: 'test' })
       ).rejects.toThrow(QueryCancelledError);
+    });
+
+    it('executeShell carries the server warning when the stop failed', async () => {
+      mockInvoke.mockRejectedValueOnce(
+        'Cancelled, but the server operation may still be running: no answer within 5 s'
+      );
+
+      const error = await executeShell('conn1', { script: 'sleep(1000)', database: 'test' }).catch(
+        (e: unknown) => e
+      );
+
+      expect(error).toBeInstanceOf(QueryCancelledError);
+      expect((error as QueryCancelledError).serverWarning).toBe(
+        'Cancelled, but the server operation may still be running: no answer within 5 s'
+      );
+    });
+
+    it('executeShell has no server warning for a normal cancel', async () => {
+      mockInvoke.mockRejectedValueOnce('Query was cancelled');
+
+      const error = await executeShell('conn1', { script: 'sleep(1000)', database: 'test' }).catch(
+        (e: unknown) => e
+      );
+
+      expect((error as QueryCancelledError).serverWarning).toBeNull();
     });
 
     it('executeShell wraps other failures as ApiError', async () => {

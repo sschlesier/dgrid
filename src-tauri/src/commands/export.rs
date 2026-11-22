@@ -1,6 +1,7 @@
 use std::io::Write;
 
 use mongodb::bson::Document;
+use mongodb::{ClientSession, SessionCursor};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 use tokio_util::sync::CancellationToken;
@@ -10,6 +11,7 @@ use crate::cancellation;
 use crate::csv;
 use crate::error::DgridError;
 use crate::executor::{CollectionOperation, ParsedCollectionQuery, ParsedQuery};
+use crate::server_stop;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -100,9 +102,11 @@ pub async fn export_csv_to_string(
         })?;
 
     let collection = db.collection::<Document>(&collection_query.collection);
+    let mut session = server_stop::start_session(&db).await?;
 
     // Open cursor
-    let mut cursor = open_cursor(&collection, collection_query).await?;
+    let mut cursor = open_cursor(&collection, &mut session, collection_query).await?;
+    let mut cursor = cursor.stream(&mut session);
 
     // Buffer first batch for column detection
     let mut buffer: Vec<Document> = Vec::new();
@@ -199,13 +203,15 @@ pub async fn export_csv(
 
     let token = cancellation::register(&state.cancellation_tokens, Some(&request.tab_id)).await;
 
-    let result = export_csv_inner(
-        &app,
+    let result = run_export(
         &db,
         collection_query,
         &request.file_path,
         &request.tab_id,
         &token,
+        |progress| {
+            let _ = app.emit("export-progress", progress);
+        },
     )
     .await;
 
@@ -242,37 +248,64 @@ pub async fn cancel_export(state: State<'_, AppState>, tab_id: String) -> Result
     Ok(())
 }
 
-async fn export_csv_inner(
-    app: &AppHandle,
+/// Export `query` to `file_path` in its own driver session, reporting progress through
+/// `progress`. When `token` is cancelled first, the export is dropped at once, even in the
+/// middle of a slow batch, and its session is killed on the server.
+pub async fn run_export(
     db: &mongodb::Database,
     query: &ParsedCollectionQuery,
     file_path: &str,
     tab_id: &str,
     token: &CancellationToken,
+    progress: impl FnMut(ExportProgress),
+) -> Result<u64, DgridError> {
+    let mut session = server_stop::start_session(db).await?;
+
+    let finished = tokio::select! {
+        result = export_csv_inner(db, &mut session, query, file_path, tab_id, token, progress) => Some(result),
+        _ = token.cancelled() => None,
+    };
+
+    // The inner function also checks the token between documents, so a cancel can end it
+    // before the select above notices: that is still a cancel and needs the kill.
+    match finished {
+        Some(Err(DgridError::QueryCancelled)) | None => {
+            Err(server_stop::cancel_session(db.client(), session).await)
+        }
+        Some(result) => result,
+    }
+}
+
+async fn export_csv_inner(
+    db: &mongodb::Database,
+    session: &mut ClientSession,
+    query: &ParsedCollectionQuery,
+    file_path: &str,
+    tab_id: &str,
+    token: &CancellationToken,
+    mut progress: impl FnMut(ExportProgress),
 ) -> Result<u64, DgridError> {
     let collection = db.collection::<Document>(&query.collection);
 
     // Get total count for progress
-    let total_count = get_total_count(&collection, query).await?;
+    let total_count = get_total_count(&collection, session, query).await?;
 
     if total_count == 0 {
         // Write empty file
         std::fs::write(file_path, "").map_err(|e| DgridError::Storage(e.to_string()))?;
-        let _ = app.emit(
-            "export-progress",
-            ExportProgress {
-                tab_id: tab_id.to_string(),
-                exported_count: 0,
-                total_count: 0,
-                done: true,
-                error: None,
-            },
-        );
+        progress(ExportProgress {
+            tab_id: tab_id.to_string(),
+            exported_count: 0,
+            total_count: 0,
+            done: true,
+            error: None,
+        });
         return Ok(0);
     }
 
     // Open cursor
-    let mut cursor = open_cursor(&collection, query).await?;
+    let mut cursor = open_cursor(&collection, session, query).await?;
+    let mut cursor = cursor.stream(&mut *session);
 
     // Buffer first batch for column detection
     let mut buffer: Vec<Document> = Vec::new();
@@ -291,16 +324,13 @@ async fn export_csv_inner(
 
     if buffer.is_empty() {
         std::fs::write(file_path, "").map_err(|e| DgridError::Storage(e.to_string()))?;
-        let _ = app.emit(
-            "export-progress",
-            ExportProgress {
-                tab_id: tab_id.to_string(),
-                exported_count: 0,
-                total_count: 0,
-                done: true,
-                error: None,
-            },
-        );
+        progress(ExportProgress {
+            tab_id: tab_id.to_string(),
+            exported_count: 0,
+            total_count: 0,
+            done: true,
+            error: None,
+        });
         return Ok(0);
     }
 
@@ -330,16 +360,13 @@ async fn export_csv_inner(
     }
 
     // Emit initial progress
-    let _ = app.emit(
-        "export-progress",
-        ExportProgress {
-            tab_id: tab_id.to_string(),
-            exported_count,
-            total_count: total_count as u64,
-            done: false,
-            error: None,
-        },
-    );
+    progress(ExportProgress {
+        tab_id: tab_id.to_string(),
+        exported_count,
+        total_count: total_count as u64,
+        done: false,
+        error: None,
+    });
 
     // Stream remaining rows
     use futures_util::StreamExt;
@@ -355,36 +382,31 @@ async fn export_csv_inner(
 
         // Emit progress every 100 rows
         if exported_count.is_multiple_of(100) {
-            let _ = app.emit(
-                "export-progress",
-                ExportProgress {
-                    tab_id: tab_id.to_string(),
-                    exported_count,
-                    total_count: total_count as u64,
-                    done: false,
-                    error: None,
-                },
-            );
+            progress(ExportProgress {
+                tab_id: tab_id.to_string(),
+                exported_count,
+                total_count: total_count as u64,
+                done: false,
+                error: None,
+            });
         }
     }
 
     // Final progress event
-    let _ = app.emit(
-        "export-progress",
-        ExportProgress {
-            tab_id: tab_id.to_string(),
-            exported_count,
-            total_count: total_count as u64,
-            done: true,
-            error: None,
-        },
-    );
+    progress(ExportProgress {
+        tab_id: tab_id.to_string(),
+        exported_count,
+        total_count: total_count as u64,
+        done: true,
+        error: None,
+    });
 
     Ok(exported_count)
 }
 
 async fn get_total_count(
     collection: &mongodb::Collection<Document>,
+    session: &mut ClientSession,
     query: &ParsedCollectionQuery,
 ) -> Result<i64, DgridError> {
     match query.operation {
@@ -395,6 +417,7 @@ async fn get_total_count(
             };
             collection
                 .count_documents(filter)
+                .session(&mut *session)
                 .await
                 .map(|c| c as i64)
                 .map_err(|e| DgridError::Database(e.to_string()))
@@ -409,10 +432,13 @@ async fn get_total_count(
             pipeline.push(mongodb::bson::doc! { "$count": "total" });
 
             use futures_util::TryStreamExt;
-            let results: Vec<Document> = collection
+            let mut cursor = collection
                 .aggregate(pipeline)
+                .session(&mut *session)
                 .await
-                .map_err(|e| DgridError::Database(e.to_string()))?
+                .map_err(|e| DgridError::Database(e.to_string()))?;
+            let results: Vec<Document> = cursor
+                .stream(&mut *session)
                 .try_collect()
                 .await
                 .map_err(|e| DgridError::Database(e.to_string()))?;
@@ -434,8 +460,9 @@ async fn get_total_count(
 
 async fn open_cursor(
     collection: &mongodb::Collection<Document>,
+    session: &mut ClientSession,
     query: &ParsedCollectionQuery,
-) -> Result<mongodb::Cursor<Document>, DgridError> {
+) -> Result<SessionCursor<Document>, DgridError> {
     match query.operation {
         CollectionOperation::Find => {
             let filter = match &query.filter {
@@ -455,6 +482,7 @@ async fn open_cursor(
             collection
                 .find(filter)
                 .with_options(opts)
+                .session(&mut *session)
                 .await
                 .map_err(|e| DgridError::Database(e.to_string()))
         }
@@ -468,6 +496,7 @@ async fn open_cursor(
 
             collection
                 .aggregate(pipeline)
+                .session(&mut *session)
                 .await
                 .map_err(|e| DgridError::Database(e.to_string()))
         }
@@ -703,5 +732,61 @@ mod tests {
         let json = serde_json::to_value(&resp).unwrap();
         assert_eq!(json["truncated"], true);
         assert_eq!(json["exportedCount"], 1);
+    }
+
+    /// Cancel an export whose find filter is slow per batch. On mongod 9.0.4 a slow read
+    /// stops on its own when the client disconnects, so the final `ops_on` check does not
+    /// prove the kill; the timing check is what this test proves.
+    #[tokio::test]
+    #[ignore]
+    async fn killop_cancelled_slow_export_returns_at_once() {
+        use crate::server_stop::test_support::{
+            client, ops_on, seed, slow_never_filter, wait_for_op,
+        };
+        use mongodb::bson::Bson;
+        use std::time::{Duration, Instant};
+
+        let client = client().await;
+        let db = client.database("dgrid_killop_export_test");
+        seed(&db).await;
+        let ParsedQuery::Collection(query) =
+            serde_json::from_value::<ParsedQuery>(serde_json::json!({
+                "type": "collection",
+                "collection": "items",
+                "operation": "find",
+                "filter": Bson::Document(slow_never_filter()).into_relaxed_extjson(),
+            }))
+            .unwrap()
+        else {
+            panic!("not a collection query");
+        };
+        let file = std::env::temp_dir().join("dgrid_killop_export_test.csv");
+        let token = CancellationToken::new();
+        let mut events: Vec<ExportProgress> = Vec::new();
+
+        let cancelled_at = std::sync::Mutex::new(None);
+        let (result, _) = tokio::join!(
+            run_export(&db, &query, file.to_str().unwrap(), "tab", &token, |p| {
+                events.push(p)
+            }),
+            async {
+                wait_for_op(db.client(), "dgrid_killop_export_test.items").await;
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                *cancelled_at.lock().unwrap() = Some(Instant::now());
+                token.cancel();
+            }
+        );
+        let waited = cancelled_at.lock().unwrap().unwrap().elapsed();
+
+        assert!(
+            matches!(result, Err(DgridError::QueryCancelled)),
+            "{result:?}"
+        );
+        assert!(waited < Duration::from_secs(1), "took {waited:?} to return");
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        assert_eq!(ops_on(&client, "dgrid_killop_export_test.items").await, 0);
+
+        db.drop().await.unwrap();
+        let _ = std::fs::remove_file(file);
     }
 }

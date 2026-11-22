@@ -4,9 +4,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 vi.mock('../api/client', () => ({
   executeQuery: vi.fn(),
   QueryCancelledError: class extends Error {
-    constructor() {
+    serverWarning: string | null;
+    constructor(serverWarning: string | null = null) {
       super('Query was cancelled');
       this.name = 'QueryCancelledError';
+      this.serverWarning = serverWarning;
     }
   },
   ApiError: class extends Error {
@@ -172,6 +174,82 @@ describe('queryStore', () => {
       await queryStore.executeQuery('tab1', 'conn1', 'db', 'query', 2);
 
       expect(queryStore.history).toHaveLength(0);
+    });
+  });
+
+  describe('cancelled with the server operation still running', () => {
+    const warning =
+      'Cancelled, but the server operation may still be running: no answer within 5 s';
+    let notified: Array<{ type: string; message: string }>;
+    const onNotify = (e: Event) =>
+      notified.push((e as CustomEvent<{ type: string; message: string }>).detail);
+
+    beforeEach(() => {
+      notified = [];
+      window.addEventListener('dgrid:notify', onNotify);
+    });
+
+    afterEach(() => {
+      window.removeEventListener('dgrid:notify', onNotify);
+    });
+
+    it('warns after a single run is cancelled with a server warning', async () => {
+      mockedApi.executeQuery.mockRejectedValue(new api.QueryCancelledError(warning));
+
+      const result = await queryStore.executeQuery('tab1', 'conn1', 'testdb', 'db.users.find()');
+
+      expect(result).toBeNull();
+      expect(notified).toEqual([{ type: 'warning', message: warning }]);
+    });
+
+    it('shows nothing after a single run is cancelled normally', async () => {
+      mockedApi.executeQuery.mockRejectedValue(new api.QueryCancelledError());
+
+      await queryStore.executeQuery('tab1', 'conn1', 'testdb', 'db.users.find()');
+
+      expect(notified).toEqual([]);
+    });
+
+    it('warns after Run All is cancelled with a server warning', async () => {
+      mockedApi.executeQuery.mockRejectedValue(new api.QueryCancelledError(warning));
+
+      await queryStore.executeQueries('tab1', 'conn1', 'testdb', [
+        { text: 'db.a.find()', startLine: 0, endLine: 0, startOffset: 0, endOffset: 11 },
+        { text: 'db.b.find()', startLine: 1, endLine: 1, startOffset: 12, endOffset: 23 },
+      ]);
+
+      expect(notified).toEqual([{ type: 'warning', message: warning }]);
+    });
+
+    it('warns after paging one Run All result is cancelled with a server warning', async () => {
+      const slices = [
+        { text: 'db.a.find()', startLine: 0, endLine: 0, startOffset: 0, endOffset: 11 },
+        { text: 'db.b.find()', startLine: 1, endLine: 1, startOffset: 12, endOffset: 23 },
+      ];
+      mockedApi.executeQuery.mockResolvedValue({
+        documents: [],
+        page: 1,
+        pageSize: 50,
+        hasMore: false,
+        executionTimeMs: 1,
+      });
+      await queryStore.executeQueries('tab-sub', 'conn1', 'testdb', slices);
+      mockedApi.executeQuery.mockRejectedValue(new api.QueryCancelledError(warning));
+
+      await queryStore.loadPage('tab-sub', 'conn1', 'testdb', 'db.a.find()', 2, 50, false, 0);
+
+      expect(notified).toEqual([{ type: 'warning', message: warning }]);
+    });
+
+    it('shows nothing after Run All is cancelled normally', async () => {
+      mockedApi.executeQuery.mockRejectedValue(new api.QueryCancelledError());
+
+      await queryStore.executeQueries('tab1', 'conn1', 'testdb', [
+        { text: 'db.a.find()', startLine: 0, endLine: 0, startOffset: 0, endOffset: 11 },
+        { text: 'db.b.find()', startLine: 1, endLine: 1, startOffset: 12, endOffset: 23 },
+      ]);
+
+      expect(notified).toEqual([]);
     });
   });
 

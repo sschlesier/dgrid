@@ -9,6 +9,7 @@ mod executor;
 mod file_validation;
 mod keyring;
 mod pool;
+mod server_stop;
 mod shell;
 mod state;
 mod storage;
