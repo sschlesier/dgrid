@@ -136,6 +136,7 @@ describe('Sidebar Context Menu', () => {
 
     await expect(s.serverInfoDialog.dialog()).toBeDisplayed();
     await expect(s.serverInfoDialog.version()).toHaveText(expectedVersion);
+    await expect(s.serverInfoDialog.dialog()).not.toHaveText(expect.stringContaining('Unavailable'));
 
     await (await s.serverInfoDialog.closeButton()).click();
     await expect(s.serverInfoDialog.dialog()).not.toExist();
